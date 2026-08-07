@@ -1,11 +1,18 @@
 name: Deploy to GitHub Pages
 
+# Runs only after CI succeeds on main, never straight off a push.
+#
+# GitHub has no cross-workflow `needs`, so a push-triggered deploy publishes
+# whatever was pushed regardless of whether the tests passed. That is exactly
+# backwards for the one workflow that makes the build public. `workflow_run`
+# with a conclusion check is the only way to express the dependency.
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
     branches: [main]
+    types: [completed]
   workflow_dispatch:
 
-# Allow the workflow to publish to Pages.
 permissions:
   contents: read
   pages: write
@@ -17,15 +24,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Pages is deliberately disabled on this repository until the data owner
+  # answers what marking the real content carries. Without this gate the deploy
+  # fails on every push, and a workflow that is always red is a workflow nobody
+  # reads, which costs more than the check is worth. It skips with a reason
+  # instead, and starts working by itself the day Pages is turned on.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Pages is not enabled for this repository, so there is nothing to deploy. This is deliberate: publishing is gated on the data marking decision. Enable Pages to activate this workflow."
+          fi
+
   build:
+    needs: gate
+    if: >-
+      needs.gate.outputs.enabled == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run checks out the default branch, not the commit that
+          # triggered CI, so without this the deployed build is whatever main
+          # happens to be now rather than the commit the tests actually passed.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # public/data is generated and gitignored, so a fresh checkout has none
+      # and the build would ship an app with no data in it.
+      - run: node scripts/seed-data.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
