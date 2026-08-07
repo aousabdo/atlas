@@ -1,5 +1,5 @@
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
+  createContext, useCallback, useContext, useMemo, useState,
   type ReactNode,
 } from 'react'
 
@@ -22,8 +22,21 @@ export interface DataSource {
   kind: 'sample' | 'local'
   /** The sample bundle, or the name of the file the analyst chose. */
   label: string
-  /** Control marking read from the loaded files; null when they state none. */
+  /** The marking shown and exported; null when nothing states one. */
   marking: string | null
+  /**
+   * Who stated it. Absent means the files did, which is the old behaviour and
+   * the one every existing caller means.
+   */
+  markingSource?: 'files' | 'analyst'
+  /**
+   * What the files declared, kept even when the analyst overrode it.
+   *
+   * An override that replaced the file's own marking without showing it would
+   * be a silent edit to a control marking, which is the one thing a marking
+   * must never be.
+   */
+  declaredMarking?: string | null
 }
 
 export const SAMPLE_SOURCE: DataSource = {
@@ -92,21 +105,30 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     () => ({ provider: new StaticProvider(), source: SAMPLE_SOURCE }),
   )
 
+  // The exports read the marking from a module-level register rather than
+  // taking it as an argument, so a future export path cannot ship unmarked by
+  // forgetting to thread it through.
+  //
+  // Armed synchronously with the swap, NOT from an effect on state.source.
+  // As an effect there was a window, one commit wide, where the banner already
+  // said CONTROLLED and getExportMarking() still returned the previous value.
+  // The export buttons are live in that window, so a PNG fired inside it went
+  // out unmarked while the screen promised otherwise. That is the exact failure
+  // the marking exists to prevent, and a passive effect cannot close it: the
+  // register has to move in the same turn as the thing the user can see.
+  const armMarking = (source: DataSource) => {
+    setExportMarking(source.kind === 'local' ? source.marking ?? UNMARKED_NOTICE : null)
+  }
+
   const adopt = useCallback((provider: AtlasDataProvider, source: DataSource) => {
+    armMarking(source)
     setState({ provider, source })
   }, [])
 
   const useSampleData = useCallback(() => {
+    armMarking(SAMPLE_SOURCE)
     setState({ provider: new StaticProvider(), source: SAMPLE_SOURCE })
   }, [])
-
-  // The exports read the marking from a module-level register rather than
-  // taking it as an argument, so a future export path cannot ship unmarked by
-  // forgetting to thread it through. This is the one place that sets it.
-  useEffect(() => {
-    const { kind, marking } = state.source
-    setExportMarking(kind === 'local' ? marking ?? UNMARKED_NOTICE : null)
-  }, [state.source])
 
   const value = useMemo(
     () => ({ provider: state.provider, source: state.source, adopt, useSampleData }),

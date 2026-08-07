@@ -46,6 +46,16 @@ export function DataSourceBanner() {
         Local data from <span className="font-medium">{source.label}</span>. Parsed in
         this browser. Nothing was uploaded.
       </span>
+      {source.markingSource === 'analyst' && (
+        // An analyst can see a marking a file does not carry, so they outrank
+        // it. Saying so, and saying what was overridden, is what keeps that
+        // from being a silent edit to a control marking.
+        <span className="text-xs text-ink">
+          {source.declaredMarking
+            ? `Marking stated by the analyst. The loaded files declare ${source.declaredMarking}.`
+            : 'Marking stated by the analyst. The loaded files state none.'}
+        </span>
+      )}
       <button
         type="button"
         onClick={useSampleData}

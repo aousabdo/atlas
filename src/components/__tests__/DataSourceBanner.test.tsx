@@ -78,6 +78,38 @@ describe('DataSourceBanner', () => {
     expect(useSampleData).toHaveBeenCalledTimes(1)
   })
 
+  it('says a marking the analyst stated is theirs, not the files', () => {
+    renderBanner({
+      ...LOCAL,
+      marking: 'TEST//STATED',
+      markingSource: 'analyst',
+      declaredMarking: null,
+    })
+    const banner = screen.getByRole('status', { name: /data source/i })
+    expect(banner).toHaveTextContent('TEST//STATED')
+    expect(banner).toHaveTextContent(/stated by the analyst/i)
+    expect(banner).toHaveTextContent(/files state none/i)
+  })
+
+  it('shows the overridden marking alongside, so the override is never silent', () => {
+    renderBanner({
+      ...LOCAL,
+      marking: 'TEST//STATED',
+      markingSource: 'analyst',
+      declaredMarking: 'TEST//SYNTHETIC',
+    })
+    const banner = screen.getByRole('status', { name: /data source/i })
+    expect(banner).toHaveTextContent('TEST//STATED')
+    expect(banner).toHaveTextContent(/files declare TEST\/\/SYNTHETIC/i)
+  })
+
+  it('claims nothing about who stated a marking the files carried', () => {
+    renderBanner(LOCAL)
+    expect(screen.getByRole('status', { name: /data source/i })).not.toHaveTextContent(
+      /stated by the analyst/i,
+    )
+  })
+
   it('states that the file was parsed here and never uploaded', () => {
     renderBanner(LOCAL)
     expect(screen.getByRole('status', { name: /data source/i })).toHaveTextContent(

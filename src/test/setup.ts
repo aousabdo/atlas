@@ -3,7 +3,22 @@ import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
+import { afterEach, vi } from 'vitest'
+
+/**
+ * Unmount between tests. Nothing else was doing it.
+ *
+ * Without this, every render in a file accumulates in the same document, and
+ * assertions that name a thing there is exactly one of start finding two. It
+ * surfaced as an intermittent "Found multiple elements with the text" in the
+ * load-panel tests, roughly one run in ten, which reads as a race in the code
+ * under test and is nothing of the kind. Registered here rather than per file
+ * so a new test file cannot be written without it.
+ */
+afterEach(() => {
+  cleanup()
+})
 
 const DATA_DIR = join(process.cwd(), 'public', 'data')
 

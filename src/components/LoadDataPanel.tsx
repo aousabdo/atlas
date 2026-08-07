@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { LocalFileProvider, type LocalFileInputs } from '../data/LocalFileProvider'
-import { readMarking, useProviderSwitch } from '../data/ProviderContext'
+import { readMarking, UNMARKED_NOTICE, useProviderSwitch } from '../data/ProviderContext'
+import {
+  declaredSiteIds, resolveSiteId, SITE_ID_SOURCE_LABEL, slugify,
+  type ResolvedSiteId,
+} from '../lib/siteId'
 
 type SlotId = 'matrix' | 'overrides' | 'glossary' | 'systemDeviceMap'
 
@@ -46,25 +50,64 @@ const SLOTS: Slot[] = [
   },
 ]
 
-/**
- * The site id a topology file describes.
- *
- * Taken from the file name because the site id has to key the map before the
- * file is parsed, and the alternative is asking the analyst to type an id they
- * would have to get exactly right for the map to line up.
- */
-export function siteIdFromFileName(name: string): string {
-  return name
-    .replace(/\.[^.]+$/, '')
-    .replace(/[_-](network|topology|graph)$/i, '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
-
 function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
+}
+
+/**
+ * A topology file, with the site id it will load as.
+ *
+ * The id is resolved here rather than inside the provider because it has to be
+ * on screen and editable before the load commits. See src/lib/siteId.ts for
+ * why that ordering is the whole point.
+ */
+interface TopologyPick {
+  /**
+   * Identity for React, the DOM id and the edit callback.
+   *
+   * Not file.name. Two sites each exported as site_network.json from different
+   * folders collided on all three: editing one row edited both, so they could
+   * never be given distinct ids, and the duplicate guard then refused the load
+   * outright. Two inputs also shared a DOM id and an accessible name.
+   */
+  key: string
+  file: File
+  /** What the file itself suggested, kept so the panel can show its working. */
+  resolved: ResolvedSiteId
+  /** What will actually key the map. Starts at resolved.id and is editable. */
+  id: string
+  /** The classification the file declares, if any. */
+  declared: string | null
+}
+
+/** Best effort. A file that will not parse fails loudly later, in the parser. */
+async function readJsonQuietly(file: File): Promise<unknown> {
+  try {
+    return JSON.parse(await file.text()) as unknown
+  } catch {
+    return null
+  }
+}
+
+function declaredClassification(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const graph = (raw as { graph?: unknown }).graph
+  const value = graph && typeof graph === 'object'
+    ? (graph as { classification?: unknown }).classification
+    : undefined
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/**
+ * The marking the picked files declare between them.
+ *
+ * The same rule readMarking applies after the parse: distinct values are all
+ * shown rather than one of them being picked, because a reader is entitled to
+ * know the loaded set is mixed.
+ */
+function declaredMarkingOf(picks: TopologyPick[]): string | null {
+  const markings = new Set(picks.map((p) => p.declared).filter((m): m is string => !!m))
+  return markings.size ? [...markings].sort().join(' / ') : null
 }
 
 /**
@@ -96,7 +139,9 @@ export function LoadDataPanel() {
 function LoadDialog({ onClose }: { onClose: () => void }) {
   const { adopt } = useProviderSwitch()
   const [files, setFiles] = useState<Partial<Record<SlotId, File>>>({})
-  const [topologies, setTopologies] = useState<File[]>([])
+  const [topologies, setTopologies] = useState<TopologyPick[]>([])
+  const [expectedIds, setExpectedIds] = useState<string[]>([])
+  const [marking, setMarking] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -110,10 +155,102 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
+  /**
+   * The site ids the analyst's other files key by.
+   *
+   * Read here, before the load, because this is the only moment at which a
+   * topology that keys nothing can still be corrected. Afterwards it is a site
+   * with devices and no coverage, which reads as a finding.
+   */
+  const mapFile = files.systemDeviceMap
+  const overridesFile = files.overrides
+  useEffect(() => {
+    const sources = [mapFile, overridesFile].filter((f): f is File => !!f)
+    if (!sources.length) {
+      setExpectedIds([])
+      return
+    }
+    let cancelled = false
+    void Promise.all(sources.map(readJsonQuietly)).then((raws) => {
+      if (cancelled) return
+      const ids = new Set(raws.flatMap((raw) => declaredSiteIds(raw)))
+      setExpectedIds([...ids].sort())
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mapFile, overridesFile])
+
+  async function pickTopologies(picked: File[]) {
+    const picks = await Promise.all(
+      picked.map(async (file, index) => {
+        const raw = await readJsonQuietly(file)
+        const resolved = resolveSiteId(raw, file.name, expectedIds)
+        return {
+          key: `${index}:${file.name}`,
+          file,
+          resolved,
+          id: resolved.id,
+          declared: declaredClassification(raw),
+        }
+      }),
+    )
+    setTopologies(picks)
+  }
+
+  /**
+   * Held exactly as typed. Slugging happens at the boundary, in siteKey below.
+   *
+   * Slugging here instead looked right and was not: slugify strips a trailing
+   * separator, so "harbor_" became "harbor" mid-word and the next keystroke
+   * produced "harborp". A field that rewrites what you are still typing is
+   * unusable.
+   */
+  function setSiteId(key: string, id: string) {
+    setTopologies((current) =>
+      current.map((pick) => (pick.key === key ? { ...pick, id } : pick)),
+    )
+  }
+
+  /**
+   * The slug a pick actually loads under.
+   *
+   * The resolver slugs every id it produces, so a hand-typed one has to be
+   * slugged by the same rule or the two disagree. "Harbor Point" used to be
+   * accepted verbatim and key a site by a string no map contains, and with no
+   * map loaded nothing cross-checks it: the silent wrong answer this whole
+   * field exists to prevent.
+   */
+  const siteKey = (pick: TopologyPick) => slugify(pick.id)
+
+  const declared = useMemo(() => declaredMarkingOf(topologies), [topologies])
+
+  /** Two files under one id would silently drop one of them. */
+  const duplicateIds = useMemo(() => {
+    const seen = new Map<string, number>()
+    for (const pick of topologies) {
+      const key = siteKey(pick)
+      seen.set(key, (seen.get(key) ?? 0) + 1)
+    }
+    return [...seen.entries()].filter(([, n]) => n > 1).map(([id]) => id)
+  }, [topologies])
+
   async function load() {
     const matrix = files.matrix
     if (!matrix) {
       setError('Choose a Traceability Matrix first. Everything else is optional.')
+      return
+    }
+    const unnamed = topologies.find((pick) => !siteKey(pick))
+    if (unnamed) {
+      setError(`${unnamed.file.name} has no site id. A site has to be keyed by something.`)
+      return
+    }
+    if (duplicateIds.length) {
+      setError(
+        `Two topology files share the site id ${duplicateIds.join(', ')}. ` +
+          'Give each site its own id, or one of them is dropped.',
+      )
       return
     }
     setBusy(true)
@@ -127,14 +264,23 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
       overrides: files.overrides,
       glossary: files.glossary,
       systemDeviceMap: files.systemDeviceMap,
-      topologies: Object.fromEntries(
-        topologies.map((file) => [siteIdFromFileName(file.name), file]),
-      ),
+      topologies: Object.fromEntries(topologies.map((pick) => [siteKey(pick), pick.file])),
     }
     try {
       await provider.load(inputs)
-      const marking = await readMarking(provider)
-      adopt(provider, { kind: 'local', label: matrix.name, marking })
+      // What the files themselves say, read after the parse so it is the
+      // parsed value rather than the panel's preview of it.
+      const fromFiles = await readMarking(provider)
+      const typed = marking.trim() || null
+      adopt(provider, {
+        kind: 'local',
+        label: matrix.name,
+        // The analyst outranks the files: they can see a marking the file does
+        // not carry. Both are kept so the banner can show the override.
+        marking: typed ?? fromFiles,
+        markingSource: typed ? 'analyst' : 'files',
+        declaredMarking: fromFiles,
+      })
       onClose()
     } catch (cause) {
       // The parser says which file failed and why. Repeating it is the whole
@@ -192,7 +338,14 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
             />
           ))}
 
-          <TopologySlot files={topologies} onPick={setTopologies} />
+          <TopologySlot
+            picks={topologies}
+            expectedIds={expectedIds}
+            onPick={pickTopologies}
+            onSiteId={setSiteId}
+          />
+
+          <MarkingSlot declared={declared} value={marking} onChange={setMarking} />
         </div>
 
         {error && (
@@ -282,11 +435,15 @@ function FileSlot({
 }
 
 function TopologySlot({
-  files,
+  picks,
+  expectedIds,
   onPick,
+  onSiteId,
 }: {
-  files: File[]
+  picks: TopologyPick[]
+  expectedIds: string[]
   onPick: (files: File[]) => void
+  onSiteId: (key: string, id: string) => void
 }) {
   return (
     <fieldset className={SLOT_CLASS} {...dropProps((dropped) => onPick(dropped))}>
@@ -294,8 +451,9 @@ function TopologySlot({
         Site topology, one file per site
       </legend>
       <p className="text-xs text-muted">
-        The site id comes from the file name, so northgate_network.json loads as
-        northgate. Drag them here, or choose them.
+        Each file loads under a site id, which is what keys it to the map and the
+        overrides. Where a file does not state one it has to be inferred, so check
+        every id below before loading. Drag them here, or choose them.
       </p>
       <input
         type="file"
@@ -305,16 +463,133 @@ function TopologySlot({
         onChange={(event) => onPick(Array.from(event.target.files ?? []))}
         className="mt-1 text-xs text-muted"
       />
-      {files.length > 0 && (
-        <ul className="mt-1 space-y-0.5">
-          {files.map((file) => (
-            <li key={file.name} className="text-xs text-ink">
-              {file.name}{' '}
-              <span className="text-muted-3">as {siteIdFromFileName(file.name)}</span>
-            </li>
+      {picks.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {picks.map((pick) => (
+            <SiteIdRow
+              key={pick.key}
+              pick={pick}
+              expectedIds={expectedIds}
+              onSiteId={onSiteId}
+            />
           ))}
         </ul>
       )}
+    </fieldset>
+  )
+}
+
+/**
+ * One topology, with the id it will load as, editable.
+ *
+ * No heuristic can reliably turn a human-written title into the slug somebody
+ * else chose as a mapping key, so the guess is shown with where it came from
+ * and the analyst can overrule it. That, rather than the heuristic, is what
+ * stops a silently uncovered site.
+ */
+function SiteIdRow({
+  pick,
+  expectedIds,
+  onSiteId,
+}: {
+  pick: TopologyPick
+  expectedIds: string[]
+  onSiteId: (key: string, id: string) => void
+}) {
+  // Keyed by pick.key, not the file name: two files can share a name.
+  const inputId = `site-id-${slugify(pick.key)}`
+  const loadsAs = slugify(pick.id)
+  const unexpected = expectedIds.length > 0 && !expectedIds.includes(loadsAs)
+
+  return (
+    <li className="text-xs text-ink">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">{pick.file.name}</span>
+        <label htmlFor={inputId} className="text-muted-3">
+          loads as
+        </label>
+        <input
+          id={inputId}
+          type="text"
+          value={pick.id}
+          aria-label={`Site id for ${pick.file.name} (${pick.key.split(":")[0]})`}
+          onChange={(event) => onSiteId(pick.key, event.target.value)}
+          className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-xs text-ink"
+        />
+        <span className="text-muted-3">{SITE_ID_SOURCE_LABEL[pick.resolved.source]}</span>
+      </div>
+      {unexpected && (
+        <div
+          role="alert"
+          className="mt-1 rounded border border-risk-high bg-surface-2 p-2 text-xs text-risk-high-ink"
+        >
+          <p>
+            {`No file you loaded declares the site id ${pick.id}. Declared: ` +
+              `${expectedIds.join(', ')}. Loading it as ${pick.id} gives this site ` +
+              'its devices and no coverage at all, which reads as a finding rather ' +
+              'than as a naming mismatch.'}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {expectedIds.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSiteId(pick.key, id)}
+                className="rounded border border-line px-1.5 py-0.5 text-xs text-ink"
+              >
+                Use {id}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </li>
+  )
+}
+
+/**
+ * The control marking, when the files carry none.
+ *
+ * The workbook declares no marking and only the topology JSONs carry a
+ * classification, so an analyst working from controlled data whose files omit
+ * it would otherwise export unmarked. Typing here outranks the files, because
+ * the analyst can see a marking the file does not carry.
+ *
+ * The field is deliberately not pre-filled with what the files declare. A
+ * pre-filled value the analyst never touched would be indistinguishable from
+ * one they typed, and the banner would then credit them with a marking they
+ * did not state. Leaving it empty keeps the files in charge.
+ */
+function MarkingSlot({
+  declared,
+  value,
+  onChange,
+}: {
+  declared: string | null
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <fieldset className={SLOT_CLASS}>
+      <legend className="px-1 text-xs font-medium text-ink">Control marking</legend>
+      <p className="text-xs text-muted">
+        {declared
+          ? `The loaded files declare ${declared}. Leave this empty to keep it, or ` +
+            'type a marking to state a different one.'
+          : `The loaded files declare no marking, so exports would carry ` +
+            `"${UNMARKED_NOTICE}". Type one if you know it.`}
+      </p>
+      <input
+        type="text"
+        value={value}
+        aria-label="Control marking"
+        placeholder={declared ?? UNMARKED_NOTICE}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
+      />
+      <p className="mt-1 text-xs text-muted-3">
+        Whatever is showing here is burnt into every PNG, PDF and CSV you export.
+      </p>
     </fieldset>
   )
 }

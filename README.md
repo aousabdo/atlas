@@ -44,7 +44,7 @@ what the data says.
 | Curation overrides (`.json`) | no | Cross links, suppressions, risk and confirmation overrides. |
 | Glossary (`.json`) | no | Acronyms, scope notes, confidence wording. |
 | System to device map (`.json`) | no | Which devices realize which systems, per site. |
-| Site topology (`.json`) | no | One per site. The site id comes from the file name, so `northgate_network.json` loads as `northgate`. |
+| Site topology (`.json`) | no | One per site, each loading under a site id you can see and edit before the load commits. |
 
 Drag a file onto its field, or use the file input next to it. Both are always present:
 the drop zone is the convenience, the input is what keyboard and screen reader users
@@ -54,18 +54,68 @@ Everything is parsed up front. If any file is unreadable the load fails, the par
 message is shown verbatim ("`broken.xlsx`: not a valid xlsx (no zip signature)"), and the
 app stays on whatever it was already showing. There is no half-loaded state.
 
+### The site id, which is a join key and not a label
+
+Each topology loads under a **site id**, and that id is what keys it into the system to
+device map and the overrides. Get it wrong and nothing errors: the site loads with all of
+its devices and no coverage at all, which reads on screen as a finding ("no systems are
+mapped to this site yet") when it is really a file naming mismatch. That is the exact
+class of confident wrong answer this tool exists to prevent, so the panel resolves the id
+in a stated order, **shows it, and lets you change it**:
+
+1. an explicit `site_id`, at the top level or inside `graph`
+2. the site named in `graph.name`, when a trailing parenthetical or a segment after a dash
+   or colon yields a usable slug
+3. the file name, so `northgate_network.json` loads as `northgate`
+
+Real topology files carry no `site_id` and are often named for the export rather than for
+the place, so rule 3 alone guesses wrong while looking right. `src/lib/siteId.ts` holds
+the resolution, on its own and unit tested, because the panel needs it **before** the
+parse in order to show the preview: if `LocalFileProvider` resolved separately the two
+could disagree and the preview would be a lie. The provider keeps its existing contract of
+being handed a record already keyed by site id, so whatever you confirmed in the panel is
+what loads, always.
+
+No heuristic can reliably turn a human-written title into the slug somebody else chose as
+a mapping key, which is why the editable field matters more than the rules above. When you
+also load a system to device map or an overrides file, the panel reads the site ids
+**those** files declare and cross checks: a topology resolving to an id they do not carry
+gets a plain warning naming the ids that were expected, and a button per id to adopt one.
+Two files under one id is refused rather than silently dropping a site.
+
+### Stating a marking the files do not carry
+
+The workbook declares no marking and only the topology JSONs carry a `classification`, so
+controlled data whose files omit it would otherwise export unmarked. The panel therefore
+has a **Control marking** field:
+
+- Leave it empty and the files stay in charge, including the explicit
+  `MARKING NOT STATED IN THE LOADED FILES` when they declare nothing.
+- Type one and it wins, because you can see a marking a file does not carry.
+- When you override a marking the files did declare, the banner shows both: your marking
+  as the marking, and a line naming what the files said. A control marking must never be
+  edited silently.
+
+The field is deliberately not pre-filled with the declared value. A pre-filled value you
+never touched would be indistinguishable from one you typed, and the banner would then
+credit you with a marking you did not state. What the files declare is printed next to the
+field instead. The result flows into the same export marking register the load path
+already arms, so PNG, PDF and CSV pick it up with no extra plumbing.
+
 ### What is on screen, and what it is marked
 
 A strip under the tabs always says which dataset you are looking at, and it is never
 absent:
 
 - **SAMPLE DATA** with the reminder that nothing in it describes a real site.
-- For a loaded file, the **control marking** read from the data itself, the file name, and
-  a **Return to sample data** button. The marking comes from the `classification` field
-  on the project and on each site topology; distinct values are all shown rather than one
-  of them being picked. If the files carry no marking, the strip says
-  `MARKING NOT STATED IN THE LOADED FILES` rather than showing a blank, because a blank
-  reads as "unclassified" and that is a claim this tool has no basis to make.
+- For a loaded file, the **control marking**, the file name, and a **Return to sample
+  data** button. The marking comes from the `classification` field on the project and on
+  each site topology, or from what the analyst stated in the load panel; distinct values
+  are all shown rather than one of them being picked, and an analyst-stated marking is
+  labelled as theirs with the file-declared value alongside it. If nothing states a
+  marking, the strip says `MARKING NOT STATED IN THE LOADED FILES` rather than showing a
+  blank, because a blank reads as "unclassified" and that is a claim this tool has no
+  basis to make.
 
 While local data is loaded, that marking is **burnt into every export**: a band above and
 below every PNG, a line at the top and bottom of every PDF page, and a first and last row
