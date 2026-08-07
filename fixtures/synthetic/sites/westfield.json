@@ -1,0 +1,149 @@
+{
+  "devices": [
+    {
+      "description": "Single appliance guarding the whole proving ground site",
+      "id": "wf_firewall",
+      "ip": "172.31.60.1",
+      "label": "Site Firewall Appliance",
+      "subnet": "172.31.60.0/24",
+      "type": "firewall",
+      "zone": "site"
+    },
+    {
+      "description": "Local server holding test range configuration and recordings",
+      "id": "wf_server",
+      "ip": "172.31.60.2",
+      "label": "Site Server",
+      "subnet": "172.31.60.0/24",
+      "type": "server",
+      "zone": "site"
+    },
+    {
+      "description": "Detection sensor covering the range entry gate",
+      "id": "wf_gate_sensor",
+      "ip": "172.31.60.3",
+      "label": "Gate Detection Sensor",
+      "subnet": "172.31.60.0/24",
+      "type": "sensor",
+      "zone": "site"
+    },
+    {
+      "description": "Wireless coverage across the range apron",
+      "id": "wf_ap",
+      "ip": "172.31.60.4",
+      "label": "Site Access Point",
+      "subnet": "172.31.60.0/24",
+      "type": "access_point",
+      "zone": "site"
+    },
+    {
+      "description": "Operator laptop used during range runs",
+      "id": "wf_laptop",
+      "ip": "172.31.60.5",
+      "label": "Range Laptop",
+      "subnet": "172.31.60.0/24",
+      "type": "endpoint",
+      "zone": "site"
+    },
+    {
+      "description": "Primary circuit into the proving ground",
+      "id": "wf_northwind_gw",
+      "ip": "192.0.2.33",
+      "label": "Northwind Telecom GW",
+      "subnet": "192.0.2.32/29",
+      "type": "gateway",
+      "zone": "wan"
+    },
+    {
+      "description": "Secondary circuit into the proving ground",
+      "id": "wf_crestline_gw",
+      "ip": "192.0.2.34",
+      "label": "Crestline Broadband GW",
+      "subnet": "192.0.2.32/29",
+      "type": "gateway",
+      "zone": "wan"
+    },
+    {
+      "description": "Public internet, reached through either circuit",
+      "id": "wf_internet",
+      "ip": null,
+      "label": "Internet",
+      "subnet": null,
+      "type": "cloud",
+      "zone": "wan"
+    }
+  ],
+  "edges": [
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_firewall",
+      "target": "wf_server"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_firewall",
+      "target": "wf_gate_sensor"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_firewall",
+      "target": "wf_ap"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_laptop",
+      "target": "wf_ap"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_ap",
+      "target": "wf_northwind_gw"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wf_firewall",
+      "target": "wf_crestline_gw"
+    },
+    {
+      "label": null,
+      "link_type": "wan",
+      "source": "wf_northwind_gw",
+      "target": "wf_internet"
+    },
+    {
+      "label": null,
+      "link_type": "wan",
+      "source": "wf_crestline_gw",
+      "target": "wf_internet"
+    }
+  ],
+  "meta": {
+    "classification": "UNCLASSIFIED//SAMPLE",
+    "description": "Sample proving-ground topology: one firewall, one server, one gate sensor, wireless, and two carrier circuits. Fabricated reference data.",
+    "device_count": 8,
+    "edge_count": 8,
+    "label": "Westfield Proving Ground",
+    "name": "C-UAS Network Architecture — Westfield Proving Ground",
+    "source_images": null,
+    "updated": "2026-04-21",
+    "version": "2.0",
+    "visio_tabs": []
+  },
+  "site_id": "westfield",
+  "zones": {
+    "site": {
+      "description": "Everything inside the fence line (172.31.60.0/24)",
+      "label": "Proving Ground Site"
+    },
+    "wan": {
+      "description": "Northwind Telecom and Crestline Broadband circuits (192.0.2.32/29)",
+      "label": "WAN / Internet"
+    }
+  }
+}

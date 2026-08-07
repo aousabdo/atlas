@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Block a commit that carries real data.
+#
+# SETUP: this hook does nothing until git is told where to look for it, and it
+# refuses to run until it is told where the reference data is.
+#
+#     git config core.hooksPath .githooks
+#     export ATLAS_SOURCE_REPO=/path/to/cuas_arch      # put this in your shell profile
+#
+# The first command is once per clone. Git will not enable a committed hook on
+# its own, by design: a repo that could run code on checkout would be a supply
+# chain attack. So a clone without that command has no guard, which is why CI
+# runs the same check and is the gate that actually cannot be skipped.
+#
+# On a machine with a global core.hooksPath, this setting overrides it for this
+# repo only, and the global hooks stop running here.
+#
+# WHY THE SECOND COMMAND IS NOT OPTIONAL
+#
+# Rule 4, the one that checks the tree against the real names and the real
+# analytic phrases, can only run with the reference repo in reach. It used to
+# skip silently when ATLAS_SOURCE_REPO was unset, so the hook printed a pass and
+# the developer read it as "no real data" when it meant "did not look". CI has
+# the same gap and cannot close it, because a GitHub runner has no reference
+# data and must not have any. See the development section of README.md.
+#
+# So the hook fails closed instead: `check-no-real-data.mjs --staged` exits
+# non-zero with instructions when the variable is unset. That puts the strongest
+# rule on the only machine that can run it, which is also the only machine that
+# could paste a real phrase in the first place, since doing that requires having
+# the reference data open.
+#
+# Scans the staged diff rather than the whole tree so the hook stays fast enough
+# that nobody reaches for --no-verify. The tree-wide scan is `npm run check:data`.
+
+set -e
+
+if ! command -v node >/dev/null 2>&1; then
+	echo "pre-commit: node is not on PATH, cannot check for real data." >&2
+	echo "Install node or run: git commit --no-verify (and explain why)." >&2
+	exit 1
+fi
+
+exec node scripts/check-no-real-data.mjs --staged

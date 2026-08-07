@@ -1,0 +1,258 @@
+{
+  "always_soft": [
+    "beacon",
+    "ember",
+    "fathom",
+    "halyard",
+    "jetty",
+    "scan"
+  ],
+  "category_map": {
+    "Client platform baseline": {
+      "branch": "platform",
+      "label": "Platform Baseline"
+    },
+    "Deployed asset record": {
+      "branch": "inv",
+      "label": "Systems Inventory"
+    },
+    "Detection baseline": {
+      "branch": "sensor",
+      "label": "Sensor Baseline"
+    },
+    "Enabling service baseline": {
+      "branch": "mitig",
+      "label": "Mitigation Baseline"
+    },
+    "Exchange shortfall": {
+      "branch": "gaps",
+      "label": "Operational Gaps"
+    },
+    "Interconnect baseline": {
+      "branch": "integ",
+      "label": "Integration Baseline"
+    },
+    "Response baseline": {
+      "branch": "mitig",
+      "label": "Mitigation Baseline"
+    },
+    "Workflow shortfall": {
+      "branch": "gaps",
+      "label": "Operational Gaps"
+    }
+  },
+  "high_keywords": [
+    "single point of failure",
+    "no documented owner",
+    "unverified interface",
+    "no failover",
+    "unsupported platform",
+    "end of life",
+    "no rollback path",
+    "undocumented dependency",
+    "hard-coded configuration",
+    "no monitoring in place",
+    "capacity exceeded",
+    "authoritative source unclear",
+    "no interface contract",
+    "cannot be reproduced",
+    "no continuity plan",
+    "unresolved safety concern",
+    "outage risk during transition",
+    "no validated backup",
+    "no accreditation on record"
+  ],
+  "id_alias_count": 36,
+  "link_fragment_count": 21,
+  "low_keywords": [
+    "cosmetic label mismatch",
+    "minor documentation lag",
+    "duplicate catalogue entry"
+  ],
+  "medium_keywords": [
+    "partially documented",
+    "pending review",
+    "scope undefined",
+    "interface unspecified",
+    "coverage unclear",
+    "awaiting validation",
+    "inconsistent field definitions",
+    "no target date",
+    "requires follow-up"
+  ],
+  "never_soft": [
+    "gantry"
+  ],
+  "owner_rules": [
+    {
+      "group_id": "dhs-st",
+      "group_label": "DHS S&T",
+      "match": "DHS S&T",
+      "match_mode": "substring",
+      "priority": 0
+    },
+    {
+      "group_id": "cbp",
+      "group_label": "CBP",
+      "match": "CBP Field Analytics",
+      "match_mode": "substring",
+      "priority": 1
+    },
+    {
+      "group_id": "cbp",
+      "group_label": "CBP",
+      "match": "CBP (confirm",
+      "match_mode": "substring",
+      "priority": 2
+    },
+    {
+      "group_id": "dhshq",
+      "group_label": "DHS HQ / OCIO",
+      "match": "USCG/CBP",
+      "match_mode": "substring",
+      "priority": 3
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "USCG Sector Command",
+      "match_mode": "substring",
+      "priority": 4
+    },
+    {
+      "group_id": "cbp",
+      "group_label": "CBP",
+      "match": "CBP",
+      "match_mode": "word_boundary",
+      "priority": 5
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "USSS",
+      "match_mode": "word_boundary",
+      "priority": 6
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "ICE",
+      "match_mode": "word_boundary",
+      "priority": 7
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "USCG",
+      "match_mode": "word_boundary",
+      "priority": 8
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "FPS",
+      "match_mode": "word_boundary",
+      "priority": 9
+    },
+    {
+      "group_id": "dhshq",
+      "group_label": "DHS HQ / OCIO",
+      "match": "DHS HQ",
+      "match_mode": "substring",
+      "priority": 10
+    },
+    {
+      "group_id": "dhshq",
+      "group_label": "DHS HQ / OCIO",
+      "match": "OCIO",
+      "match_mode": "word_boundary",
+      "priority": 11
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "DHS + FBI",
+      "match_mode": "substring",
+      "priority": 12
+    },
+    {
+      "group_id": "dod",
+      "group_label": "DoD Stakeholders",
+      "match": "DoD",
+      "match_mode": "word_boundary",
+      "priority": 13
+    },
+    {
+      "group_id": "dod",
+      "group_label": "DoD Stakeholders",
+      "match": "Ironwood Defense",
+      "match_mode": "substring",
+      "priority": 14
+    },
+    {
+      "group_id": "ext",
+      "group_label": "External / Industry",
+      "match": "FAA",
+      "match_mode": "word_boundary",
+      "priority": 15
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "FBI",
+      "match_mode": "word_boundary",
+      "priority": 16
+    },
+    {
+      "group_id": "ext",
+      "group_label": "External / Industry",
+      "match": "Industry",
+      "match_mode": "substring",
+      "priority": 17
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "Multi-agency",
+      "match_mode": "substring",
+      "priority": 18
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "Watch Desk",
+      "match_mode": "substring",
+      "priority": 19
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "Relay field",
+      "match_mode": "substring",
+      "priority": 20
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "JIC",
+      "match_mode": "word_boundary",
+      "priority": 21
+    },
+    {
+      "group_id": "otherdhs",
+      "group_label": "Other DHS Components",
+      "match": "Venue C-UAS",
+      "match_mode": "substring",
+      "priority": 22
+    }
+  ],
+  "owner_rules_count": 23,
+  "soft_groups": [
+    "dod",
+    "ext"
+  ],
+  "soft_keywords": [
+    "awaiting sign-off",
+    "(confirm"
+  ]
+}

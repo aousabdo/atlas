@@ -1,0 +1,77 @@
+[
+  {
+    "from": "ucop",
+    "label": "UAS Common Picture - CROSSLINK",
+    "to": "crosslink"
+  },
+  {
+    "from": "recon",
+    "label": "Recon Systems - UAS Common Picture",
+    "to": "ucop"
+  },
+  {
+    "from": "orbit",
+    "label": "ORBIT - CBP Sentinel",
+    "to": "cbpsen"
+  },
+  {
+    "from": "orbit",
+    "label": "ORBIT - Civil Air Radar",
+    "to": "civair"
+  },
+  {
+    "from": "fpsrel",
+    "label": "FPS Relay - Trackwell Sensor AI",
+    "to": "trackwell"
+  },
+  {
+    "from": "trackwell",
+    "label": "Trackwell Sensor AI - Jetty C-UAS Engine",
+    "to": "jetty"
+  },
+  {
+    "from": "trackwell",
+    "label": "Trackwell Sensor AI - TagPoint Sensors",
+    "to": "tagpoint"
+  },
+  {
+    "from": "trackwell",
+    "label": "Trackwell Sensor AI - Relay Homing Plugin",
+    "to": "homing"
+  },
+  {
+    "from": "trackwell",
+    "label": "Trackwell Sensor AI - Skyward Shield",
+    "to": "skyward"
+  },
+  {
+    "from": "fathom",
+    "label": "Fathom - Ember",
+    "to": "ember"
+  },
+  {
+    "from": "enterprise",
+    "label": "Enterprise Common Picture - Skyward Shield",
+    "to": "skyward"
+  },
+  {
+    "from": "jetty",
+    "label": "Jetty C-UAS Engine - TagPoint Sensors",
+    "to": "tagpoint"
+  },
+  {
+    "from": "jetty",
+    "label": "Jetty C-UAS Engine - Relay Homing Plugin",
+    "to": "homing"
+  },
+  {
+    "from": "jetty",
+    "label": "Jetty C-UAS Engine - Skyward Shield",
+    "to": "skyward"
+  },
+  {
+    "from": "bastion",
+    "label": "Bastion Effector - KITE Relay Plugin",
+    "to": "kite"
+  }
+]

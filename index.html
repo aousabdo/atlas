@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- connect-src 'self' is what makes a stray runtime fetch to a CDN fail
+         loudly instead of silently working on a connected machine and breaking
+         on an air-gapped one. blob: is for html2canvas.
+
+         frame-ancestors is deliberately absent: browsers ignore it in a meta
+         tag and log an error for it. It belongs in a response header, which
+         GitHub Pages does not let us set.
+
+         The single-file build rewrites this tag to add sha256 hashes for its
+         inlined scripts, rather than relaxing script-src to unsafe-inline.
+         See scripts/build-singlefile.mjs. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <title>ATLAS — Architecture Traceability and Lossiness Analysis System</title>
+    <meta
+      name="description"
+      content="ATLAS: an exploration tool for the DHS C-UAS architecture. Traceability from original requirements through today's systems to deployed hardware, with an explicit account of what is lost at each step."
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

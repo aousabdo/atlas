@@ -1,0 +1,222 @@
+{
+  "confidence_counts": {
+    "high": 6,
+    "low": 2,
+    "medium": 3,
+    "total": 11,
+    "unspecified": 0
+  },
+  "default_site": "northgate",
+  "pending_review": {
+    "atak": "The matrix has no 'atak' system id. Should handhelds get a row of their own, or hang off the relay rows that issue them?",
+    "cbpsen": "Perimeter radar on the campus boundary: is there any CBP Sentinel integration?",
+    "jetty": "Does Jetty run on the operations fusion server, or on hardware that is not drawn yet?",
+    "recon": "Establish which sensors sit under the ISR programme and which were added ad hoc",
+    "ucop": "Does the cloud relay server also count under ucop, or strictly under eventrel?",
+    "westfield_all": "Nothing is mapped at Westfield Proving Ground yet. Walk the range with the site lead and fill the site in",
+    "winrel": "Which of the operator laptops actually run the WinRelay desktop client?"
+  },
+  "sites": {
+    "northgate": {
+      "label": "Northgate Sports Campus",
+      "mappings": {
+        "atak": {
+          "confidence": "high",
+          "devices": [
+            "field_client_devices"
+          ],
+          "matrix_id_exists": false,
+          "note": "ATAK and iTAK field devices. No matrix system id covers them, so this row records the hardware rather than a system"
+        },
+        "bastion": {
+          "confidence": "high",
+          "devices": [
+            "field_house_effector"
+          ],
+          "note": "Mitigation effector pair in the field house closet"
+        },
+        "civair": {
+          "confidence": "medium",
+          "devices": [
+            "adsb_receiver"
+          ],
+          "note": "The ADS-B receiver carries the same cooperative flight tracks this feed supplies"
+        },
+        "crosslink": {
+          "confidence": "high",
+          "devices": [
+            "cop_application",
+            "gov_cloud"
+          ],
+          "note": "Carries the common picture application tier inside the cloud tenancy"
+        },
+        "eventrel": {
+          "confidence": "high",
+          "devices": [
+            "cloud_tak_server"
+          ],
+          "note": "Cloud relay server that federates the event picture"
+        },
+        "fpsrel": {
+          "confidence": "high",
+          "devices": [
+            "mcv_router",
+            "mcv_switch",
+            "mcv_sensor_gateway",
+            "mcv_mitigation",
+            "mcv_display"
+          ],
+          "note": "Mobile command vehicle: the relay-backed operational stack"
+        },
+        "homing": {
+          "confidence": "high",
+          "devices": [],
+          "note": "Relay Homing Plugin: client software, no dedicated hardware"
+        },
+        "jetty": {
+          "confidence": "low",
+          "devices": [
+            "ops_tak_server"
+          ],
+          "note": "The operations fusion server is the likely home for this engine, pending an integration review"
+        },
+        "kite": {
+          "confidence": "high",
+          "devices": [],
+          "note": "KITE Relay Plugin: client software, no dedicated hardware"
+        },
+        "recon": {
+          "confidence": "medium",
+          "devices": [
+            "sensor_net_radar",
+            "sensor_net_rf_array",
+            "sensor_net_eoir",
+            "sensor_net_ptz",
+            "perimeter_radar"
+          ],
+          "note": "Detection sensors: rooftop and fence-line radar, the RF array, the EO/IR head and the segment PTZ"
+        },
+        "tagpoint": {
+          "confidence": "low",
+          "devices": [
+            "remote_id_receiver"
+          ],
+          "note": "The remote-ID receiver is the only campus device that hears this class of sensor"
+        },
+        "ucop": {
+          "confidence": "high",
+          "devices": [
+            "cop_application",
+            "gov_cloud",
+            "mcv_display"
+          ],
+          "note": "Common picture application in the cloud tenancy, plus the three display heads in the mobile unit"
+        },
+        "winrel": {
+          "confidence": "medium",
+          "devices": [
+            "ops_workstation_a",
+            "ops_laptop_cart"
+          ],
+          "note": "WinRelay desktop clients on the operator position and the laptop cart"
+        }
+      },
+      "not_deployed_at_site": {
+        "beacon": "checked, absent",
+        "cbprel": "checked, absent",
+        "cbpsen": "checked, absent",
+        "cirrus": "checked, absent",
+        "dispatch": "checked, absent",
+        "dwell": "checked, absent",
+        "ember": "checked, absent",
+        "enterprise": "checked, absent",
+        "fathom": "checked, absent",
+        "gantry": "checked, absent",
+        "halyard": "checked, absent",
+        "icerel": "checked, absent",
+        "ingot": "checked, absent",
+        "orbit": "checked, absent",
+        "partner": "checked, absent",
+        "scan": "checked, absent",
+        "skyward": "checked, absent",
+        "trackwell": "checked, absent",
+        "uscgrel": "checked, absent",
+        "ussrel": "checked, absent"
+      },
+      "scope": "Campus network, cloud tier and the mobile command unit",
+      "unclaimed_devices": {
+        "infrastructure": [
+          "secure_backbone",
+          "cloud_identity",
+          "internet",
+          "northwind_gw",
+          "crestline_gw",
+          "wan_demarc_panel",
+          "wan_edge_router",
+          "satellite_terminal",
+          "core_firewall",
+          "core_router",
+          "core_switch",
+          "core_ips",
+          "core_backbone",
+          "core_agg_switch",
+          "core_edge_switch",
+          "core_console",
+          "mgmt_switch",
+          "mgmt_storage",
+          "mgmt_host_a",
+          "mgmt_host_b",
+          "mgmt_vm_pool",
+          "mgmt_ntp",
+          "mgmt_jump",
+          "annex_switch",
+          "annex_poe_switch",
+          "annex_ap",
+          "annex_printer",
+          "annex_uplink_radio",
+          "field_house_switch",
+          "field_house_ap",
+          "field_house_display",
+          "north_stand_switch",
+          "north_stand_poe",
+          "north_stand_camera",
+          "north_stand_ap",
+          "south_stand_switch",
+          "south_stand_poe",
+          "south_stand_camera",
+          "south_stand_ap",
+          "sensor_net_firewall",
+          "sensor_net_switch",
+          "radio_net_switch",
+          "radio_net_link_north",
+          "radio_net_link_south",
+          "radio_net_repeater",
+          "ops_net_switch",
+          "ops_workstation_b",
+          "ops_video_wall",
+          "guest_net_switch",
+          "guest_net_ap",
+          "perimeter_camera"
+        ]
+      }
+    },
+    "westfield": {
+      "label": "Westfield Proving Ground",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "Proving ground site network",
+      "unclaimed_devices": {
+        "infrastructure": [
+          "wf_firewall",
+          "wf_server",
+          "wf_gate_sensor",
+          "wf_ap",
+          "wf_laptop",
+          "wf_northwind_gw",
+          "wf_crestline_gw",
+          "wf_internet"
+        ]
+      }
+    }
+  }
+}

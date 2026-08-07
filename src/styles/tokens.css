@@ -1,0 +1,209 @@
+/* ATLAS design tokens.
+
+   Named by role so light mode redefines the same names rather than introducing
+   a second palette. The dark values follow the Mariner palette used across the
+   portfolio, whose contrast ratios are documented against this navy; the risk
+   and severity colours come from the tool being replaced so a reader carries
+   their colour intuition across.
+
+   Two reds throughout, for the same reason the source palette has two:
+   geometry needs 3:1 contrast, text needs 4.5:1, and on a dark ground you
+   cannot have one colour that is both deep and legible. */
+@theme {
+  --color-bg: #0b1f3a;
+  --color-surface: #12294a;
+  --color-surface-2: #16325a;
+  --color-line: #1b3a63;
+
+  --color-ink: #e8eef6;
+  --color-muted: #8ea3c0;
+  --color-muted-2: #8399b8;
+  --color-muted-3: #7d93b3;
+
+  --color-accent: #3db9d8;
+  --color-accent-ink: #6fd3ea;
+
+  --color-risk-high: #d4553f;
+  --color-risk-high-ink: #f0605f;
+  --color-risk-medium: #d4a24a;
+  --color-risk-medium-ink: #e0b264;
+  --color-risk-low: #2fb6a3;
+  --color-risk-low-ink: #45c9b6;
+
+  --color-sev-ok: #2fb6a3;
+  --color-sev-watch: #d4a24a;
+  --color-sev-critical: #d4553f;
+
+  /* Owner groups, carried from the tool being replaced. */
+  --color-group-dhsst: #7c9cf5;
+  --color-group-perimeter: #4bb3a0;
+  --color-group-otherdhs: #6aa9e0;
+  --color-group-dhshq: #9b8ade;
+  --color-group-dod: #d99a5b;
+  --color-group-ext: #8d9bb0;
+
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+/*
+ * Network topology zone colours, carried verbatim from the site graph.
+ *
+ * Fourteen categorical hues, which is more than any general palette should
+ * carry; they exist because the zone is the primary structure a reader
+ * navigates the topology by, and shape alone does not separate fourteen
+ * groups. The light set is a second, darker palette rather than the same hues:
+ * a colour picked to glow on navy washes out to nothing on white.
+ */
+:root {
+  --zone-cloud: #ff8c42;
+  --zone-wan: #94a3b8;
+  --zone-core: #56c2ff;
+  --zone-field-house: #38bdf8;
+  --zone-south-stand: #22d3ee;
+  --zone-annex-closet: #67e8f9;
+  --zone-mgmt: #34d399;
+  --zone-sensor-net: #a78bfa;
+  --zone-radio-net: #c084fc;
+  --zone-ops-net: #f472b6;
+  --zone-guest-net: #fb923c;
+  --zone-mobile-unit: #7ed957;
+  --zone-north-stand: #ff6b6b;
+  --zone-perimeter: #ffd93d;
+}
+
+/*
+ * Plain :root, not @theme.
+ * Tailwind 4 only emits variables for namespaces it recognises (--color-*,
+ * --font-* and so on); an unrecognised name inside @theme is dropped, and
+ * every node rendered black because var(--node-...) resolved to nothing.
+ */
+:root {
+  /* Orientation map node colours, carried verbatim from the tool being
+     replaced. Branches use -bg and leaves the brighter -leaf, which is what
+     gives the map its depth; collapsing each pair to one token washed it out.
+     These are deliberately more saturated than the chrome palette: the map is
+     the one view where colour is the primary carrier of meaning. */
+  --node-root-bg: #0f172a;
+  --node-root-leaf: #38bdf8;
+  --node-inv-bg: #1e3a5f;
+  --node-inv-leaf: #38bdf8;
+  --node-dhsst-bg: #0e7490;
+  --node-dhsst-leaf: #06b6d4;
+  --node-perimeter-bg: #b45309;
+  --node-perimeter-leaf: #f59e0b;
+  --node-otherdhs-bg: #4338ca;
+  --node-otherdhs-leaf: #818cf8;
+  --node-dhshq-bg: #7e22ce;
+  --node-dhshq-leaf: #a78bfa;
+  --node-dod-bg: #4d7c0f;
+  --node-dod-leaf: #84cc16;
+  --node-ext-bg: #c2410c;
+  --node-ext-leaf: #f97316;
+  --node-integ-bg: #059669;
+  --node-integ-leaf: #34d399;
+  --node-sensor-bg: #ca8a04;
+  --node-sensor-leaf: #facc15;
+  --node-platform-bg: #9333ea;
+  --node-platform-leaf: #c084fc;
+  --node-mitig-bg: #dc2626;
+  --node-mitig-leaf: #f87171;
+  --node-gaps-bg: #be185d;
+  --node-gaps-leaf: #f472b6;
+
+  /* Risk overlay on the map, from the same source as the node palette. Kept
+     separate from the chrome risk tokens, which are tuned for text on panels
+     rather than fills on a dark canvas. */
+  --node-risk-high-bg: #dc2626;
+  --node-risk-high-leaf: #f87171;
+  --node-risk-medium-bg: #d97706;
+  --node-risk-medium-leaf: #fbbf24;
+  --node-risk-low-bg: #059669;
+  --node-risk-low-leaf: #34d399;
+}
+
+/* Light mode. Same roles, inverted surfaces, and the ink colours re-picked
+   rather than merely darkened: a colour that clears 4.5:1 on navy does not
+   automatically clear it on white. */
+:root[data-theme='light'] {
+  --color-bg: #f4f7fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #eaf0f7;
+  --color-line: #cbd8e6;
+
+  --color-ink: #16233a;
+  --color-muted: #4a5b73;
+  --color-muted-2: #556a86;
+  --color-muted-3: #607089;
+
+  --color-accent: #0e7f9c;
+  --color-accent-ink: #0b6c85;
+
+  --color-risk-high: #b3341f;
+  --color-risk-high-ink: #9c2d1a;
+  --color-risk-medium: #9a6b13;
+  --color-risk-medium-ink: #7d5610;
+  --color-risk-low: #16705f;
+  --color-risk-low-ink: #115a4d;
+
+  --color-sev-ok: #16705f;
+  --color-sev-watch: #9a6b13;
+  --color-sev-critical: #b3341f;
+
+  --color-group-dhsst: #3f5bb5;
+  --color-group-perimeter: #1c7566;
+  --color-group-otherdhs: #2c6ba3;
+  --color-group-dhshq: #5b4aa8;
+  --color-group-dod: #96591f;
+  --color-group-ext: #4c5a6d;
+
+  --node-root-bg: #1e293b;
+  --node-root-leaf: #0369a1;
+  --node-inv-bg: #1e3a5f;
+  --node-inv-leaf: #0369a1;
+  --node-dhsst-bg: #0e7490;
+  --node-dhsst-leaf: #0e7490;
+  --node-perimeter-bg: #b45309;
+  --node-perimeter-leaf: #b45309;
+  --node-otherdhs-bg: #4338ca;
+  --node-otherdhs-leaf: #4f46e5;
+  --node-dhshq-bg: #7e22ce;
+  --node-dhshq-leaf: #7c3aed;
+  --node-dod-bg: #3f6212;
+  --node-dod-leaf: #3f6212;
+  --node-ext-bg: #c2410c;
+  --node-ext-leaf: #c2410c;
+  --node-integ-bg: #047857;
+  --node-integ-leaf: #047857;
+  --node-sensor-bg: #a16207;
+  --node-sensor-leaf: #a16207;
+  --node-platform-bg: #7e22ce;
+  --node-platform-leaf: #7c3aed;
+  --node-mitig-bg: #b91c1c;
+  --node-mitig-leaf: #b91c1c;
+  --node-gaps-bg: #9d174d;
+  --node-gaps-leaf: #9d174d;
+
+  --node-risk-high-bg: #b91c1c;
+  --node-risk-high-leaf: #dc2626;
+  --node-risk-medium-bg: #a16207;
+  --node-risk-medium-leaf: #d97706;
+  --node-risk-low-bg: #047857;
+  --node-risk-low-leaf: #059669;
+
+  --zone-cloud: #c2410c;
+  --zone-wan: #475569;
+  --zone-core: #0369a1;
+  --zone-field-house: #0284c7;
+  --zone-south-stand: #0e7490;
+  --zone-annex-closet: #155e75;
+  --zone-mgmt: #047857;
+  --zone-sensor-net: #6d28d9;
+  --zone-radio-net: #7e22ce;
+  --zone-ops-net: #be185d;
+  --zone-guest-net: #9a3412;
+  --zone-mobile-unit: #4d7c0f;
+  --zone-north-stand: #b91c1c;
+  --zone-perimeter: #b45309;
+}

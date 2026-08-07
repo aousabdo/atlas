@@ -1,0 +1,203 @@
+name: CI
+
+# Deploy only runs on push to main, so without this a PR that breaks the build
+# or the tests would merge green and break the next production deploy.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      refresh_baselines:
+        description: >-
+          Regenerate the visual baselines in the pinned image and upload them as
+          an artifact for review, instead of verifying against the committed set.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A baseline refresh and an ordinary verify run are different intents, so they
+# must not share a group: a push to main and a dispatch on the same ref landed
+# in one group and the push cancelled the refresh mid-flight.
+concurrency:
+  group: ci-${{ github.ref }}-${{ inputs.refresh_baselines && 'refresh' || 'verify' }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to the exact @playwright/test version in package-lock.json. This
+  # fixes the Chromium build and, just as importantly, the installed system
+  # fonts: the network tab's device glyphs are Unicode symbols that Inter does
+  # not carry, so they resolve from a system font. The font set is part of the
+  # baseline contract, which is why the visual job runs inside the image rather
+  # than on a bare runner with the same kernel.
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.62.1-noble
+  # Names the rendering environment the committed baselines belong to. Must
+  # change whenever PLAYWRIGHT_IMAGE does, because a new image is a new font
+  # set and a new Chromium, and therefore new baselines.
+  ATLAS_RENDER_ENV: linux-x64-noble-pw1.62.1
+
+jobs:
+  # This repo committed the real dataset once, and the pre-commit hook that
+  # would have stopped it only runs for people who ran `git config
+  # core.hooksPath .githooks`. This job is the copy of the check nobody can
+  # forget to install or skip with --no-verify.
+  #
+  # No `npm ci`: the guard has no dependencies on purpose, so the gate keeps
+  # working when the install step is broken, which is exactly when a "just
+  # commit it and fix CI later" mistake gets made.
+  #
+  # THIS JOB CANNOT RUN RULE 4, AND THAT IS NOT A PASSING TEST.
+  #
+  # Rule 4 checks the tree against the real entity names and the real analytic
+  # phrases, and it can only do that by reading the reference repo named by
+  # $ATLAS_SOURCE_REPO. A GitHub runner has no reference data and must never be
+  # given any: shipping the controlled material to CI to check for the
+  # controlled material would be the disclosure it is meant to prevent.
+  #
+  # So this job runs rules 1, 2, 3 and 5 only. It catches a tracked bundle, real
+  # addressing, control markings used as values, and any tracked binary that is
+  # not a known baseline. It does NOT catch a real capability-gap statement, a
+  # real owner clause or a real risk narrative pasted into a source file, which
+  # is the disclosure that actually happened.
+  #
+  # The previous version of this comment said the name rules "skip", the step
+  # printed a pass, and a green tick was read as coverage for a rule that has
+  # never once run here. The check now prints an explicit warning naming what it
+  # did not do, and the step below is named so the limit is legible in the job
+  # list without opening the log. Rule 4 runs in the pre-commit hook, which
+  # refuses to run without the reference repo. See README.md, Development.
+  #
+  # No `npm ci`: the guard has no dependencies on purpose, so the gate keeps
+  # working when the install step is broken, which is exactly when a "just
+  # commit it and fix CI later" mistake gets made.
+  data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Structural data rules only (rule 4 cannot run in CI)
+        run: npm run check:data
+      # Asserts the downgrade is announced. If someone later makes the check
+      # quiet about which rules it ran, or wires reference data into CI without
+      # saying so, this fails rather than letting the job go green on a
+      # different set of rules than the ones it claims.
+      - name: Prove the check admits rule 4 did not run
+        run: |
+          npm run check:data 2>&1 | tee /tmp/check.log
+          grep -q 'structural rules only' /tmp/check.log
+          grep -q 'rule 4 did NOT run' /tmp/check.log
+      - run: npm run test:data
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # `npm run build` is `tsc --noEmit && vite build && check-offline`, so the
+      # air-gap guarantee is enforced on every push rather than asserted in docs.
+      - run: npm run build
+      - run: npm test
+
+  visual:
+    if: ${{ !inputs.refresh_baselines }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    env:
+      ATLAS_RENDER_ENV: linux-x64-noble-pw1.62.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # No `playwright install`: the image already carries the matching browsers,
+      # and installing a different build here would silently invalidate every
+      # baseline the job is about to compare against.
+      #
+      # The suite builds the app itself, inside webServer, and then proves the
+      # page it is looking at carries this run's build id. updateSnapshots is
+      # "none", so a missing baseline fails and writes nothing.
+      - run: npm run e2e
+      # A screenshot failure is unreadable from a log. Without the diff artifact
+      # the usual response is to regenerate the baseline instead of looking at
+      # what actually changed.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-diffs
+          path: test-results/
+
+  standalone:
+    if: ${{ !inputs.refresh_baselines }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    env:
+      # One id shared by the two steps below, so the file the first step builds
+      # is provably the file the second step asserts about. Without it each node
+      # process would mint its own and the check would be vacuous.
+      ATLAS_BUILD_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Builds dist-standalone/atlas.html inside the run, then drives it from a
+      # file:// URL with the network cut. Previously this artifact was tested in
+      # whatever state it happened to be in, and in CI it did not exist at all.
+      - run: npm run e2e:standalone
+      - run: npm run test:standalone
+
+  # Baselines are produced here and nowhere else, because this is the only
+  # environment that also verifies them. Deliberately an artifact rather than an
+  # auto-commit: a job that both writes and checks the baselines is the same
+  # self-agreeing loop that let a reworked toolbar survive a refresh, just moved
+  # into CI. A human looking at the diff is the step where that gets noticed.
+  refresh-baselines:
+    if: ${{ inputs.refresh_baselines }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    env:
+      ATLAS_RENDER_ENV: linux-x64-noble-pw1.62.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # --update-snapshots=all, never a bare -u. The bare flag presets to
+      # "changed", which leaves any baseline whose diff fits inside the
+      # tolerance untouched and still reports a pass, which is precisely how a
+      # stale baseline survived a refresh before.
+      - run: npx playwright test --update-snapshots=all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-baselines
+          path: e2e/__screenshots__/
+
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e './ingest[dev]'
+      # The golden tests need the reference workbook, which lives in another
+      # repo. They skip cleanly when it is absent; the classifier unit tests and
+      # the generated-tables drift guard still run.
+      - run: python -m pytest ingest/tests -q

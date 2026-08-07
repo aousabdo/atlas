@@ -1,0 +1,22 @@
+{
+  "baseline_date": "2026-03-05",
+  "built_at": "2026-08-05T00:00:00",
+  "bundle_version": 1,
+  "counts": {
+    "acronyms": 48,
+    "confirmed": 23,
+    "desired_links": 13,
+    "devices": 79,
+    "links": 14,
+    "requirements": 11,
+    "sites": 2,
+    "systems": 32,
+    "unconfirmed": 9
+  },
+  "git_sha": "0f1e2d3",
+  "snapshots": [
+    "2026-08-05"
+  ],
+  "source_label": "Sample Traceability Matrix",
+  "tool_version": "ATLAS Phase 1"
+}

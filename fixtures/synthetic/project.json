@@ -1,0 +1,25 @@
+{
+  "baseline_date": "2026-03-05",
+  "default_site": "northgate",
+  "name": "Reference C-UAS Architecture",
+  "sites": [
+    {
+      "classification": "UNCLASSIFIED//SAMPLE",
+      "device_count": 71,
+      "edge_count": 86,
+      "id": "northgate",
+      "label": "Northgate Sports Campus",
+      "updated": "2026-04-21"
+    },
+    {
+      "classification": "UNCLASSIFIED//SAMPLE",
+      "device_count": 8,
+      "edge_count": 8,
+      "id": "westfield",
+      "label": "Westfield Proving Ground",
+      "updated": "2026-04-21"
+    }
+  ],
+  "slug": "reference-cuas",
+  "source_label": "Sample Traceability Matrix"
+}

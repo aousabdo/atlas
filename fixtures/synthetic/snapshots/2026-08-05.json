@@ -1,0 +1,70 @@
+{
+  "built_at": "2026-08-05T00:00:00",
+  "dimensions": [
+    {
+      "denominator": 11,
+      "key": "requirement_attrition",
+      "label": "Requirement attrition",
+      "numerator": 10,
+      "severity": "ok",
+      "unit": "pct",
+      "value_pct": 90.9
+    },
+    {
+      "denominator": 32,
+      "key": "ownership_ambiguity",
+      "label": "Ownership ambiguity",
+      "numerator": 23,
+      "severity": "watch",
+      "unit": "pct",
+      "value_pct": 71.9
+    },
+    {
+      "denominator": 32,
+      "key": "realization_gap",
+      "label": "Realization gap",
+      "numerator": 10,
+      "severity": "critical",
+      "unit": "pct",
+      "value_pct": 31.2
+    },
+    {
+      "denominator": 13,
+      "key": "integration_gap",
+      "label": "Integration gap",
+      "numerator": 13,
+      "severity": "critical",
+      "unit": "count",
+      "value_pct": null
+    },
+    {
+      "denominator": 32,
+      "key": "evidence_gap",
+      "label": "Evidence gap",
+      "numerator": 32,
+      "severity": "ok",
+      "unit": "pct",
+      "value_pct": 100.0
+    },
+    {
+      "denominator": 79,
+      "key": "orphaned_hardware",
+      "label": "Orphaned hardware",
+      "numerator": 59,
+      "severity": "critical",
+      "unit": "count",
+      "value_pct": null
+    },
+    {
+      "denominator": 7,
+      "key": "open_questions",
+      "label": "Open questions",
+      "numerator": 7,
+      "severity": "watch",
+      "unit": "count",
+      "value_pct": null
+    }
+  ],
+  "git_sha": "0f1e2d3",
+  "label": "2026-08-05"
+}

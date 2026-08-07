@@ -1,0 +1,24 @@
+{
+  "auto_links": 15,
+  "confirmed": 23,
+  "crosswalk_rows": 11,
+  "desired_links": 13,
+  "owner_group": {
+    "cbp": 6,
+    "dhs-st": 2,
+    "dhshq": 4,
+    "dod": 1,
+    "ext": 5,
+    "otherdhs": 14
+  },
+  "risk": {
+    "high": 11,
+    "low": 2,
+    "medium": 19
+  },
+  "risk_source": {
+    "explicit": 32
+  },
+  "systems": 32,
+  "unconfirmed": 9
+}

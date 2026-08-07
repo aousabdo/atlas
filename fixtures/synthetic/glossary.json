@@ -1,0 +1,212 @@
+{
+  "_comment": "Written by hand for the Reference tab. Everything else on that tab (the system glossary, the keyword tables, the confidence counts and the build stamp) is computed at build time from the workbook, the system-to-device map and the classifier constants, so it is not restated here.",
+  "_last_reviewed": "2026-06-02",
+  "_version": "0.1-sample",
+  "acronyms": [
+    {
+      "acr": "CUAS",
+      "meaning": "Counter-Unmanned Aircraft Systems"
+    },
+    {
+      "acr": "TAK",
+      "meaning": "Team Awareness Kit, US Army situational-awareness platform"
+    },
+    {
+      "acr": "ATAK",
+      "meaning": "Android Team Awareness Kit"
+    },
+    {
+      "acr": "WinRelay",
+      "meaning": "Windows Relay Client, the desktop relay display platform in this sample"
+    },
+    {
+      "acr": "iTAK",
+      "meaning": "iOS Team Awareness Kit"
+    },
+    {
+      "acr": "EventRel",
+      "meaning": "Event Relay, the federated relay server stood up per event in this sample"
+    },
+    {
+      "acr": "COP",
+      "meaning": "Common Operating Picture"
+    },
+    {
+      "acr": "CROSSLINK",
+      "meaning": "Cross-Domain Linking Service, the DHS S&T research-to-operations transition boundary in this sample"
+    },
+    {
+      "acr": "DHS S&T",
+      "meaning": "Department of Homeland Security Science and Technology Directorate"
+    },
+    {
+      "acr": "OCIO",
+      "meaning": "Office of the Chief Information Officer"
+    },
+    {
+      "acr": "FPS",
+      "meaning": "Federal Protective Service (DHS component)"
+    },
+    {
+      "acr": "CBP",
+      "meaning": "U.S. Customs and Border Protection"
+    },
+    {
+      "acr": "USSS",
+      "meaning": "U.S. Secret Service"
+    },
+    {
+      "acr": "ICE",
+      "meaning": "U.S. Immigration and Customs Enforcement"
+    },
+    {
+      "acr": "USCG",
+      "meaning": "U.S. Coast Guard"
+    },
+    {
+      "acr": "JIC",
+      "meaning": "Joint Integration Cell, the event integration team that owns the fusion engine in this sample"
+    },
+    {
+      "acr": "ORBIT",
+      "meaning": "Operational Radar and Beacon Integrated Tracking, the CBP air surveillance suite in this sample"
+    },
+    {
+      "acr": "KITE",
+      "meaning": "Kinetic Interdiction Tasking Extension, the handheld mitigation plugin in this sample"
+    },
+    {
+      "acr": "ISR",
+      "meaning": "Intelligence, Surveillance, Reconnaissance"
+    },
+    {
+      "acr": "DoD",
+      "meaning": "Department of Defense"
+    },
+    {
+      "acr": "INGOT",
+      "meaning": "Integrated Ground Observation Toolkit, the defense-side sensor holdings suite in this sample"
+    },
+    {
+      "acr": "SCAN",
+      "meaning": "Screening and Alerting Node"
+    },
+    {
+      "acr": "FAA",
+      "meaning": "Federal Aviation Administration"
+    },
+    {
+      "acr": "FBI",
+      "meaning": "Federal Bureau of Investigation"
+    },
+    {
+      "acr": "GANTRY",
+      "meaning": "Ground Antenna Towers, the fixed tower sites in this sample"
+    },
+    {
+      "acr": "DMS",
+      "meaning": "Dispatch Management System"
+    },
+    {
+      "acr": "CAD",
+      "meaning": "Computer-Aided Dispatch"
+    },
+    {
+      "acr": "IdAM",
+      "meaning": "Identity and Access Management"
+    },
+    {
+      "acr": "AIS",
+      "meaning": "Automatic Identification System (maritime vessel tracking)"
+    },
+    {
+      "acr": "NTP",
+      "meaning": "Network Time Protocol"
+    },
+    {
+      "acr": "UNCLASSIFIED//SAMPLE",
+      "meaning": "Sample marking. Every record in this bundle is fabricated reference data and carries no control."
+    },
+    {
+      "acr": "GovRegion",
+      "meaning": "Government-region public cloud tenancy"
+    },
+    {
+      "acr": "ADS-B",
+      "meaning": "Automatic Dependent Surveillance-Broadcast"
+    },
+    {
+      "acr": "VLAN",
+      "meaning": "Virtual Local Area Network"
+    },
+    {
+      "acr": "MCV",
+      "meaning": "Mobile Command Vehicle (FPS)"
+    },
+    {
+      "acr": "SOC",
+      "meaning": "Security Operations Center"
+    },
+    {
+      "acr": "USS",
+      "meaning": "UAS Service Supplier (FAA UTM concept)"
+    },
+    {
+      "acr": "DSS",
+      "meaning": "Discovery and Synchronization Service"
+    },
+    {
+      "acr": "CoT",
+      "meaning": "Cursor on Target, the TAK message format"
+    },
+    {
+      "acr": "AAR",
+      "meaning": "After Action Report"
+    },
+    {
+      "acr": "DaaS",
+      "meaning": "Detection-as-a-Service"
+    },
+    {
+      "acr": "RDT&E",
+      "meaning": "Research, Development, Test & Evaluation"
+    },
+    {
+      "acr": "NOC",
+      "meaning": "Network Operations Center"
+    },
+    {
+      "acr": "PoE",
+      "meaning": "Power over Ethernet"
+    },
+    {
+      "acr": "SNAP",
+      "meaning": "Sensor Network Access Point"
+    },
+    {
+      "acr": "PTZ",
+      "meaning": "Pan-Tilt-Zoom (camera)"
+    },
+    {
+      "acr": "EO/IR",
+      "meaning": "Electro-Optical / Infrared (sensor)"
+    },
+    {
+      "acr": "RF",
+      "meaning": "Radio Frequency"
+    }
+  ],
+  "confidence_intro": "Nothing on these tabs is typed in by hand. ATLAS reads four inputs and computes the rest: the Sample Traceability Matrix workbook, the two site topology files for Northgate Sports Campus and Westfield Proving Ground, the curated map that ties systems to devices, and the classifier constants. Any figure you can see should be traceable to a row in one of those four. Two things are worth knowing before you read a number: some risk levels are read off narrative text rather than stated outright, and the Westfield site has no system mapping at all yet. Both are called out where they bite. Every record here is fabricated and describes no real deployment.",
+  "methodology_extras": {
+    "mapping_confidence_scale": "Each system-to-device mapping is graded. High means somebody saw the box, on a drawing or in a write-up afterwards. Medium means the role makes it near certain but nobody has checked. Low means an educated guess waiting on the team. The grade rides along with the mapping and is shown in the coverage panel and beside each system in the glossary.",
+    "risk_caveat": "Treat the risk column as a working judgement rather than a score. Where the matrix states a Risk Level, that wins. Where it is blank, the ingest reads the Risk/Challenge narrative for known phrases and picks a level from those. A curation override on an individual system beats both.",
+    "soft_ownership_note": "A system is marked soft when the matrix hedges about who owns it. The ingest looks for the hedging phrases the workbook actually uses ('awaiting sign-off', '(confirm') and then applies two override lists from the classifier constants, one forcing soft and one forbidding it. Soft systems wear a yellow question mark on the orientation map."
+  },
+  "out_of_scope": [
+    "Live telemetry. This is the architecture as of a date, not a feed.",
+    "Software dependency graphs inside a system. Nothing below the system boundary is modelled.",
+    "Auditing device classification. Whatever marking a topology file carries is copied through untouched and never checked.",
+    "Confirming inter-site links by inspection. Where a source drawing says there is a 60 GHz microwave hop between the mobile unit and the south stand, the hop is taken on trust.",
+    "Programmatic risk. Cost and schedule are absent; only the technical risk read out of the matrix appears anywhere."
+  ]
+}

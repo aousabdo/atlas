@@ -1,0 +1,97 @@
+[
+  {
+    "current": [
+      "CROSSLINK",
+      "Fathom",
+      "Ember"
+    ],
+    "orig": "No reciprocity for software accreditation between components",
+    "status": "Split out",
+    "sys": "CORDON"
+  },
+  {
+    "current": [
+      "Enterprise Common Picture",
+      "Skyward Shield"
+    ],
+    "orig": "Detection coverage and service levels are never published",
+    "status": "Renamed / split out",
+    "sys": "CORDON, Watchline"
+  },
+  {
+    "current": [
+      "CROSSLINK"
+    ],
+    "orig": "No sustainment path for prototype sensors after transition",
+    "status": "Partly carried forward",
+    "sys": "CORDON, Lodestar"
+  },
+  {
+    "current": [
+      "ORBIT",
+      "CBP Sentinel",
+      "Beacon"
+    ],
+    "orig": "No common track identifier across air surveillance systems",
+    "status": "Split out",
+    "sys": "Skywatch, Lodestar"
+  },
+  {
+    "current": [
+      "CROSSLINK",
+      "Fathom",
+      "Ember"
+    ],
+    "orig": "No retained audit trail of who read a detection record",
+    "status": "Split out",
+    "sys": "CORDON"
+  },
+  {
+    "current": [
+      "USCG Relay",
+      "CBP Relay"
+    ],
+    "orig": "No store-and-forward cache for relay clients during an outage",
+    "status": "Renamed / split out",
+    "sys": "Shoreline Relay, Overland Relay"
+  },
+  {
+    "current": [
+      "Ember",
+      "Fathom",
+      "CROSSLINK"
+    ],
+    "orig": "Data-sharing agreements are not machine-readable at request time",
+    "status": "Split out",
+    "sys": "CORDON, Keelson"
+  },
+  {
+    "current": [
+      "CROSSLINK",
+      "Enterprise Common Picture"
+    ],
+    "orig": "Timing and clock discipline between fused feeds are unspecified",
+    "status": "Partly carried forward",
+    "sys": "CORDON, Rampart"
+  },
+  {
+    "current": [
+      "CROSSLINK"
+    ],
+    "orig": "Range test results never return to the architecture baseline",
+    "status": "Condensed",
+    "sys": "CORDON"
+  },
+  {
+    "current": [],
+    "orig": "No standing training pipeline for relay operators",
+    "status": "Didn't keep",
+    "sys": "CORDON PMO"
+  },
+  {
+    "current": [],
+    "orig": "No spectrum deconfliction process for mitigation effectors",
+    "status": "Didn't keep",
+    "sys": "CORDON"
+  }
+]

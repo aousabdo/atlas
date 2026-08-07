@@ -1,0 +1,168 @@
+{
+  "current": [
+    {
+      "extraction_method": "override",
+      "from": "dispatch",
+      "label": "DMS gap > FPS Relay",
+      "to": "fpsrel"
+    },
+    {
+      "extraction_method": "override",
+      "from": "jetty",
+      "label": "Jetty > Event Relay Server",
+      "to": "eventrel"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "ucop",
+      "label": "UAS Common Picture - CROSSLINK",
+      "to": "crosslink"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "recon",
+      "label": "Recon Systems - UAS Common Picture",
+      "to": "ucop"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "orbit",
+      "label": "ORBIT - CBP Sentinel",
+      "to": "cbpsen"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "orbit",
+      "label": "ORBIT - Civil Air Radar",
+      "to": "civair"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "fpsrel",
+      "label": "FPS Relay - Trackwell Sensor AI",
+      "to": "trackwell"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "trackwell",
+      "label": "Trackwell Sensor AI - Jetty C-UAS Engine",
+      "to": "jetty"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "fathom",
+      "label": "Fathom - Ember",
+      "to": "ember"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "enterprise",
+      "label": "Enterprise Common Picture - Skyward Shield",
+      "to": "skyward"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "jetty",
+      "label": "Jetty C-UAS Engine - TagPoint Sensors",
+      "to": "tagpoint"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "jetty",
+      "label": "Jetty C-UAS Engine - Relay Homing Plugin",
+      "to": "homing"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "jetty",
+      "label": "Jetty C-UAS Engine - Skyward Shield",
+      "to": "skyward"
+    },
+    {
+      "extraction_method": "prose",
+      "from": "bastion",
+      "label": "Bastion Effector - KITE Relay Plugin",
+      "to": "kite"
+    }
+  ],
+  "desired": [
+    {
+      "extraction_method": "override",
+      "from": "cbprel",
+      "label": "CBP Relay ↔ ORBIT",
+      "to": "orbit"
+    },
+    {
+      "extraction_method": "override",
+      "from": "cbprel",
+      "label": "CBP Relay ↔ Sentinel",
+      "to": "cbpsen"
+    },
+    {
+      "extraction_method": "override",
+      "from": "ussrel",
+      "label": "USSS ↔ ICE Relay federation",
+      "to": "icerel"
+    },
+    {
+      "extraction_method": "override",
+      "from": "ussrel",
+      "label": "USSS ↔ USCG Relay federation",
+      "to": "uscgrel"
+    },
+    {
+      "extraction_method": "override",
+      "from": "ussrel",
+      "label": "USSS ↔ FPS Relay federation",
+      "to": "fpsrel"
+    },
+    {
+      "extraction_method": "override",
+      "from": "ussrel",
+      "label": "USSS ↔ CBP Relay federation",
+      "to": "cbprel"
+    },
+    {
+      "extraction_method": "override",
+      "from": "beacon",
+      "label": "Beacon ↔ ORBIT exchange",
+      "to": "orbit"
+    },
+    {
+      "extraction_method": "override",
+      "from": "beacon",
+      "label": "Beacon ↔ Enterprise exchange",
+      "to": "enterprise"
+    },
+    {
+      "extraction_method": "override",
+      "from": "gantry",
+      "label": "GANTRY → ORBIT/ISR",
+      "to": "orbit"
+    },
+    {
+      "extraction_method": "override",
+      "from": "gantry",
+      "label": "GANTRY → COP",
+      "to": "ucop"
+    },
+    {
+      "extraction_method": "override",
+      "from": "recon",
+      "label": "ISR ↔ ORBIT",
+      "to": "orbit"
+    },
+    {
+      "extraction_method": "override",
+      "from": "ingot",
+      "label": "INGOT → DHS operational",
+      "to": "jetty"
+    },
+    {
+      "extraction_method": "override",
+      "from": "dispatch",
+      "label": "DMS ↔ Relay CoT auto-populate",
+      "to": "eventrel"
+    }
+  ]
+}

@@ -1,0 +1,1241 @@
+{
+  "devices": [
+    {
+      "description": "Cloud-hosted relay server for handheld coordination across the campus",
+      "id": "cloud_tak_server",
+      "ip": null,
+      "label": "Cloud TAK Server",
+      "subnet": null,
+      "type": "server",
+      "zone": "cloud"
+    },
+    {
+      "description": "Encrypted enterprise backbone between the campus and the cloud tenancy",
+      "id": "secure_backbone",
+      "ip": null,
+      "label": "Secure Enterprise Backbone",
+      "subnet": null,
+      "type": "backbone",
+      "zone": "cloud"
+    },
+    {
+      "description": "Government-region cloud tenancy hosting the mission COP tiers",
+      "id": "gov_cloud",
+      "ip": null,
+      "label": "Government Cloud Tenancy",
+      "subnet": null,
+      "type": "cloud",
+      "zone": "cloud"
+    },
+    {
+      "description": "Airspace picture served to the watch floor and the field",
+      "id": "cop_application",
+      "ip": null,
+      "label": "Mission COP Application",
+      "subnet": null,
+      "type": "application",
+      "zone": "cloud"
+    },
+    {
+      "description": "Single sign-on and attribute release for the COP tiers",
+      "id": "cloud_identity",
+      "ip": null,
+      "label": "Cloud Identity Service",
+      "subnet": null,
+      "type": "application",
+      "zone": "cloud"
+    },
+    {
+      "description": "Public internet, reached through both carrier circuits",
+      "id": "internet",
+      "ip": null,
+      "label": "Internet",
+      "subnet": null,
+      "type": "cloud",
+      "zone": "wan"
+    },
+    {
+      "description": "Primary carrier circuit, terminated in the core closet",
+      "id": "northwind_gw",
+      "ip": "192.0.2.9",
+      "label": "Northwind Telecom GW",
+      "subnet": "192.0.2.8/29",
+      "type": "gateway",
+      "zone": "wan"
+    },
+    {
+      "description": "Secondary carrier circuit, also serving the mobile unit",
+      "id": "crestline_gw",
+      "ip": "192.0.2.17",
+      "label": "Crestline Broadband GW",
+      "subnet": "192.0.2.16/29",
+      "type": "gateway",
+      "zone": "wan"
+    },
+    {
+      "description": "Where both carrier handoffs land before the edge router",
+      "id": "wan_demarc_panel",
+      "ip": "192.0.2.25",
+      "label": "Carrier Demarcation Panel",
+      "subnet": "192.0.2.24/29",
+      "type": "router",
+      "zone": "wan"
+    },
+    {
+      "description": "Policy routing and failover between the two carriers",
+      "id": "wan_edge_router",
+      "ip": "192.0.2.26",
+      "label": "WAN Edge Router",
+      "subnet": "192.0.2.24/29",
+      "type": "router",
+      "zone": "wan"
+    },
+    {
+      "description": "Backup path for the mobile command unit when both circuits are down",
+      "id": "satellite_terminal",
+      "ip": null,
+      "label": "Satellite Terminal",
+      "subnet": null,
+      "type": "satellite_terminal",
+      "zone": "wan"
+    },
+    {
+      "description": "Campus perimeter firewall, north of everything else",
+      "id": "core_firewall",
+      "ip": "198.51.100.1",
+      "label": "Core Firewall",
+      "subnet": "198.51.100.0/27",
+      "type": "firewall",
+      "zone": "core"
+    },
+    {
+      "description": "Campus core router and inter-zone gateway",
+      "id": "core_router",
+      "ip": "198.51.100.2",
+      "label": "Core Router",
+      "subnet": "198.51.100.0/27",
+      "type": "router",
+      "zone": "core"
+    },
+    {
+      "description": "Core distribution switch; every segment uplinks here",
+      "id": "core_switch",
+      "ip": "198.51.100.3",
+      "label": "Core Switch",
+      "subnet": "198.51.100.0/27",
+      "type": "switch",
+      "zone": "core"
+    },
+    {
+      "description": "Inline intrusion prevention between core and backbone",
+      "id": "core_ips",
+      "ip": "198.51.100.4",
+      "label": "Core IPS Appliance",
+      "subnet": "198.51.100.0/27",
+      "type": "firewall",
+      "zone": "core"
+    },
+    {
+      "description": "Fibre trunk between the core closet and the cloud handoff",
+      "id": "core_backbone",
+      "ip": null,
+      "label": "Core Backbone Trunk",
+      "subnet": null,
+      "type": "backbone",
+      "zone": "core"
+    },
+    {
+      "description": "Aggregates the three building closet uplinks",
+      "id": "core_agg_switch",
+      "ip": "198.51.100.5",
+      "label": "Core Aggregation Switch",
+      "subnet": "198.51.100.0/27",
+      "type": "switch",
+      "zone": "core"
+    },
+    {
+      "description": "Edge ports for the annex closet and the guest segment",
+      "id": "core_edge_switch",
+      "ip": "198.51.100.6",
+      "label": "Core Edge Switch",
+      "subnet": "198.51.100.0/27",
+      "type": "switch",
+      "zone": "core"
+    },
+    {
+      "description": "Serial console access to the core devices",
+      "id": "core_console",
+      "ip": "198.51.100.7",
+      "label": "Core Console Server",
+      "subnet": "198.51.100.0/27",
+      "type": "endpoint",
+      "zone": "core"
+    },
+    {
+      "description": "Out-of-band management switch for the server rack",
+      "id": "mgmt_switch",
+      "ip": "198.51.100.65",
+      "label": "Management Switch",
+      "subnet": "198.51.100.64/27",
+      "type": "switch",
+      "zone": "mgmt"
+    },
+    {
+      "description": "Shared storage for the hypervisor pair",
+      "id": "mgmt_storage",
+      "ip": "198.51.100.66",
+      "label": "Rack Storage Array",
+      "subnet": "198.51.100.64/27",
+      "type": "server",
+      "zone": "mgmt"
+    },
+    {
+      "description": "First hypervisor in the on-campus virtualization pair",
+      "id": "mgmt_host_a",
+      "ip": "198.51.100.67",
+      "label": "Hypervisor Host A",
+      "subnet": "198.51.100.64/27",
+      "type": "server",
+      "zone": "mgmt"
+    },
+    {
+      "description": "Second hypervisor in the on-campus virtualization pair",
+      "id": "mgmt_host_b",
+      "ip": "198.51.100.68",
+      "label": "Hypervisor Host B",
+      "subnet": "198.51.100.64/27",
+      "type": "server",
+      "zone": "mgmt"
+    },
+    {
+      "description": "Guest VLAN carrying the on-campus service VMs",
+      "id": "mgmt_vm_pool",
+      "ip": null,
+      "label": "Virtual Machine Pool",
+      "subnet": "198.51.100.96/27",
+      "type": "vlan",
+      "zone": "mgmt"
+    },
+    {
+      "description": "Stratum-2 NTP source for the campus",
+      "id": "mgmt_ntp",
+      "ip": "198.51.100.69",
+      "label": "Time Server",
+      "subnet": "198.51.100.64/27",
+      "type": "server",
+      "zone": "mgmt"
+    },
+    {
+      "description": "The only host permitted to reach the management VLAN",
+      "id": "mgmt_jump",
+      "ip": "198.51.100.70",
+      "label": "Administration Jump Host",
+      "subnet": "198.51.100.64/27",
+      "type": "endpoint",
+      "zone": "mgmt"
+    },
+    {
+      "description": "Access switch in the annex building data closet",
+      "id": "annex_switch",
+      "ip": "172.31.10.2",
+      "label": "Annex Access Switch",
+      "subnet": "172.31.10.0/24",
+      "type": "switch",
+      "zone": "annex_closet"
+    },
+    {
+      "description": "Powers the annex wireless and door hardware",
+      "id": "annex_poe_switch",
+      "ip": "172.31.10.3",
+      "label": "Annex PoE Switch",
+      "subnet": "172.31.10.0/24",
+      "type": "switch",
+      "zone": "annex_closet"
+    },
+    {
+      "description": "Staff wireless coverage for the annex building",
+      "id": "annex_ap",
+      "ip": "172.31.10.4",
+      "label": "Annex Access Point",
+      "subnet": "172.31.10.0/24",
+      "type": "access_point",
+      "zone": "annex_closet"
+    },
+    {
+      "description": "Shared printer on the annex access VLAN",
+      "id": "annex_printer",
+      "ip": "172.31.10.5",
+      "label": "Annex Printer",
+      "subnet": "172.31.10.0/24",
+      "type": "endpoint",
+      "zone": "annex_closet"
+    },
+    {
+      "description": "60 GHz link to the radio segment where fibre was not run",
+      "id": "annex_uplink_radio",
+      "ip": "172.31.10.6",
+      "label": "Annex Microwave Uplink",
+      "subnet": "172.31.10.0/24",
+      "type": "radio",
+      "zone": "annex_closet"
+    },
+    {
+      "description": "Access switch in the field house data closet",
+      "id": "field_house_switch",
+      "ip": "172.31.20.2",
+      "label": "Field House Access Switch",
+      "subnet": "172.31.20.0/24",
+      "type": "switch",
+      "zone": "field_house"
+    },
+    {
+      "description": "Paired directional mitigation effectors covering the field house approach",
+      "id": "field_house_effector",
+      "ip": "172.31.20.3",
+      "label": "2x Directional Effector (Pair)",
+      "subnet": "172.31.20.0/24",
+      "type": "sensor",
+      "zone": "field_house"
+    },
+    {
+      "description": "Operations wireless inside the field house",
+      "id": "field_house_ap",
+      "ip": "172.31.20.4",
+      "label": "Field House Access Point",
+      "subnet": "172.31.20.0/24",
+      "type": "access_point",
+      "zone": "field_house"
+    },
+    {
+      "description": "Wall display mirroring the operations floor picture",
+      "id": "field_house_display",
+      "ip": "172.31.20.5",
+      "label": "Field House Operator Display",
+      "subnet": "172.31.20.0/24",
+      "type": "endpoint",
+      "zone": "field_house"
+    },
+    {
+      "description": "Access switch in the north stand closet",
+      "id": "north_stand_switch",
+      "ip": "172.31.30.2",
+      "label": "North Stand Access Switch",
+      "subnet": "172.31.30.0/24",
+      "type": "switch",
+      "zone": "north_stand"
+    },
+    {
+      "description": "Powers the north stand camera and wireless",
+      "id": "north_stand_poe",
+      "ip": "172.31.30.3",
+      "label": "North Stand PoE Injector",
+      "subnet": "172.31.30.0/24",
+      "type": "switch",
+      "zone": "north_stand"
+    },
+    {
+      "description": "Pan-tilt-zoom camera covering the north approach",
+      "id": "north_stand_camera",
+      "ip": "172.31.30.4",
+      "label": "North Stand PTZ Camera",
+      "subnet": "172.31.30.0/24",
+      "type": "sensor",
+      "zone": "north_stand"
+    },
+    {
+      "description": "Concourse wireless on the north side",
+      "id": "north_stand_ap",
+      "ip": "172.31.30.5",
+      "label": "North Stand Access Point",
+      "subnet": "172.31.30.0/24",
+      "type": "access_point",
+      "zone": "north_stand"
+    },
+    {
+      "description": "Access switch in the south stand closet",
+      "id": "south_stand_switch",
+      "ip": "172.31.40.2",
+      "label": "South Stand Access Switch",
+      "subnet": "172.31.40.0/24",
+      "type": "switch",
+      "zone": "south_stand"
+    },
+    {
+      "description": "Powers the south stand camera and wireless",
+      "id": "south_stand_poe",
+      "ip": "172.31.40.3",
+      "label": "South Stand PoE Injector",
+      "subnet": "172.31.40.0/24",
+      "type": "switch",
+      "zone": "south_stand"
+    },
+    {
+      "description": "Pan-tilt-zoom camera covering the south approach",
+      "id": "south_stand_camera",
+      "ip": "172.31.40.4",
+      "label": "South Stand PTZ Camera",
+      "subnet": "172.31.40.0/24",
+      "type": "sensor",
+      "zone": "south_stand"
+    },
+    {
+      "description": "Concourse wireless on the south side",
+      "id": "south_stand_ap",
+      "ip": "172.31.40.5",
+      "label": "South Stand Access Point",
+      "subnet": "172.31.40.0/24",
+      "type": "access_point",
+      "zone": "south_stand"
+    },
+    {
+      "description": "Keeps the detection segment separate from the operations floor",
+      "id": "sensor_net_firewall",
+      "ip": "203.0.113.1",
+      "label": "Sensor Net Firewall",
+      "subnet": "203.0.113.0/26",
+      "type": "firewall",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Aggregates every fixed detection sensor",
+      "id": "sensor_net_switch",
+      "ip": "203.0.113.2",
+      "label": "Sensor Net Switch",
+      "subnet": "203.0.113.0/26",
+      "type": "switch",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Primary rooftop detection radar covering the campus bowl",
+      "id": "sensor_net_radar",
+      "ip": "203.0.113.3",
+      "label": "Detection Radar (Rooftop)",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Phased RF array for controller and airframe signature detection",
+      "id": "sensor_net_rf_array",
+      "ip": "203.0.113.4",
+      "label": "RF Detection Array",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Electro-optical and infrared head slaved to the radar track",
+      "id": "sensor_net_eoir",
+      "ip": "203.0.113.5",
+      "label": "EO/IR Tracking Head",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Visual confirmation camera for the detection segment",
+      "id": "sensor_net_ptz",
+      "ip": "203.0.113.6",
+      "label": "Sensor Net PTZ Camera",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Picks up broadcast remote-ID beacons from cooperative airframes",
+      "id": "remote_id_receiver",
+      "ip": "203.0.113.7",
+      "label": "Remote ID Receiver",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "sensor_net"
+    },
+    {
+      "description": "Aggregates the microwave links and the ADS-B receiver",
+      "id": "radio_net_switch",
+      "ip": "203.0.113.65",
+      "label": "Radio Net Switch",
+      "subnet": "203.0.113.64/26",
+      "type": "switch",
+      "zone": "radio_net"
+    },
+    {
+      "description": "60 GHz microwave hop toward the north stand roof",
+      "id": "radio_net_link_north",
+      "ip": "203.0.113.66",
+      "label": "North 60 GHz Link",
+      "subnet": "203.0.113.64/26",
+      "type": "radio",
+      "zone": "radio_net"
+    },
+    {
+      "description": "60 GHz microwave hop toward the mobile command unit",
+      "id": "radio_net_link_south",
+      "ip": "203.0.113.67",
+      "label": "South 60 GHz Link",
+      "subnet": "203.0.113.64/26",
+      "type": "radio",
+      "zone": "radio_net"
+    },
+    {
+      "description": "Relays the annex uplink into the radio segment",
+      "id": "radio_net_repeater",
+      "ip": "203.0.113.68",
+      "label": "Radio Repeater",
+      "subnet": "203.0.113.64/26",
+      "type": "radio",
+      "zone": "radio_net"
+    },
+    {
+      "description": "Receives cooperative flight tracks for the airspace picture",
+      "id": "adsb_receiver",
+      "ip": "203.0.113.69",
+      "label": "ADS-B Receiver",
+      "subnet": "203.0.113.64/26",
+      "type": "sensor",
+      "zone": "radio_net"
+    },
+    {
+      "description": "Access switch for the operations floor",
+      "id": "ops_net_switch",
+      "ip": "203.0.113.129",
+      "label": "Operations Switch",
+      "subnet": "203.0.113.128/26",
+      "type": "switch",
+      "zone": "ops_net"
+    },
+    {
+      "description": "On-campus fusion and normalization server feeding the TAK picture",
+      "id": "ops_tak_server",
+      "ip": "203.0.113.130",
+      "label": "Operations Fusion Server",
+      "subnet": "203.0.113.128/26",
+      "type": "server",
+      "zone": "ops_net"
+    },
+    {
+      "description": "Primary operator position running the WinRelay desktop client",
+      "id": "ops_workstation_a",
+      "ip": "203.0.113.131",
+      "label": "Operator Workstation A",
+      "subnet": "203.0.113.128/26",
+      "type": "endpoint",
+      "zone": "ops_net"
+    },
+    {
+      "description": "Secondary operator position",
+      "id": "ops_workstation_b",
+      "ip": "203.0.113.132",
+      "label": "Operator Workstation B",
+      "subnet": "203.0.113.128/26",
+      "type": "endpoint",
+      "zone": "ops_net"
+    },
+    {
+      "description": "Shared display wall carrying the common operating picture",
+      "id": "ops_video_wall",
+      "ip": "203.0.113.133",
+      "label": "Operations Video Wall",
+      "subnet": "203.0.113.128/26",
+      "type": "endpoint",
+      "zone": "ops_net"
+    },
+    {
+      "description": "Rugged laptops issued to floor supervisors during an event",
+      "id": "ops_laptop_cart",
+      "ip": "203.0.113.134",
+      "label": "Operations Laptop Cart",
+      "subnet": "203.0.113.128/26",
+      "type": "endpoint",
+      "zone": "ops_net"
+    },
+    {
+      "description": "Segregated switch for field-device wireless",
+      "id": "guest_net_switch",
+      "ip": "203.0.113.193",
+      "label": "Guest Net Switch",
+      "subnet": "203.0.113.192/26",
+      "type": "switch",
+      "zone": "guest_net"
+    },
+    {
+      "description": "Wireless serving handheld field devices only",
+      "id": "guest_net_ap",
+      "ip": "203.0.113.194",
+      "label": "Field Device Access Point",
+      "subnet": "203.0.113.192/26",
+      "type": "access_point",
+      "zone": "guest_net"
+    },
+    {
+      "description": "Handheld Android and iOS devices carried by field teams",
+      "id": "field_client_devices",
+      "ip": null,
+      "label": "ATAK / iTAK Field Devices",
+      "subnet": "203.0.113.192/26",
+      "type": "endpoint",
+      "zone": "guest_net"
+    },
+    {
+      "description": "Router in the mobile command vehicle",
+      "id": "mcv_router",
+      "ip": "172.31.50.1",
+      "label": "Mobile Unit Router",
+      "subnet": "172.31.50.0/24",
+      "type": "router",
+      "zone": "mobile_unit"
+    },
+    {
+      "description": "Switch in the mobile command vehicle",
+      "id": "mcv_switch",
+      "ip": "172.31.50.2",
+      "label": "Mobile Unit Switch",
+      "subnet": "172.31.50.0/24",
+      "type": "switch",
+      "zone": "mobile_unit"
+    },
+    {
+      "description": "Normalizes vehicle sensor feeds before they reach the TAK picture",
+      "id": "mcv_sensor_gateway",
+      "ip": "172.31.50.3",
+      "label": "Mobile Unit Sensor Gateway",
+      "subnet": "172.31.50.0/24",
+      "type": "gateway",
+      "zone": "mobile_unit"
+    },
+    {
+      "description": "Vehicle-mounted RF detection and mitigation pair",
+      "id": "mcv_mitigation",
+      "ip": "172.31.50.4",
+      "label": "2x RF Mitigation Unit (Mobile)",
+      "subnet": "172.31.50.0/24",
+      "type": "sensor",
+      "zone": "mobile_unit"
+    },
+    {
+      "description": "Tactical, operational and strategic displays inside the vehicle",
+      "id": "mcv_display",
+      "ip": "172.31.50.5",
+      "label": "Mobile Unit Displays",
+      "subnet": "172.31.50.0/24",
+      "type": "endpoint",
+      "zone": "mobile_unit"
+    },
+    {
+      "description": "Fence-line radar covering the campus boundary",
+      "id": "perimeter_radar",
+      "ip": "203.0.113.8",
+      "label": "Perimeter Radar",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "perimeter"
+    },
+    {
+      "description": "Fence-line camera slaved to the perimeter radar",
+      "id": "perimeter_camera",
+      "ip": "203.0.113.9",
+      "label": "Perimeter Camera",
+      "subnet": "203.0.113.0/26",
+      "type": "sensor",
+      "zone": "perimeter"
+    }
+  ],
+  "edges": [
+    {
+      "label": null,
+      "link_type": "wan",
+      "source": "internet",
+      "target": "northwind_gw"
+    },
+    {
+      "label": null,
+      "link_type": "wan",
+      "source": "internet",
+      "target": "crestline_gw"
+    },
+    {
+      "label": null,
+      "link_type": "satellite",
+      "source": "internet",
+      "target": "satellite_terminal"
+    },
+    {
+      "label": "Carrier A handoff",
+      "link_type": "ethernet",
+      "source": "northwind_gw",
+      "target": "wan_demarc_panel"
+    },
+    {
+      "label": "Carrier B handoff",
+      "link_type": "ethernet",
+      "source": "crestline_gw",
+      "target": "wan_demarc_panel"
+    },
+    {
+      "label": null,
+      "link_type": "satellite",
+      "source": "satellite_terminal",
+      "target": "wan_edge_router"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wan_demarc_panel",
+      "target": "wan_edge_router"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "wan_edge_router",
+      "target": "core_firewall"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_firewall",
+      "target": "core_router"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_router",
+      "target": "core_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_router",
+      "target": "core_ips"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_ips",
+      "target": "core_backbone"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_backbone",
+      "target": "core_agg_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_agg_switch",
+      "target": "core_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "core_edge_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "core_console"
+    },
+    {
+      "label": "Console to jump host",
+      "link_type": "ethernet",
+      "source": "core_console",
+      "target": "mgmt_jump"
+    },
+    {
+      "label": "Campus to backbone",
+      "link_type": "wan",
+      "source": "core_router",
+      "target": "secure_backbone"
+    },
+    {
+      "label": "Backbone to cloud tenancy",
+      "link_type": "vlan",
+      "source": "secure_backbone",
+      "target": "gov_cloud"
+    },
+    {
+      "label": null,
+      "link_type": "vlan",
+      "source": "gov_cloud",
+      "target": "cop_application"
+    },
+    {
+      "label": null,
+      "link_type": "vlan",
+      "source": "gov_cloud",
+      "target": "cloud_tak_server"
+    },
+    {
+      "label": null,
+      "link_type": "vlan",
+      "source": "gov_cloud",
+      "target": "cloud_identity"
+    },
+    {
+      "label": "Attribute release",
+      "link_type": "vlan",
+      "source": "cop_application",
+      "target": "cloud_identity"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "mgmt_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mgmt_switch",
+      "target": "mgmt_storage"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mgmt_switch",
+      "target": "mgmt_host_a"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mgmt_switch",
+      "target": "mgmt_host_b"
+    },
+    {
+      "label": null,
+      "link_type": "vlan",
+      "source": "mgmt_host_a",
+      "target": "mgmt_vm_pool"
+    },
+    {
+      "label": null,
+      "link_type": "vlan",
+      "source": "mgmt_host_b",
+      "target": "mgmt_vm_pool"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mgmt_switch",
+      "target": "mgmt_ntp"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mgmt_switch",
+      "target": "mgmt_jump"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_edge_switch",
+      "target": "annex_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "annex_switch",
+      "target": "annex_poe_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "annex_poe_switch",
+      "target": "annex_ap"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "annex_switch",
+      "target": "annex_printer"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "annex_switch",
+      "target": "annex_uplink_radio"
+    },
+    {
+      "label": "Annex uplink",
+      "link_type": "microwave_60ghz",
+      "source": "annex_uplink_radio",
+      "target": "radio_net_repeater"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_agg_switch",
+      "target": "field_house_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "field_house_switch",
+      "target": "field_house_effector"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "field_house_switch",
+      "target": "field_house_ap"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "field_house_switch",
+      "target": "field_house_display"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_agg_switch",
+      "target": "north_stand_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "north_stand_switch",
+      "target": "north_stand_poe"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "north_stand_poe",
+      "target": "north_stand_camera"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "north_stand_switch",
+      "target": "north_stand_ap"
+    },
+    {
+      "label": null,
+      "link_type": "microwave_60ghz",
+      "source": "north_stand_switch",
+      "target": "radio_net_link_north"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_agg_switch",
+      "target": "south_stand_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "south_stand_switch",
+      "target": "south_stand_poe"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "south_stand_poe",
+      "target": "south_stand_camera"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "south_stand_switch",
+      "target": "south_stand_ap"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "sensor_net_firewall"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_firewall",
+      "target": "sensor_net_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "sensor_net_radar"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "sensor_net_rf_array"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "sensor_net_eoir"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "sensor_net_ptz"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "remote_id_receiver"
+    },
+    {
+      "label": "Track handoff",
+      "link_type": "vlan",
+      "source": "sensor_net_radar",
+      "target": "sensor_net_eoir"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "perimeter_radar"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "sensor_net_switch",
+      "target": "perimeter_camera"
+    },
+    {
+      "label": "Slew to cue",
+      "link_type": "vlan",
+      "source": "perimeter_radar",
+      "target": "perimeter_camera"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "radio_net_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "radio_net_switch",
+      "target": "radio_net_link_north"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "radio_net_switch",
+      "target": "radio_net_link_south"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "radio_net_switch",
+      "target": "radio_net_repeater"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "radio_net_switch",
+      "target": "adsb_receiver"
+    },
+    {
+      "label": "Cooperative tracks",
+      "link_type": "vlan",
+      "source": "adsb_receiver",
+      "target": "ops_tak_server"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_switch",
+      "target": "ops_net_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "ops_net_switch",
+      "target": "ops_tak_server"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "ops_net_switch",
+      "target": "ops_workstation_a"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "ops_net_switch",
+      "target": "ops_workstation_b"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "ops_net_switch",
+      "target": "ops_video_wall"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "ops_net_switch",
+      "target": "ops_laptop_cart"
+    },
+    {
+      "label": "Detection feed",
+      "link_type": "vlan",
+      "source": "ops_net_switch",
+      "target": "sensor_net_firewall"
+    },
+    {
+      "label": "Server federation",
+      "link_type": "vlan",
+      "source": "ops_tak_server",
+      "target": "cloud_tak_server"
+    },
+    {
+      "label": "COP to video wall",
+      "link_type": "vlan",
+      "source": "cop_application",
+      "target": "ops_video_wall"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "core_edge_switch",
+      "target": "guest_net_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "guest_net_switch",
+      "target": "guest_net_ap"
+    },
+    {
+      "label": null,
+      "link_type": "wireless",
+      "source": "guest_net_ap",
+      "target": "field_client_devices"
+    },
+    {
+      "label": "Handheld check-in",
+      "link_type": "vlan",
+      "source": "cloud_tak_server",
+      "target": "field_client_devices"
+    },
+    {
+      "label": "Vehicle circuit",
+      "link_type": "wan",
+      "source": "crestline_gw",
+      "target": "mcv_router"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mcv_router",
+      "target": "mcv_switch"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mcv_switch",
+      "target": "mcv_sensor_gateway"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mcv_switch",
+      "target": "mcv_mitigation"
+    },
+    {
+      "label": null,
+      "link_type": "ethernet",
+      "source": "mcv_switch",
+      "target": "mcv_display"
+    },
+    {
+      "label": "Vehicle backhaul",
+      "link_type": "microwave_60ghz",
+      "source": "mcv_router",
+      "target": "radio_net_link_south"
+    }
+  ],
+  "meta": {
+    "classification": "UNCLASSIFIED//SAMPLE",
+    "description": "Sample campus topology: cloud tier, dual-carrier WAN edge, core and management closets, three building closets, segmented sensor, radio, operations and guest networks, and a mobile command unit. Fabricated reference data.",
+    "device_count": 71,
+    "edge_count": 86,
+    "label": "Northgate Sports Campus",
+    "name": "C-UAS Network Architecture — Northgate Sports Campus",
+    "source_images": 20,
+    "updated": "2026-04-21",
+    "version": "2.0",
+    "visio_tabs": [
+      "Network Diagram",
+      "Management",
+      "Sensor Net",
+      "Radio Net",
+      "Operations",
+      "Mobile Unit",
+      "Power Distribution",
+      "Rack Elevation"
+    ]
+  },
+  "site_id": "northgate",
+  "zones": {
+    "annex_closet": {
+      "description": "Annex building closet (172.31.10.0/24): access switch, PoE injector, wireless and a microwave uplink",
+      "label": "Annex Data Closet"
+    },
+    "cloud": {
+      "description": "Government-region cloud tenancy, the mission COP application tier and the secure enterprise backbone",
+      "label": "Cloud / Backbone"
+    },
+    "core": {
+      "description": "Core routing, aggregation and the perimeter firewall pair (198.51.100.0/27)",
+      "label": "Core Routing"
+    },
+    "field_house": {
+      "description": "Field house closet (172.31.20.0/24): access switch, mitigation effector pair, wireless and an operator display",
+      "label": "Field House"
+    },
+    "guest_net": {
+      "description": "Segregated field-device wireless (203.0.113.192/26) for ATAK and iTAK handhelds",
+      "label": "Guest Net"
+    },
+    "mgmt": {
+      "description": "Server rack and out-of-band management (198.51.100.64/27): storage, two hypervisors, time and a jump host",
+      "label": "Server / Management"
+    },
+    "mobile_unit": {
+      "description": "Mobile command vehicle (172.31.50.0/24): router, switch, sensor gateway, mitigation pair and displays",
+      "label": "Mobile Command Unit"
+    },
+    "north_stand": {
+      "description": "North stand closet (172.31.30.0/24): access switch, PoE injector, wireless and a PTZ camera",
+      "label": "North Stand"
+    },
+    "ops_net": {
+      "description": "Operations floor (203.0.113.128/26): TAK server, operator workstations, video wall and a laptop cart",
+      "label": "Operations Net"
+    },
+    "perimeter": {
+      "description": "Fence-line detection: one radar and one camera on the campus boundary",
+      "label": "Perimeter"
+    },
+    "radio_net": {
+      "description": "Radio segment (203.0.113.64/26): two 60 GHz microwave links, a repeater and an ADS-B receiver",
+      "label": "Radio Net"
+    },
+    "sensor_net": {
+      "description": "Detection segment behind its own firewall (203.0.113.0/26): radar, RF array, EO/IR, PTZ and a remote-ID receiver",
+      "label": "Sensor Net"
+    },
+    "south_stand": {
+      "description": "South stand closet (172.31.40.0/24): access switch, PoE injector, wireless and a PTZ camera",
+      "label": "South Stand"
+    },
+    "wan": {
+      "description": "Dual carrier: Northwind Telecom (192.0.2.8/29) and Crestline Broadband (192.0.2.16/29), plus a satellite terminal for the mobile unit",
+      "label": "WAN / Internet"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ATLAS">
+  <title>ATLAS</title>
+  <desc>A hub with six traced spokes; one ends in a hollow node, the gap the tool exists to show.</desc>
+  <rect width="64" height="64" rx="14" fill="#0b1f3a"/>
+  <g stroke="#3db9d8" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <path d="M32 32 L32 14"/>
+    <path d="M32 32 L47.6 23"/>
+    <path d="M32 32 L47.6 41"/>
+    <path d="M32 32 L16.4 23"/>
+    <path d="M32 32 L16.4 41"/>
+  </g>
+  <path d="M32 32 L32 50" stroke="#d4553f" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="3.4 3.4" fill="none"/>
+  <g fill="#3db9d8">
+    <circle cx="32" cy="14" r="4.4"/>
+    <circle cx="47.6" cy="23" r="4.4"/>
+    <circle cx="47.6" cy="41" r="4.4"/>
+    <circle cx="16.4" cy="23" r="4.4"/>
+    <circle cx="16.4" cy="41" r="4.4"/>
+  </g>
+  <circle cx="32" cy="50" r="4.4" fill="none" stroke="#d4553f" stroke-width="2.6"/>
+  <circle cx="32" cy="32" r="7" fill="#e8eef6"/>
+</svg>

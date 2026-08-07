@@ -1,0 +1,539 @@
+{
+  "dimensions": [
+    {
+      "denominator": 11,
+      "detail": {
+        "by_status": {
+          "Condensed": 1,
+          "Didn't keep": 2,
+          "Partly carried forward": 2,
+          "Renamed / split out": 2,
+          "Split out": 4
+        },
+        "dropped": [
+          "No standing training pipeline for relay operators",
+          "No spectrum deconfliction process for mitigation effectors"
+        ]
+      },
+      "key": "requirement_attrition",
+      "label": "Requirement attrition",
+      "numerator": 9,
+      "severity": "watch",
+      "unit": "pct",
+      "value_pct": 81.8
+    },
+    {
+      "denominator": 32,
+      "detail": {
+        "unconfirmed": [
+          "beacon",
+          "cirrus",
+          "dwell",
+          "ember",
+          "fathom",
+          "gantry",
+          "halyard",
+          "ingot",
+          "jetty"
+        ]
+      },
+      "key": "ownership_ambiguity",
+      "label": "Ownership ambiguity",
+      "numerator": 23,
+      "severity": "watch",
+      "unit": "pct",
+      "value_pct": 71.9
+    },
+    {
+      "denominator": 32,
+      "detail": {
+        "per_site": {
+          "northgate": {
+            "checked_absent": [
+              "beacon",
+              "cbprel",
+              "cbpsen",
+              "cirrus",
+              "dispatch",
+              "dwell",
+              "ember",
+              "enterprise",
+              "fathom",
+              "gantry",
+              "halyard",
+              "icerel",
+              "ingot",
+              "orbit",
+              "partner",
+              "scan",
+              "skyward",
+              "trackwell",
+              "uscgrel",
+              "ussrel"
+            ],
+            "label": "Northgate Sports Campus",
+            "mapped": 10,
+            "mapped_ids": [
+              "bastion",
+              "civair",
+              "crosslink",
+              "eventrel",
+              "fpsrel",
+              "jetty",
+              "recon",
+              "tagpoint",
+              "ucop",
+              "winrel"
+            ],
+            "pct": 31.2,
+            "total": 32
+          },
+          "westfield": {
+            "checked_absent": [],
+            "label": "Westfield Proving Ground",
+            "mapped": 0,
+            "mapped_ids": [],
+            "pct": 0.0,
+            "total": 32
+          }
+        },
+        "unmapped": [
+          "beacon",
+          "cbprel",
+          "cbpsen",
+          "cirrus",
+          "dispatch",
+          "dwell",
+          "ember",
+          "enterprise",
+          "fathom",
+          "gantry",
+          "halyard",
+          "homing",
+          "icerel",
+          "ingot",
+          "kite",
+          "orbit",
+          "partner",
+          "scan",
+          "skyward",
+          "trackwell",
+          "uscgrel",
+          "ussrel"
+        ]
+      },
+      "key": "realization_gap",
+      "label": "Realization gap",
+      "numerator": 10,
+      "severity": "critical",
+      "unit": "pct",
+      "value_pct": 31.2
+    },
+    {
+      "denominator": 13,
+      "detail": {
+        "current_pairs": [
+          [
+            "bastion",
+            "kite"
+          ],
+          [
+            "cbpsen",
+            "orbit"
+          ],
+          [
+            "civair",
+            "orbit"
+          ],
+          [
+            "crosslink",
+            "ucop"
+          ],
+          [
+            "dispatch",
+            "fpsrel"
+          ],
+          [
+            "ember",
+            "fathom"
+          ],
+          [
+            "enterprise",
+            "skyward"
+          ],
+          [
+            "eventrel",
+            "jetty"
+          ],
+          [
+            "fpsrel",
+            "trackwell"
+          ],
+          [
+            "homing",
+            "jetty"
+          ],
+          [
+            "jetty",
+            "skyward"
+          ],
+          [
+            "jetty",
+            "tagpoint"
+          ],
+          [
+            "jetty",
+            "trackwell"
+          ],
+          [
+            "recon",
+            "ucop"
+          ]
+        ],
+        "missing": [
+          {
+            "from": "cbprel",
+            "label": "CBP Relay ↔ ORBIT",
+            "to": "orbit"
+          },
+          {
+            "from": "cbprel",
+            "label": "CBP Relay ↔ Sentinel",
+            "to": "cbpsen"
+          },
+          {
+            "from": "ussrel",
+            "label": "USSS ↔ ICE Relay federation",
+            "to": "icerel"
+          },
+          {
+            "from": "ussrel",
+            "label": "USSS ↔ USCG Relay federation",
+            "to": "uscgrel"
+          },
+          {
+            "from": "ussrel",
+            "label": "USSS ↔ FPS Relay federation",
+            "to": "fpsrel"
+          },
+          {
+            "from": "ussrel",
+            "label": "USSS ↔ CBP Relay federation",
+            "to": "cbprel"
+          },
+          {
+            "from": "beacon",
+            "label": "Beacon ↔ ORBIT exchange",
+            "to": "orbit"
+          },
+          {
+            "from": "beacon",
+            "label": "Beacon ↔ Enterprise exchange",
+            "to": "enterprise"
+          },
+          {
+            "from": "gantry",
+            "label": "GANTRY → ORBIT/ISR",
+            "to": "orbit"
+          },
+          {
+            "from": "gantry",
+            "label": "GANTRY → COP",
+            "to": "ucop"
+          },
+          {
+            "from": "recon",
+            "label": "ISR ↔ ORBIT",
+            "to": "orbit"
+          },
+          {
+            "from": "ingot",
+            "label": "INGOT → DHS operational",
+            "to": "jetty"
+          },
+          {
+            "from": "dispatch",
+            "label": "DMS ↔ Relay CoT auto-populate",
+            "to": "eventrel"
+          }
+        ],
+        "missing_pairs": [
+          [
+            "cbprel",
+            "orbit"
+          ],
+          [
+            "cbprel",
+            "cbpsen"
+          ],
+          [
+            "ussrel",
+            "icerel"
+          ],
+          [
+            "ussrel",
+            "uscgrel"
+          ],
+          [
+            "ussrel",
+            "fpsrel"
+          ],
+          [
+            "ussrel",
+            "cbprel"
+          ],
+          [
+            "beacon",
+            "orbit"
+          ],
+          [
+            "beacon",
+            "enterprise"
+          ],
+          [
+            "gantry",
+            "orbit"
+          ],
+          [
+            "gantry",
+            "ucop"
+          ],
+          [
+            "recon",
+            "orbit"
+          ],
+          [
+            "ingot",
+            "jetty"
+          ],
+          [
+            "dispatch",
+            "eventrel"
+          ]
+        ]
+      },
+      "key": "integration_gap",
+      "label": "Integration gap",
+      "numerator": 13,
+      "severity": "critical",
+      "unit": "count",
+      "value_pct": null
+    },
+    {
+      "denominator": 32,
+      "detail": {
+        "inferred": [],
+        "override": []
+      },
+      "key": "evidence_gap",
+      "label": "Evidence gap",
+      "numerator": 32,
+      "severity": "ok",
+      "unit": "pct",
+      "value_pct": 100.0
+    },
+    {
+      "denominator": 79,
+      "detail": {
+        "by_site": {
+          "northgate": 51,
+          "westfield": 8
+        },
+        "device_ids": {
+          "northgate": [
+            "secure_backbone",
+            "cloud_identity",
+            "internet",
+            "northwind_gw",
+            "crestline_gw",
+            "wan_demarc_panel",
+            "wan_edge_router",
+            "satellite_terminal",
+            "core_firewall",
+            "core_router",
+            "core_switch",
+            "core_ips",
+            "core_backbone",
+            "core_agg_switch",
+            "core_edge_switch",
+            "core_console",
+            "mgmt_switch",
+            "mgmt_storage",
+            "mgmt_host_a",
+            "mgmt_host_b",
+            "mgmt_vm_pool",
+            "mgmt_ntp",
+            "mgmt_jump",
+            "annex_switch",
+            "annex_poe_switch",
+            "annex_ap",
+            "annex_printer",
+            "annex_uplink_radio",
+            "field_house_switch",
+            "field_house_ap",
+            "field_house_display",
+            "north_stand_switch",
+            "north_stand_poe",
+            "north_stand_camera",
+            "north_stand_ap",
+            "south_stand_switch",
+            "south_stand_poe",
+            "south_stand_camera",
+            "south_stand_ap",
+            "sensor_net_firewall",
+            "sensor_net_switch",
+            "radio_net_switch",
+            "radio_net_link_north",
+            "radio_net_link_south",
+            "radio_net_repeater",
+            "ops_net_switch",
+            "ops_workstation_b",
+            "ops_video_wall",
+            "guest_net_switch",
+            "guest_net_ap",
+            "perimeter_camera"
+          ],
+          "westfield": [
+            "wf_firewall",
+            "wf_server",
+            "wf_gate_sensor",
+            "wf_ap",
+            "wf_laptop",
+            "wf_northwind_gw",
+            "wf_crestline_gw",
+            "wf_internet"
+          ]
+        }
+      },
+      "key": "orphaned_hardware",
+      "label": "Orphaned hardware",
+      "numerator": 59,
+      "severity": "critical",
+      "unit": "count",
+      "value_pct": null
+    },
+    {
+      "denominator": 7,
+      "detail": {
+        "questions": [
+          {
+            "question": "Does the cloud relay server also count under ucop, or strictly under eventrel?",
+            "subject": "ucop"
+          },
+          {
+            "question": "Does Jetty run on the operations fusion server, or on hardware that is not drawn yet?",
+            "subject": "jetty"
+          },
+          {
+            "question": "Perimeter radar on the campus boundary: is there any CBP Sentinel integration?",
+            "subject": "cbpsen"
+          },
+          {
+            "question": "Establish which sensors sit under the ISR programme and which were added ad hoc",
+            "subject": "recon"
+          },
+          {
+            "question": "Which of the operator laptops actually run the WinRelay desktop client?",
+            "subject": "winrel"
+          },
+          {
+            "question": "The matrix has no 'atak' system id. Should handhelds get a row of their own, or hang off the relay rows that issue them?",
+            "subject": "atak"
+          },
+          {
+            "question": "Nothing is mapped at Westfield Proving Ground yet. Walk the range with the site lead and fill the site in",
+            "subject": "westfield_all"
+          }
+        ]
+      },
+      "key": "open_questions",
+      "label": "Open questions",
+      "numerator": 7,
+      "severity": "watch",
+      "unit": "count",
+      "value_pct": null
+    }
+  ],
+  "top_gaps": [
+    {
+      "id": "beacon",
+      "name": "Beacon",
+      "risk": "high",
+      "score": 5,
+      "unconfirmed": true,
+      "unmapped": true
+    },
+    {
+      "id": "cirrus",
+      "name": "Cirrus",
+      "risk": "high",
+      "score": 5,
+      "unconfirmed": true,
+      "unmapped": true
+    },
+    {
+      "id": "dwell",
+      "name": "Dwell",
+      "risk": "high",
+      "score": 5,
+      "unconfirmed": true,
+      "unmapped": true
+    },
+    {
+      "id": "halyard",
+      "name": "Halyard",
+      "risk": "high",
+      "score": 5,
+      "unconfirmed": true,
+      "unmapped": true
+    },
+    {
+      "id": "ingot",
+      "name": "Ingot Sensor Suite (INGOT) / DATA VIEW",
+      "risk": "high",
+      "score": 5,
+      "unconfirmed": true,
+      "unmapped": true
+    },
+    {
+      "id": "dispatch",
+      "name": "Dispatch Management System (DMS/CAD)",
+      "risk": "high",
+      "score": 4,
+      "unconfirmed": false,
+      "unmapped": true
+    },
+    {
+      "id": "orbit",
+      "name": "ORBIT",
+      "risk": "high",
+      "score": 4,
+      "unconfirmed": false,
+      "unmapped": true
+    },
+    {
+      "id": "partner",
+      "name": "Partner Agency Data Sharing",
+      "risk": "high",
+      "score": 4,
+      "unconfirmed": false,
+      "unmapped": true
+    },
+    {
+      "id": "scan",
+      "name": "SCAN (Screening and Alerting Node)",
+      "risk": "high",
+      "score": 4,
+      "unconfirmed": false,
+      "unmapped": true
+    },
+    {
+      "id": "bastion",
+      "name": "Bastion Effector",
+      "risk": "high",
+      "score": 3,
+      "unconfirmed": false,
+      "unmapped": false
+    }
+  ]
+}

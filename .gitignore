@@ -1,0 +1,38 @@
+node_modules/
+dist/
+dist-standalone/
+.DS_Store
+*.local
+.vite/
+test-results/
+playwright-report/
+
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+dist-standalone-build/
+
+# The data bundle is a build output of ingest, and committing it is exactly how
+# the real dataset ended up in this repo's history.
+public/data/
+!public/data/.gitkeep
+
+# Source workbooks and graph exports are the raw controlled material itself.
+*.xlsx
+*.xlsm
+*.xls
+*.gexf
+*.graphml
+
+# Anything the app writes out carries whatever bundle was loaded at the time.
+exports/
+atlas-export-*
+
+# Secrets, and the local path that points at the real source repo.
+.env
+.env.*
+
+# Fixtures captured from the real bundle, for local runs only, never shared.
+ingest/tests/fixtures/real/
