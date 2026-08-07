@@ -1,9 +1,9 @@
 {
   "confidence_counts": {
-    "high": 6,
+    "high": 5,
     "low": 2,
     "medium": 3,
-    "total": 11,
+    "total": 10,
     "unspecified": 0
   },
   "default_site": "northgate",

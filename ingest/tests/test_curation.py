@@ -103,13 +103,27 @@ def test_two_northgate_mappings_are_software_only(sdmap):
     assert sorted(k for k, v in ngate.items() if not v.get("devices")) == ["homing", "kite"]
 
 
-def test_confidence_counts_exclude_the_software_only_mappings(sdmap):
+def test_confidence_counts_grade_only_the_realized_mappings(sdmap):
     """Verified against the real file on 2026-08-05: 13 mappings, of which 11
-    name at least one device, splitting 6 high / 3 medium / 2 low. The two
-    excluded entries (homing, kite) are themselves graded high, so counting all
-    13 would report 8 high and overstate physical coverage."""
+    name at least one device. The two excluded for naming none (homing, kite)
+    are themselves graded high, so counting all 13 would report 8 high.
+
+    One of the remaining 11, 'atak', is graded high but declares
+    matrix_id_exists: false, so it documents hardware the matrix carries no
+    system for. It was counted here until the tabs were reconciled, which is
+    why the Reference tab said 11 while Analytics and the realization gap said
+    10. The arithmetic below is that correction and nothing else: 11 device
+    bearing mappings minus the one outside the matrix, and 6 high minus that
+    same one.
+    """
+    site = sdmap["sites"]["northgate"]["mappings"]
+    with_devices = [e for e in site.values() if e.get("devices")]
+    outside = [e for e in with_devices if e.get("matrix_id_exists") is False]
+    assert len(with_devices) == 11
+    assert [e["confidence"] for e in outside] == ["high"]
+
     assert mapping_confidence_counts(sdmap) == {
-        "high": 6, "medium": 3, "low": 2, "unspecified": 0, "total": 11,
+        "high": 5, "medium": 3, "low": 2, "unspecified": 0, "total": 10,
     }
 
 

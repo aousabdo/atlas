@@ -1101,7 +1101,31 @@ function isBinary(buffer) {
 // ---------------------------------------------------------------------------
 
 function git(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf-8', maxBuffer: 256 * 1024 * 1024 })
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf-8',
+      maxBuffer: 256 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (err) {
+    // This guard runs inside `npm run build`, so when git fails the build dies
+    // with a raw exec stack trace from a vite webServer log and the actual
+    // cause is three screens up. It has already happened once: container jobs
+    // run as root over a checkout owned by the runner uid, git refuses the
+    // repository, and the message that mattered was git's own suggestion.
+    const detail = String(err.stderr || err.message || '').trim()
+    const hint = /dubious ownership/.test(detail)
+      ? '\n  Fix: git config --global --add safe.directory "$GITHUB_WORKSPACE"'
+      : ''
+    throw new Error(
+      `the data guard could not run \`git ${args.join(' ')}\` in ${cwd}.\n` +
+        `  ${detail}${hint}\n` +
+        '  This is a hard failure on purpose. The guard cannot tell a clean repo ' +
+        'from an unreadable one, and reporting a pass for the second is how the ' +
+        'controlled dataset got committed in the first place.',
+    )
+  }
 }
 
 function trackedFiles(cwd) {

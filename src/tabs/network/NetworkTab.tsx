@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadFailed } from '../../components/LoadFailed'
 import { useAtlas } from '../../data/useAtlas'
+import { countMappings, matrixIdSet } from '../../lib/coverage'
 import type {
   CoverageMatrix,
   Device,
@@ -268,7 +269,14 @@ function SiteTopology({
   // toggle rather than offering a button that greys the whole graph out.
   const hasRisk = riskById.size > 0
 
-  const mappedCount = Object.keys(coverage.sites[topology.site_id]?.mappings ?? {}).length
+  // Two different quantities, so two labels. The strip used to print the
+  // number of mapping rows under the word "systems", which is the count of
+  // what analysts wrote down rather than the count of what is deployed.
+  const mappingCounts = useMemo(() => {
+    const site = coverage.sites[topology.site_id]
+    if (!site) return { recorded: 0, realized: 0, softwareOnly: 0, outsideMatrix: 0 }
+    return countMappings(site, matrixIdSet(systems))
+  }, [coverage, systems, topology.site_id])
 
   const selectedId = picked ?? (dismissedFocus ? null : (focusIds[0] ?? null))
   const selectedDevice = selectedId ? (deviceById.get(selectedId) ?? null) : null
@@ -531,7 +539,7 @@ function SiteTopology({
           />
         </div>
 
-        {mappedCount === 0 && (
+        {mappingCounts.realized === 0 && (
           <p className="shrink-0 border-b border-line px-3 py-2 text-xs text-muted">
             No systems are mapped to this site yet, so every device reads as
             unclaimed. That is a pending mapping, not an empty network.
@@ -623,7 +631,16 @@ function SiteTopology({
             {' · '}
             <span className="tabular text-ink">{zoneIds.length} zones</span>
             {' · '}
-            <span className="tabular text-ink">{mappedCount} mapped systems</span>
+            <span className="tabular text-ink">
+              {mappingCounts.realized} systems realized
+            </span>
+            {' · '}
+            <span
+              className="tabular text-ink"
+              title="Rows in the mapping file for this site. A row counts as a realized system only when it names hardware here and the matrix carries it."
+            >
+              {mappingCounts.recorded} mappings recorded
+            </span>
           </p>
         </div>
 

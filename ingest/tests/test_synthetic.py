@@ -205,9 +205,12 @@ def test_coverage_counts(coverage):
     assert len(outside) == 1
 
 
-def test_coverage_confidence_counts_exclude_software_only_mappings(coverage):
+def test_coverage_confidence_counts_grade_only_the_realized_mappings(coverage):
+    """13 rows, minus 2 that name no hardware, minus 1 ('atak') that names
+    hardware the matrix carries no system for. The remaining 10 are what every
+    tab calls mapped; see src/lib/coverage.ts."""
     assert coverage["confidence_counts"] == {
-        "high": 6, "medium": 3, "low": 2, "unspecified": 0, "total": 11,
+        "high": 5, "medium": 3, "low": 2, "unspecified": 0, "total": 10,
     }
 
 

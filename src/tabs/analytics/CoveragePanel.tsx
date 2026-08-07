@@ -1,5 +1,13 @@
 import { useId } from 'react'
 
+import {
+  countMappings,
+  formatPercent,
+  isRealizedMapping,
+  matrixIdSet,
+  percentOf,
+  realizedSystemIds,
+} from '../../lib/coverage'
 import type {
   Confidence,
   CoverageMatrix,
@@ -62,9 +70,10 @@ interface SiteCoverage {
   id: string
   label: string
   summary: SiteSummary | undefined
-  /** Named hardware and a matrix system id: the definition the ingest uses. */
+  /** Named hardware and a matrix system id: see src/lib/coverage.ts. */
   mapped: string[]
   pct: number
+  recorded: number
   softwareOnly: number
   outsideMatrix: number
   unclaimed: number
@@ -76,27 +85,23 @@ function readSites(
   systems: System[],
   sites: SiteSummary[],
 ): SiteCoverage[] {
-  const matrixIds = new Set(systems.map((s) => s.id))
+  const matrixIds = matrixIdSet(systems)
   return Object.entries(coverage.sites).map(([id, site]) => {
-    const entries = Object.entries(site.mappings)
-    const mapped = entries
-      .filter(([sid, m]) => m.devices.length > 0 && matrixIds.has(sid))
-      .map(([sid]) => sid)
-      .sort()
+    const mapped = realizedSystemIds(site, matrixIds)
+    const counts = countMappings(site, matrixIds)
     const confidence: Record<Confidence, number> = { high: 0, medium: 0, low: 0 }
-    for (const [sid, m] of entries) {
-      if (mapped.includes(sid)) confidence[m.confidence] += 1
+    for (const [sid, m] of Object.entries(site.mappings)) {
+      if (isRealizedMapping(sid, m, matrixIds)) confidence[m.confidence] += 1
     }
     return {
       id,
       label: site.label,
       summary: sites.find((s) => s.id === id),
       mapped,
-      pct: systems.length ? Math.round((mapped.length / systems.length) * 100) : 0,
-      softwareOnly: entries.filter(
-        ([sid, m]) => m.devices.length === 0 && matrixIds.has(sid),
-      ).length,
-      outsideMatrix: entries.filter(([, m]) => m.matrix_id_exists === false).length,
+      pct: percentOf(mapped.length, systems.length),
+      recorded: counts.recorded,
+      softwareOnly: counts.softwareOnly,
+      outsideMatrix: counts.outsideMatrix,
       unclaimed: site.unclaimed_devices.infrastructure.length,
       confidence,
     }
@@ -175,7 +180,9 @@ export function CoveragePanel({
                   <div className="relative">
                     <Donut pct={row.pct} />
                     <span className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="tabular text-sm text-ink">{row.pct}%</span>
+                      <span className="tabular text-sm text-ink">
+                        {formatPercent(row.pct)}
+                      </span>
                       <span className="text-[10px] text-muted-3">mapped</span>
                     </span>
                   </div>
@@ -212,8 +219,8 @@ export function CoveragePanel({
                       <dt className="text-muted-3">
                         Uncounted mappings
                         <span className="block text-[10px]">
-                          {row.softwareOnly} software only, {row.outsideMatrix}{' '}
-                          outside the matrix
+                          of {row.recorded} recorded: {row.softwareOnly} software
+                          only, {row.outsideMatrix} outside the matrix
                         </span>
                       </dt>
                     </div>

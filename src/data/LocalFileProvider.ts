@@ -1,7 +1,9 @@
+import { matrixIdSet, realizedConfidenceCounts } from '../lib/coverage'
 import { computeLossiness } from '../lib/lossiness'
 import type {
   CoverageMatrix, CoverageSite, Glossary, LinkSet, LossinessReport, Manifest,
-  Methodology, Project, Requirement, SiteId, SnapshotMetrics, System, Topology,
+  Methodology, Project, Requirement, SiteId, SnapshotMetrics, System, SystemId,
+  Topology,
 } from '../types/atlas'
 import {
   ALWAYS_SOFT, CATEGORY_MAP, HIGH_KEYWORDS, ID_MAP, LINK_NAME_FRAGMENTS,
@@ -98,7 +100,10 @@ interface RawSystemDeviceMap {
 }
 
 /** Accepts the legacy flat single-site shape, same as curation.py. */
-function normaliseSystemDeviceMap(raw: RawSystemDeviceMap | null): CoverageMatrix {
+function normaliseSystemDeviceMap(
+  raw: RawSystemDeviceMap | null,
+  matrixIds: ReadonlySet<SystemId>,
+): CoverageMatrix {
   if (!raw) {
     return { default_site: null, sites: {}, pending_review: {}, confidence_counts: {} }
   }
@@ -114,35 +119,27 @@ function normaliseSystemDeviceMap(raw: RawSystemDeviceMap | null): CoverageMatri
   }
 
   const sites: Record<string, CoverageSite> = {}
-  const counts: Record<string, number> = {
-    high: 0, medium: 0, low: 0, unspecified: 0, total: 0,
-  }
   for (const [id, block] of Object.entries(blocks)) {
-    const mappings = block.mappings ?? {}
     sites[id] = {
       label: block.label ?? id,
       scope: block.scope ?? '',
-      mappings,
+      mappings: block.mappings ?? {},
       not_deployed_at_site:
         block.not_deployed_at_site ?? block.not_deployed_at_northgate ?? {},
       unclaimed_devices: block.unclaimed_devices ?? { infrastructure: [] },
     }
-    // Only device-bearing mappings count; software-only entries are curation
-    // records, not deployments.
-    for (const m of Object.values(mappings)) {
-      if (!m.devices?.length) continue
-      const grade = (m.confidence ?? '').toLowerCase()
-      counts[grade in counts ? grade : 'unspecified'] += 1
-      counts.total += 1
-    }
   }
 
-  return {
+  const matrix: CoverageMatrix = {
     default_site: raw.default_site ?? Object.keys(sites)[0] ?? null,
     sites,
     pending_review: raw.pending_review ?? {},
-    confidence_counts: counts,
+    confidence_counts: {},
   }
+  // The same predicate the tabs use, so the analyst's own file cannot produce
+  // a tally the tabs then disagree with.
+  matrix.confidence_counts = realizedConfidenceCounts(matrix, matrixIds)
+  return matrix
 }
 
 interface RawTopology {
@@ -224,6 +221,7 @@ export class LocalFileProvider implements AtlasDataProvider {
     const glossary = await readJson<Glossary>(inputs.glossary, EMPTY_GLOSSARY)
     const coverage = normaliseSystemDeviceMap(
       await readJson<RawSystemDeviceMap | null>(inputs.systemDeviceMap, null),
+      matrixIdSet(systems),
     )
 
     const topologies: Record<SiteId, Topology> = {}

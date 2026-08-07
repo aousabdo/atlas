@@ -76,6 +76,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -96,11 +99,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # public/data is generated and gitignored, so a fresh checkout has none
+      # and every tab test would render its load-failure state instead.
+      - run: node scripts/seed-data.mjs
       # `npm run build` is `tsc --noEmit && vite build && check-offline`, so the
       # air-gap guarantee is enforced on every push rather than asserted in docs.
       - run: npm run build
@@ -115,11 +124,17 @@ jobs:
       ATLAS_RENDER_ENV: linux-x64-noble-pw1.62.1
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # public/data is generated and gitignored, so a fresh checkout has none
+      # and every tab test would render its load-failure state instead.
+      - run: node scripts/seed-data.mjs
       # No `playwright install`: the image already carries the matching browsers,
       # and installing a different build here would silently invalidate every
       # baseline the job is about to compare against.
@@ -149,11 +164,17 @@ jobs:
       ATLAS_BUILD_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # public/data is generated and gitignored, so a fresh checkout has none
+      # and every tab test would render its load-failure state instead.
+      - run: node scripts/seed-data.mjs
       # Builds dist-standalone/atlas.html inside the run, then drives it from a
       # file:// URL with the network cut. Previously this artifact was tested in
       # whatever state it happened to be in, and in CI it did not exist at all.
@@ -174,11 +195,17 @@ jobs:
       ATLAS_RENDER_ENV: linux-x64-noble-pw1.62.1
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # public/data is generated and gitignored, so a fresh checkout has none
+      # and every tab test would render its load-failure state instead.
+      - run: node scripts/seed-data.mjs
       # --update-snapshots=all, never a bare -u. The bare flag presets to
       # "changed", which leaves any baseline whose diff fits inside the
       # tolerance untouched and still reports a pass, which is precisely how a
@@ -193,6 +220,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Container jobs run as root over a checkout owned by the runner uid,
+      # so git refuses the repo and the data guard dies mid-build.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

@@ -25,7 +25,7 @@ ATLAS reads everything through one interface, `AtlasDataProvider`, with two
 implementations:
 
 - **Static** (default) reads pre-built JSON bundles committed to `public/data/`. This is
-  what the hosted site serves.
+  what the hosted site serves, and it is the synthetic sample.
 - **Local file** parses a Traceability Matrix you choose, entirely in your browser using
   SheetJS. **The file never leaves your machine.** No upload, no request, nothing written
   anywhere. For sensitive data this is strictly safer than any hosted alternative,
@@ -33,6 +33,58 @@ implementations:
 
 A single contract test suite runs against both, so they cannot quietly disagree about
 what the data says.
+
+### Loading your own matrix
+
+**Load data** in the header opens a panel. It takes:
+
+| File | Required | What it is |
+|---|---|---|
+| Traceability Matrix (`.xlsx`) | yes | The workbook. Needs a `Matrix` sheet and a crosswalk sheet. |
+| Curation overrides (`.json`) | no | Cross links, suppressions, risk and confirmation overrides. |
+| Glossary (`.json`) | no | Acronyms, scope notes, confidence wording. |
+| System to device map (`.json`) | no | Which devices realize which systems, per site. |
+| Site topology (`.json`) | no | One per site. The site id comes from the file name, so `northgate_network.json` loads as `northgate`. |
+
+Drag a file onto its field, or use the file input next to it. Both are always present:
+the drop zone is the convenience, the input is what keyboard and screen reader users
+actually get.
+
+Everything is parsed up front. If any file is unreadable the load fails, the parser's own
+message is shown verbatim ("`broken.xlsx`: not a valid xlsx (no zip signature)"), and the
+app stays on whatever it was already showing. There is no half-loaded state.
+
+### What is on screen, and what it is marked
+
+A strip under the tabs always says which dataset you are looking at, and it is never
+absent:
+
+- **SAMPLE DATA** with the reminder that nothing in it describes a real site.
+- For a loaded file, the **control marking** read from the data itself, the file name, and
+  a **Return to sample data** button. The marking comes from the `classification` field
+  on the project and on each site topology; distinct values are all shown rather than one
+  of them being picked. If the files carry no marking, the strip says
+  `MARKING NOT STATED IN THE LOADED FILES` rather than showing a blank, because a blank
+  reads as "unclassified" and that is a claim this tool has no basis to make.
+
+While local data is loaded, that marking is **burnt into every export**: a band above and
+below every PNG, a line at the top and bottom of every PDF page, and a first and last row
+in every downloaded CSV. It is drawn into the pixels rather than attached as metadata,
+because metadata does not survive being pasted into a document. The marking is armed once,
+in `AtlasProvider`, and read by the export functions themselves, so a new export path
+cannot ship unmarked by forgetting to pass it.
+
+### Nothing is persisted, deliberately
+
+The parsed data lives in React state and nowhere else. No `localStorage`, no
+`sessionStorage`, no IndexedDB, no service worker cache. Reloading the page returns to the
+sample, and closing the tab is a complete erase.
+
+This is the constraint most likely to be broken later by someone adding a convenience such
+as "remember my last file", so `src/components/__tests__/LoadDataPanel.test.tsx` asserts
+that a successful load leaves both web storages byte-identical, opens no database, touches
+no cache, and registers no worker. If you are here because that test is failing, the test
+is not the problem.
 
 ## Works offline
 

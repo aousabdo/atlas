@@ -3,8 +3,10 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 
 import { ABOUT } from './components/aboutContent'
 import { AboutDrawer } from './components/AboutDrawer'
+import { DataSourceBanner } from './components/DataSourceBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ExportMenu } from './components/ExportMenu'
+import { LoadDataPanel } from './components/LoadDataPanel'
 import { ShortcutsDialog, type ShortcutGroup } from './components/ShortcutsDialog'
 import { TabBar, TABS } from './components/TabBar'
 import { AtlasProvider } from './data/ProviderContext'
@@ -102,6 +104,7 @@ function Shell() {
                 About
               </button>
             )}
+            <LoadDataPanel />
             <ExportMenu targetRef={panelRef} view={viewKey} />
             <button
               type="button"
@@ -115,6 +118,7 @@ function Shell() {
           </>
         }
       />
+      <DataSourceBanner />
       <main
         ref={panelRef}
         /* The map and the topology are full bleed; every other view gets the usual gutter. */

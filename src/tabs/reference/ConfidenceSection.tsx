@@ -2,8 +2,15 @@ import type { ReactNode } from 'react'
 
 import { EmptyState } from '../../components/EmptyState'
 import { ProvenanceChip } from '../../components/ProvenanceChip'
+import {
+  countMappings,
+  formatPercent,
+  matrixIdSet,
+  realizedConfidenceCounts,
+  realizedMappingsAt,
+  type MappingRef,
+} from '../../lib/coverage'
 import type {
-  Confidence,
   CoverageMatrix,
   Glossary,
   LossinessReport,
@@ -18,11 +25,6 @@ interface SiteRealization {
   mapped: number
   total: number
   pct: number
-}
-
-interface MappingRef {
-  system: string
-  site: string
 }
 
 const TONE = {
@@ -80,22 +82,11 @@ function perSiteRealization(report: LossinessReport): SiteRealization[] {
 }
 
 /** The bundle's tally is authoritative; the walk over the matrix is the fallback
- *  for a bundle that predates the tally, never a second opinion about it. */
+ *  for a bundle that predates the tally, never a second opinion about it. Both
+ *  now apply the same predicate, so the fallback cannot disagree. */
 function tallied(counts: Record<string, number>, key: string, fallback: number): number {
   const value = counts[key]
   return typeof value === 'number' ? value : fallback
-}
-
-function mappingsAt(coverage: CoverageMatrix, level: Confidence): MappingRef[] {
-  const out: MappingRef[] = []
-  for (const [siteId, site] of Object.entries(coverage.sites)) {
-    for (const [systemId, mapping] of Object.entries(site.mappings)) {
-      if (mapping.devices.length > 0 && mapping.confidence === level) {
-        out.push({ system: systemId, site: siteId })
-      }
-    }
-  }
-  return out.sort((a, b) => a.system.localeCompare(b.system))
 }
 
 function MappingRefs({ refs }: { refs: MappingRef[] }) {
@@ -130,10 +121,30 @@ export function ConfidenceSection({
   systems: System[]
 }) {
   const realization = perSiteRealization(lossiness)
+  const matrixIds = matrixIdSet(systems)
   const counts = coverage.confidence_counts
-  const highMappings = mappingsAt(coverage, 'high')
-  const mediumMappings = mappingsAt(coverage, 'medium')
-  const lowMappings = mappingsAt(coverage, 'low')
+  const highMappings = realizedMappingsAt(coverage, matrixIds, 'high')
+  const mediumMappings = realizedMappingsAt(coverage, matrixIds, 'medium')
+  const lowMappings = realizedMappingsAt(coverage, matrixIds, 'low')
+  // The denominator every confidence figure below is a share of. Naming it
+  // stops "6 high" being read against the 13 rows in the mapping file.
+  const realizedTotal = tallied(
+    counts,
+    'total',
+    realizedConfidenceCounts(coverage, matrixIds).total,
+  )
+  // The rows that exist but are not coverage, stated rather than dropped.
+  const uncounted = Object.values(coverage.sites).reduce(
+    (acc, site) => {
+      const c = countMappings(site, matrixIds)
+      return {
+        recorded: acc.recorded + c.recorded,
+        softwareOnly: acc.softwareOnly + c.softwareOnly,
+        outsideMatrix: acc.outsideMatrix + c.outsideMatrix,
+      }
+    },
+    { recorded: 0, softwareOnly: 0, outsideMatrix: 0 },
+  )
   const explicit = systems.filter((s) => s.risk_source === 'explicit').length
   const inferred = systems.filter((s) => s.risk_source === 'inferred').length
   const override = systems.filter((s) => s.risk_source === 'override').length
@@ -167,9 +178,10 @@ export function ConfidenceSection({
           </li>
         ))}
         <li>
-          <Num>{tallied(counts, 'high', highMappings.length)}</Num> system to device
-          mappings flagged high confidence, meaning physically verified from a Visio or
-          an AAR.
+          <Num>
+            {`${tallied(counts, 'high', highMappings.length)} of ${realizedTotal} realized mappings`}
+          </Num>{' '}
+          flagged high confidence, meaning physically verified from a Visio or an AAR.
         </li>
       </Card>
 
@@ -184,8 +196,10 @@ export function ConfidenceSection({
           <ProvenanceChip source="override" />. The keyword lists are under Methodology.
         </li>
         <li>
-          <Num>{tallied(counts, 'medium', mediumMappings.length)}</Num> mappings flagged
-          medium confidence, a strong inference from role and context
+          <Num>
+            {`${tallied(counts, 'medium', mediumMappings.length)} of ${realizedTotal} realized mappings`}
+          </Num>{' '}
+          flagged medium confidence, a strong inference from role and context
           {mediumMappings.length > 0 && (
             <>
               : <MappingRefs refs={mediumMappings} />
@@ -195,22 +209,33 @@ export function ConfidenceSection({
         </li>
         {realization.map((site) => (
           <li key={site.id}>
-            <Num>{site.mapped}</Num> of <Num>{site.total}</Num> systems mapped to hardware
-            at {site.label} (<Num>{site.pct}</Num>%).
+            <Num>{`${site.mapped} of ${site.total}`}</Num> systems mapped to hardware at{' '}
+            {site.label} (<Num>{formatPercent(site.pct)}</Num>).
           </li>
         ))}
       </Card>
 
       <Card title="Low confidence and pending: known unknowns" tone="low">
         <li>
-          <Num>{tallied(counts, 'low', lowMappings.length)}</Num> mappings flagged low
-          confidence, a best guess pending team confirmation
+          <Num>
+            {`${tallied(counts, 'low', lowMappings.length)} of ${realizedTotal} realized mappings`}
+          </Num>{' '}
+          flagged low confidence, a best guess pending team confirmation
           {lowMappings.length > 0 && (
             <>
               : <MappingRefs refs={lowMappings} />
             </>
           )}
           .
+        </li>
+        <li>
+          <Num>
+            {`${uncounted.softwareOnly + uncounted.outsideMatrix} of ${uncounted.recorded} recorded mappings`}
+          </Num>{' '}
+          are not coverage: <Num>{uncounted.softwareOnly}</Num> name a matrix system but
+          no hardware yet, and <Num>{uncounted.outsideMatrix}</Num> name hardware the
+          matrix carries no system for. Both are real records; neither is a realized
+          system.
         </li>
         <li>
           <Num>{questions.length}</Num> open questions recorded against the mapping file:

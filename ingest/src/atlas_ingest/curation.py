@@ -83,16 +83,28 @@ def load_system_device_map(path):
 
 
 def mapping_confidence_counts(sdmap):
-    """Confidence tally across every site.
+    """Confidence tally of the realized mappings, across every site.
 
-    Only mappings with at least one device count as mapped. Two Northgate
-    entries (homing, kite) are software-only and carry an empty device list, so
-    they are curation records rather than deployments and are excluded.
+    Realized means the same thing here as in lossiness._realization_gap and in
+    src/lib/coverage.ts: the mapping names hardware AND names a matrix system.
+    Two exclusions, and they are different facts:
+
+      - no devices (homing, kite are software-only curation records),
+      - not a matrix system (atak documents hardware the matrix has no row
+        for, so grading it as verified coverage overstates the architecture).
+
+    The matrix id is tested through the curator's matrix_id_exists flag rather
+    than a systems list, because validate.validate already refuses any bundle
+    where a mapping names an id the matrix lacks without that flag. The
+    two tests therefore cannot disagree on a bundle that builds, and the tally
+    stays computable from the mapping file alone.
     """
     counts = {"high": 0, "medium": 0, "low": 0, "unspecified": 0, "total": 0}
     for site in sdmap.get("sites", {}).values():
         for entry in site.get("mappings", {}).values():
             if not entry.get("devices"):
+                continue
+            if entry.get("matrix_id_exists") is False:
                 continue
             grade = (entry.get("confidence") or "").lower()
             counts[grade if grade in counts else "unspecified"] += 1

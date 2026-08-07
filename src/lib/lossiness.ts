@@ -10,6 +10,7 @@ import type {
   CoverageMatrix, LinkSet, LossinessDimension, LossinessReport, Requirement,
   Severity, System, Topology, TopGap,
 } from '../types/atlas'
+import { matrixIdSet, realizedSystemIds } from './coverage'
 
 export const DIMENSION_LABELS: Record<string, string> = {
   requirement_attrition: 'Requirement attrition',
@@ -96,17 +97,13 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
     { unconfirmed },
   )
 
-  // A mapping counts only when it names hardware AND names a matrix system.
-  // 'atak' carries matrix_id_exists: false: it describes devices nobody has
-  // added to the matrix, which is a different fact from a realized system.
-  const matrixIds = new Set(systems.map((s) => s.id))
+  // isRealizedMapping is the shared definition; see src/lib/coverage.ts for
+  // why a device-less or non-matrix mapping is a different fact from coverage.
+  const matrixIds = matrixIdSet(systems)
   const perSite: Record<string, unknown> = {}
   const mappedAnywhere = new Set<string>()
   for (const [siteId, site] of Object.entries(coverage.sites)) {
-    const mapped = Object.entries(site.mappings)
-      .filter(([sid, m]) => m.devices.length > 0 && matrixIds.has(sid))
-      .map(([sid]) => sid)
-      .sort()
+    const mapped = realizedSystemIds(site, matrixIds)
     mapped.forEach((m) => mappedAnywhere.add(m))
     perSite[siteId] = {
       label: site.label,
