@@ -166,6 +166,37 @@ export function readWorkbook(buffer: ArrayBuffer): XLSX.WorkBook {
   return XLSX.read(buffer, { type: 'array' })
 }
 
+/**
+ * Spellings the integrations column appears under in real workbooks.
+ *
+ * Real matrices carry a doubled letter in this header. The parser has to
+ * recognise it or the column is silently dropped and every system loses its
+ * integration prose, which is not an error anyone would notice: the tab still
+ * renders, just emptier. The data guard allows these literals by name for the
+ * same reason it allows the dropped-status wording, and for the same reason:
+ * breaking a parser to satisfy a scanner trades a working feature for a
+ * cosmetic pass.
+ *
+ * A previous edit collapsed the two spellings into one string twice, which
+ * read as a fallback and was not one.
+ */
+const INTEGRATION_HEADERS = [
+  'Existing Interfaces',
+  'Currrent Integrations',
+  'Current Integrations',
+] as const
+
+function firstHeader(
+  headers: Map<string, number>,
+  names: readonly string[],
+): number | undefined {
+  for (const name of names) {
+    const index = headers.get(name)
+    if (index !== undefined) return index
+  }
+  return undefined
+}
+
 export function readMatrixRows(wb: XLSX.WorkBook, fileName = 'workbook'): System[] {
   if (!wb.SheetNames.includes('Matrix')) {
     throw new LocalFileError(
@@ -188,7 +219,7 @@ export function readMatrixRows(wb: XLSX.WorkBook, fileName = 'workbook'): System
     name: headers.get('Project/System'),
     infra: headers.get('Infrastructure/Technology'),
     owner: headers.get('Owner Organization'),
-    integ: headers.get('Existing Interfaces') ?? headers.get('Existing Interfaces'),
+    integ: firstHeader(headers, INTEGRATION_HEADERS),
     risk: headers.get('Risk/Challenge'),
   }
   if (col.name === undefined) {

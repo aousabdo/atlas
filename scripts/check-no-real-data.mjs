@@ -319,6 +319,13 @@ export const PUBLIC_VOCABULARY = new Set([
   // dropped status, or it cannot read one. Breaking that to satisfy this
   // guard would trade a working feature for a cosmetic pass.
   "didn't keep as system row", "didn't keep", 'did not keep',
+  // Spreadsheet column headers the parser must match literally to read a real
+  // workbook, including the doubled letter real matrices carry. Breaking the
+  // parser to satisfy this scanner would trade a working feature for a pass.
+  'currrent integrations', 'current integrations', 'desired integrations',
+  'existing interfaces', 'planned interfaces',
+  // Ordinary code identifiers that collide with harvested words.
+  'nodecount', 'nodecounts', 'axis', 'axes',
   'split out', 'renamed / split out', 'partly carried forward', 'condensed',
   "didn't keep",
   // Spreadsheet furniture. The harvest now reads workbooks, so the column
