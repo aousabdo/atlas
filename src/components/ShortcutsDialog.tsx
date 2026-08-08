@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 
+import { useFocusTrap, useSoleModal } from './modal'
+
 export interface ShortcutRow {
   keys: string[]
   description: string
@@ -25,9 +27,29 @@ export function ShortcutsDialog({
   onClose: () => void
 }) {
   const closeRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
+  // Same promise as the palette's, kept the same way: aria-modal says the rest
+  // of the page is inert, so Tab must not leave this card.
+  useFocusTrap(cardRef)
+
+  // ⌘K opens search from anywhere, including from here. This card steps aside
+  // for it rather than drawing over it.
+  useSoleModal(onClose)
+
+  /**
+   * Focused once, when the dialog opens.
+   *
+   * Not on every change of onClose: that is a fresh arrow function on every
+   * render of the shell, so this ran again whenever anything above it changed
+   * and pulled focus back to Close. Opening search from here left the caret in
+   * this card, and closing it then dropped focus on the body.
+   */
   useEffect(() => {
     closeRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose()
     }
@@ -41,6 +63,7 @@ export function ShortcutsDialog({
       onClick={onClose}
     >
       <div
+        ref={cardRef}
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard shortcuts"
@@ -85,7 +108,8 @@ export function ShortcutsDialog({
 
         <p className="mt-5 text-xs text-muted-3">
           Press ? any time to bring this back. Shortcuts are ignored while you are
-          typing in a field.
+          typing in a field, apart from ⌘K, which opens search from anywhere
+          including a search box.
         </p>
       </div>
     </div>

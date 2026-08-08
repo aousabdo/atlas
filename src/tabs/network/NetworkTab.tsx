@@ -25,6 +25,7 @@ import { DeviceDetail, type DeviceConnection, type DeviceSystem } from './Device
 import { ForceGraph } from './ForceGraph'
 import { NetworkLegend } from './NetworkLegend'
 import { NetworkMinimap } from './NetworkMinimap'
+import { ResiliencePanel, useResilience, type GraphOverlay } from './ResiliencePanel'
 import { ViewStrip } from '../../components/ViewStrip'
 import { deviceRisks } from './risk'
 import { SiteSelector } from './SiteSelector'
@@ -194,8 +195,11 @@ function SiteTopology({
   const [transform, setTransform] = useState<Transform>(IDENTITY)
   const [canvasSize, setCanvasSize] = useState<Size>({ width: 0, height: 0 })
   const [fitNonce, setFitNonce] = useState(0)
+  const [markSpof, setMarkSpof] = useState(false)
+  const [overlay, setOverlay] = useState<GraphOverlay | null>(null)
 
   const searchRef = useRef<HTMLInputElement>(null)
+  const detailRef = useRef<HTMLDivElement>(null)
 
   const deviceById = useMemo(
     () => new Map(topology.devices.map((device) => [device.id, device])),
@@ -269,6 +273,11 @@ function SiteTopology({
   // toggle rather than offering a button that greys the whole graph out.
   const hasRisk = riskById.size > 0
 
+  // Cut vertices and components, computed after the first paint and cached per
+  // topology object, so a site switch or a locally loaded bundle recomputes and
+  // a redraw does not.
+  const resilience = useResilience(topology)
+
   // Two different quantities, so two labels. The strip used to print the
   // number of mapping rows under the word "systems", which is the count of
   // what analysts wrote down rather than the count of what is deployed.
@@ -278,14 +287,62 @@ function SiteTopology({
     return countMappings(site, matrixIdSet(systems))
   }, [coverage, systems, topology.site_id])
 
+  /**
+   * A new ?focus= is a new instruction, so it clears whatever answered the old
+   * one.
+   *
+   * This view is keyed by site, so a jump from the command palette to another
+   * device at the site already on screen does not remount and keeps every piece
+   * of state below. dismissedFocus outlived the focus it dismissed: once
+   * Escape had cleared a selection, every later jump within that site arrived
+   * at a canvas that had already decided to ignore ?focus=, so the URL changed
+   * and nothing else did. picked outlived it the same way, one row higher in
+   * the expression below.
+   */
+  const focusInstruction = focusIds.join(',')
+  useEffect(() => {
+    setDismissedFocus(false)
+    setPicked(null)
+  }, [focusInstruction])
+
   const selectedId = picked ?? (dismissedFocus ? null : (focusIds[0] ?? null))
   const selectedDevice = selectedId ? (deviceById.get(selectedId) ?? null) : null
+
+  /**
+   * Whether the chokepoint rings are actually on the canvas.
+   *
+   * An overlay dims everything outside its own answer to 0.14, rings included,
+   * so under a what-if or a path the marking is not on screen. A control that
+   * reads pressed while doing nothing is worse than one that is unavailable, so
+   * the toggle below is driven by this rather than by the raw preference, and
+   * the rings are not written into the DOM either. The preference itself
+   * survives, so going back to the current state brings them back.
+   */
+  const spofMarked = markSpof && overlay === null
 
   const focused = useMemo(() => {
     const ids = new Set(dismissedFocus ? [] : focusIds)
     if (selectedId) ids.add(selectedId)
+    // The chokepoints borrow the ring ?focus= already uses. One "look here"
+    // encoding on this canvas is enough; a fourth would need its own legend.
+    if (spofMarked) for (const id of resilience.spofIds) ids.add(id)
     return ids
-  }, [focusIds, selectedId, dismissedFocus])
+  }, [focusIds, selectedId, dismissedFocus, spofMarked, resilience.spofIds])
+
+  /**
+   * The device a what-if removes, which is neither present nor stranded.
+   *
+   * It is kept out of the lit set on purpose: drawn lit it was the most
+   * prominent thing on a canvas describing its own absence, still wired at full
+   * strength to exactly the devices it had just stranded, and it made the marks
+   * on screen outnumber the count in the banner by one. It gets the marker
+   * below instead, which says what it is.
+   */
+  const removedId = overlay?.kind === 'what-if' ? overlay.deviceId : null
+  const removedNode = useMemo(
+    () => (removedId ? (layout.nodes.find((node) => node.id === removedId) ?? null) : null),
+    [removedId, layout.nodes],
+  )
 
   /** Who is wired to whom, which is what isolating a device dims against. */
   const adjacency = useMemo(() => {
@@ -301,12 +358,16 @@ function SiteTopology({
 
   /** Hover wins over selection, exactly as in the tool being replaced. */
   const highlight = useMemo(() => {
+    // An overlay outranks both. It is an explicit answer to a question the
+    // reader asked, and a hover must not quietly replace it with something
+    // else while they are reading it.
+    if (overlay) return new Set(overlay.deviceIds)
     const focus = hoverId ?? selectedId
     if (!focus) return null
     const set = new Set<string>([focus])
     for (const id of adjacency.get(focus) ?? []) set.add(id)
     return set
-  }, [hoverId, selectedId, adjacency])
+  }, [overlay, hoverId, selectedId, adjacency])
 
   const connections: DeviceConnection[] = useMemo(() => {
     if (!selectedDevice) return []
@@ -346,14 +407,20 @@ function SiteTopology({
     [topology.edges],
   )
 
+  // A what-if belongs to the device it removes, and a traced path to the pair
+  // it joins. Picking a different device asks a different question, so the
+  // canvas stops answering the old one rather than leaving a stale hypothetical
+  // on screen next to a detail panel describing something else.
   const select = useCallback((deviceId: string) => {
     setPicked(deviceId)
     setDismissedFocus(false)
+    setOverlay(null)
   }, [])
 
   const clearSelection = useCallback(() => {
     setPicked(null)
     setDismissedFocus(true)
+    setOverlay(null)
   }, [])
 
   /** Escape means all of it: selection, zone filter and any live preview. */
@@ -393,6 +460,21 @@ function SiteTopology({
     const points = baseLayout.nodes.filter((n) => ids.has(n.id)).map((n) => ({ x: n.x, y: n.y }))
     setTransform((previous) => panToFit(points, canvasSize, previous.k) ?? previous)
   }, [focusKey, baseLayout, canvasSize])
+
+  /**
+   * Bring the device record up when the selection changes.
+   *
+   * The panel is one scroll column, so on a short viewport the record sits
+   * below the fold, and a device picked on the canvas or from the analysis
+   * would otherwise answer into a part of the panel the reader cannot see.
+   * `nearest` means no movement at all when it is already on screen, which is
+   * the common case on a tall display. Optional call: jsdom has no
+   * scrollIntoView, and this is a convenience rather than the fix.
+   */
+  useEffect(() => {
+    if (!selectedId) return
+    detailRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [selectedId])
 
   /**
    * The graph shortcuts, in the same document as everything else.
@@ -444,9 +526,9 @@ function SiteTopology({
           setShowPanel((on) => !on)
           return consume()
         case 'Escape':
-          // Nothing isolated and no zone filtered: leave Escape to whoever
-          // else wants it rather than swallowing it.
-          if (!selectedId && !activeZone) return
+          // Nothing isolated, no zone filtered and no what-if on screen: leave
+          // Escape to whoever else wants it rather than swallowing it.
+          if (!selectedId && !activeZone && !overlay) return
           clearAll()
           return consume()
         default:
@@ -455,7 +537,7 @@ function SiteTopology({
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [hasRisk, selectedId, activeZone, clearAll])
+  }, [hasRisk, selectedId, activeZone, overlay, clearAll])
 
   if (topology.devices.length === 0) {
     return (
@@ -497,14 +579,39 @@ function SiteTopology({
         fitNonce={fitNonce}
       />
 
+      {removedNode && <RemovedMarker node={removedNode} transform={transform} />}
+
+      {/*
+        One scroll column, not a stack of blocks competing for a fixed height.
+
+        The previous shape gave four blocks fixed heights and let the last two
+        fight over what was left inside an `overflow-hidden` box. On anything
+        shorter than about 1073px of viewport that remainder is negative, so the
+        analysis and the device record were laid out below the bottom edge of a
+        container that could not scroll: unreachable by any means, on a 1366x768
+        laptop, with no scrollbar to say so. A flexible block does not fix that,
+        it only decides which unreachable thing is unreachable first.
+
+        So the panel scrolls as a whole and every section is sized by its own
+        content. Two lists that can run to dozens of rows, devices and zones,
+        keep their own caps so neither can push everything else past the fold on
+        its own, and those caps are the only nested scrolling left.
+      */}
       <aside
         aria-label="Topology controls"
         hidden={!showPanel}
-        className="absolute inset-y-0 left-0 z-20 flex w-80 flex-col overflow-hidden border-r border-line bg-surface/95 backdrop-blur"
+        data-testid="topology-panel"
+        // scroll-pt-16 keeps the sticky site header from parking on top of
+        // whatever was just scrolled to, which is the standard cost of a lid.
+        className="absolute inset-y-0 left-0 z-20 flex w-80 scroll-pt-16 flex-col overflow-y-auto overscroll-contain border-r border-line bg-surface/95 backdrop-blur"
       >
         {/* Top padding clears the heading, which is mounted once by the tab
-            itself so it survives the load states. */}
-        <div className="shrink-0 border-b border-line px-3 pt-8 pb-2">
+            itself so it survives the load states. Sticky and opaque now that
+            the column scrolls: the heading floats over this strip at z-30, so
+            without a lid the device list would slide underneath it and be read
+            through it. Keeping the site name pinned is the useful side of the
+            same coin, since the panel is the only place it is written. */}
+        <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface px-3 pt-8 pb-2">
           <p className="text-[11px] tracking-wide text-muted-3 uppercase">
             {topology.meta.label}
           </p>
@@ -539,6 +646,21 @@ function SiteTopology({
           />
         </div>
 
+        {/* The analysis sits in the panel rather than in a box of its own: the
+            tab already floats four things over the canvas, and this is the same
+            list-and-drill-through shape as the zone and device lists above.
+            Its own height, like every other section, because the column above
+            scrolls. */}
+        <div className="shrink-0 border-b border-line">
+          <ResiliencePanel
+            topology={topology}
+            selectedId={selectedId}
+            onSelect={select}
+            overlay={overlay}
+            onOverlay={setOverlay}
+          />
+        </div>
+
         {mappingCounts.realized === 0 && (
           <p className="shrink-0 border-b border-line px-3 py-2 text-xs text-muted">
             No systems are mapped to this site yet, so every device reads as
@@ -546,7 +668,10 @@ function SiteTopology({
           </p>
         )}
 
-        <div className="min-h-40 flex-1 overflow-y-auto px-3 py-2">
+        {/* Last in the column, so a device picked on the canvas can land below
+            the fold. The effect above scrolls this into view when the selection
+            changes rather than leaving the reader to find it. */}
+        <div ref={detailRef} className="shrink-0 px-3 py-2">
           <DeviceDetail
             device={selectedDevice}
             zone={selectedDevice ? topology.zones[selectedDevice.zone] : undefined}
@@ -610,6 +735,28 @@ function SiteTopology({
               Labels
             </button>
 
+            {resilience.spofs.length > 0 && (
+              <button
+                type="button"
+                // The state the canvas is actually in, not the state of the
+                // preference behind it. Under an overlay the rings are dimmed
+                // to the same 0.14 as everything else outside the answer, so
+                // saying "pressed" here would be a claim about the picture that
+                // the picture does not support.
+                aria-pressed={spofMarked}
+                disabled={overlay !== null}
+                onClick={() => setMarkSpof((on) => !on)}
+                title={
+                  overlay
+                    ? 'Chokepoint rings are off while the graph is showing a hypothetical or a path. Go back to the current state to ring them.'
+                    : 'Ring the devices whose removal would cut part of this site off from the rest'
+                }
+                className={toggleClass(spofMarked)}
+              >
+                Chokepoints
+              </button>
+            )}
+
             {hasRisk && (
               <button
                 type="button"
@@ -644,7 +791,45 @@ function SiteTopology({
           </p>
         </div>
 
-        <p className="pointer-events-none mt-1 text-[11px] text-muted-3">{modeHint}</p>
+        {/* The hint line doubles as the banner. A what-if that looks exactly
+            like the current state is the most dangerous thing this tab could
+            draw, so the slot that normally says what the layout is says instead,
+            in the reader's eye line, that they are not looking at the site. */}
+        {overlay ? (
+          <div
+            role="status"
+            aria-label={overlay.kind === 'what-if' ? 'Hypothetical view' : 'Path view'}
+            className="pointer-events-auto mt-1 flex max-w-3xl flex-wrap items-baseline gap-x-2 gap-y-1 self-start rounded border border-risk-medium bg-surface/95 px-2.5 py-1 text-[11px] backdrop-blur"
+          >
+            <span className="font-semibold tracking-widest text-risk-medium-ink uppercase">
+              {overlay.kind === 'what-if' ? 'Hypothetical' : 'Path'}
+            </span>
+            <span className="text-ink">
+              {overlay.kind === 'what-if' ? (
+                <>
+                  Showing what would lose its path to {overlay.rootLabel} if{' '}
+                  {overlay.label} were removed: {overlay.severedCount} of{' '}
+                  {topology.devices.length}. This is not the current state.
+                </>
+              ) : (
+                <>
+                  Showing one shortest path from {overlay.fromLabel} to{' '}
+                  {overlay.toLabel}, {overlay.hopCount} hops. Others of the same
+                  length may exist.
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setOverlay(null)}
+              className="rounded border border-line px-1.5 py-0.5 text-muted hover:text-ink"
+            >
+              Back to the current state
+            </button>
+          </div>
+        ) : (
+          <p className="pointer-events-none mt-1 text-[11px] text-muted-3">{modeHint}</p>
+        )}
 
         <div className="mt-auto flex items-end justify-between gap-3">
           <div className="pointer-events-auto max-w-3xl rounded border border-line bg-surface/90 px-3 py-2 backdrop-blur">
@@ -708,10 +893,60 @@ function SiteTopology({
 function toggleClass(on: boolean): string {
   return [
     'rounded border px-3 py-1 text-xs tracking-wider uppercase backdrop-blur',
+    // A control that cannot act says so by looking spent, rather than by
+    // looking available and then doing nothing.
+    'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted',
     on
       ? 'border-accent bg-surface-2 text-accent-ink'
       : 'border-line bg-surface/90 text-muted hover:text-ink',
   ].join(' ')
+}
+
+/**
+ * The device a what-if takes out, marked in place on the canvas.
+ *
+ * Positioned in screen space from the same transform the SVG uses, so it tracks
+ * a pan and a zoom without the graph having to know about it. A crossed, dashed
+ * ring and one word: the removed device is not lit like the devices it stranded
+ * and not dimmed anonymously like the ones that survive, because it is neither.
+ */
+function RemovedMarker({
+  node,
+  transform,
+}: {
+  node: { x: number; y: number }
+  transform: Transform
+}) {
+  const k = Number.isFinite(transform.k) && transform.k > 0 ? transform.k : 1
+  const x = transform.x + node.x * k
+  const y = transform.y + node.y * k
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+      <div
+        data-testid="removed-marker"
+        className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+        style={{ left: `${Math.round(x)}px`, top: `${Math.round(y)}px` }}
+      >
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+          <circle
+            cx="19"
+            cy="19"
+            r="16"
+            stroke="var(--color-risk-medium)"
+            strokeWidth="2"
+            strokeDasharray="4 3"
+          />
+          <path d="M8 8 L30 30" stroke="var(--color-risk-medium)" strokeWidth="2" />
+          <path d="M30 8 L8 30" stroke="var(--color-risk-medium)" strokeWidth="2" />
+        </svg>
+        <span className="rounded border border-risk-medium bg-surface/95 px-1 py-px text-[10px] font-semibold tracking-widest text-risk-medium-ink uppercase">
+          Removed
+        </span>
+      </div>
+    </div>
+  )
 }
 
 function DeviceList({

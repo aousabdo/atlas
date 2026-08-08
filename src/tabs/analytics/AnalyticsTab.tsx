@@ -4,11 +4,15 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadFailed } from '../../components/LoadFailed'
 import type { AtlasDataProvider } from '../../data/provider'
 import { useAtlas } from '../../data/useAtlas'
-import type { CoverageMatrix, Project, Requirement, System } from '../../types/atlas'
+import type {
+  CoverageMatrix, LinkSet, Project, Requirement, System,
+} from '../../types/atlas'
 import { CoveragePanel } from './CoveragePanel'
+import { IntegrationMatrix } from './IntegrationMatrix'
 import { OwnershipBars } from './OwnershipBars'
 import { RequirementsSankey } from './RequirementsSankey'
 import { RiskHeatmap } from './RiskHeatmap'
+import { RiskWeightedCoverage } from './RiskWeightedCoverage'
 
 /**
  * Owner group display order, carried from the tool being replaced so the rows
@@ -22,6 +26,7 @@ interface AnalyticsData {
   requirements: Requirement[]
   coverage: CoverageMatrix
   project: Project
+  links: LinkSet
 }
 
 function load(provider: AtlasDataProvider): Promise<AnalyticsData> {
@@ -30,21 +35,25 @@ function load(provider: AtlasDataProvider): Promise<AnalyticsData> {
     provider.getRequirements(),
     provider.getCoverage(),
     provider.getProject(),
-  ]).then(([systems, requirements, coverage, project]) => ({
+    provider.getLinks(),
+  ]).then(([systems, requirements, coverage, project, links]) => ({
     systems,
     requirements,
     coverage,
     project,
+    links,
   }))
 }
 
-interface OwnerGroupSlice {
+export interface OwnerGroupSlice {
   id: string
   label: string
   systems: System[]
 }
 
-function ownerGroups(systems: System[]): OwnerGroupSlice[] {
+/** Exported so the integration matrix orders its axes the same way this tab
+ *  orders its rows, from one definition rather than two. */
+export function ownerGroups(systems: System[]): OwnerGroupSlice[] {
   const byId = new Map<string, OwnerGroupSlice>()
   for (const system of systems) {
     const slice = byId.get(system.owner_group_id) ?? {
@@ -151,6 +160,15 @@ export function AnalyticsTab() {
 
       {state.status === 'ready' && state.data.systems.length > 0 && (
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {/* First, because it is the headline the rest of the page qualifies. */}
+          <div className="min-w-0 lg:col-span-2">
+            <RiskWeightedCoverage
+              systems={state.data.systems}
+              coverage={state.data.coverage}
+              filterActive={filterActive}
+              matchedIds={matchedIds}
+            />
+          </div>
           <RiskHeatmap
             groups={groups}
             filterActive={filterActive}
@@ -177,6 +195,16 @@ export function AnalyticsTab() {
               filterActive={filterActive}
               matchedIds={matchedIds}
               query={needle}
+            />
+          </div>
+          {/* Last, and min-w-0 so the widest card cannot stretch the grid
+              column and take the page sideways with it. */}
+          <div className="min-w-0 lg:col-span-2">
+            <IntegrationMatrix
+              groups={groups}
+              links={state.data.links}
+              filterActive={filterActive}
+              matchedIds={matchedIds}
             />
           </div>
         </div>

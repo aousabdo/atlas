@@ -14,14 +14,15 @@ import { DataSourceBanner } from '../DataSourceBanner'
 function renderBanner(source: DataSource) {
   const useSampleData = vi.fn()
   const adopt = vi.fn()
+  const stateMarking = vi.fn()
   render(
     <ProviderSwitchContext.Provider
-      value={{ provider: new StaticProvider('/data'), source, adopt, useSampleData }}
+      value={{ provider: new StaticProvider('/data'), source, adopt, useSampleData, stateMarking }}
     >
       <DataSourceBanner />
     </ProviderSwitchContext.Provider>,
   )
-  return { useSampleData, user: userEvent.setup() }
+  return { useSampleData, stateMarking, user: userEvent.setup() }
 }
 
 const LOCAL: DataSource = {
@@ -115,5 +116,28 @@ describe('DataSourceBanner', () => {
     expect(screen.getByRole('status', { name: /data source/i })).toHaveTextContent(
       /nothing was uploaded/i,
     )
+  })
+})
+
+describe('stating a marking the files omitted', () => {
+  it('lets the analyst state one without reloading the files', async () => {
+    // The whole point: the reader learns the files declared nothing by reading
+    // this strip, and re-opening the load panel means picking every file again.
+    const { stateMarking, user } = renderBanner({
+      kind: 'local',
+      label: 'matrix.xlsx',
+      marking: null,
+    })
+
+    await user.click(screen.getByRole('button', { name: /state the marking/i }))
+    await user.type(screen.getByLabelText(/control marking/i), 'TEST//SYNTHETIC')
+    await user.click(screen.getByRole('button', { name: /apply/i }))
+
+    expect(stateMarking).toHaveBeenCalledWith('TEST//SYNTHETIC')
+  })
+
+  it('offers no marking control over the sample, which has no right to one', () => {
+    renderBanner({ kind: 'sample', label: 'Sample data', marking: null })
+    expect(screen.queryByRole('button', { name: /marking/i })).toBeNull()
   })
 })

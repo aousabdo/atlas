@@ -80,6 +80,16 @@ interface ProviderSwitch {
   /** Take a provider only once it has parsed successfully. */
   adopt: (provider: AtlasDataProvider, source: DataSource) => void
   useSampleData: () => void
+  /**
+   * State a marking after the fact, without reloading the files.
+   *
+   * The load panel asks for one, but a reader only learns the files declared
+   * nothing when the banner tells them, and by then the panel is closed and
+   * re-opening it means picking every file again. Somebody looking at
+   * unmarked controlled data should be one click from fixing it, not one
+   * reload.
+   */
+  stateMarking: (marking: string | null) => void
 }
 
 export const ProviderSwitchContext = createContext<ProviderSwitch | null>(null)
@@ -130,9 +140,30 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     setState({ provider: new StaticProvider(), source: SAMPLE_SOURCE })
   }, [])
 
+  // Computed from the current source rather than inside a setState updater.
+  // An updater must be pure: StrictMode calls it twice, so arming the export
+  // register in there would fire the side effect twice for one user action.
+  const stateMarking = useCallback(
+    (marking: string | null) => {
+      // Only local data carries a marking. Arming one over the sample would put
+      // a control marking on fabricated data, which is the opposite mistake and
+      // just as bad.
+      if (state.source.kind !== 'local') return
+      const trimmed = marking?.trim() ? marking.trim() : null
+      const next: DataSource = {
+        ...state.source,
+        marking: trimmed ?? state.source.declaredMarking ?? null,
+        markingSource: trimmed ? 'analyst' : 'files',
+      }
+      armMarking(next)
+      setState((current) => ({ ...current, source: next }))
+    },
+    [state.source],
+  )
+
   const value = useMemo(
-    () => ({ provider: state.provider, source: state.source, adopt, useSampleData }),
-    [state, adopt, useSampleData],
+    () => ({ provider: state.provider, source: state.source, adopt, useSampleData, stateMarking }),
+    [state, adopt, useSampleData, stateMarking],
   )
 
   return (

@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import { ABOUT } from './components/aboutContent'
 import { AboutDrawer } from './components/AboutDrawer'
+import { CommandPalette, useCommandPaletteKey } from './components/CommandPalette'
 import { DataSourceBanner } from './components/DataSourceBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ExportMenu } from './components/ExportMenu'
@@ -21,6 +22,11 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'Anywhere',
     rows: [
+      {
+        keys: ['⌘K', 'Ctrl K'],
+        description:
+          'Search everything: systems, devices, zones, acronyms, requirements and views',
+      },
       { keys: ['?'], description: 'Show or hide this dialog' },
       { keys: ['1', '2', '3', '4', '5'], description: 'Jump to a view' },
       { keys: ['E'], description: 'Save the current view as a PNG' },
@@ -60,6 +66,7 @@ function Shell() {
   const panelRef = useRef<HTMLElement>(null)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [showPalette, setShowPalette] = useState(false)
 
   const viewKey = location.pathname.replace(/^\//, '') || 'reference'
   const about = ABOUT[viewKey]
@@ -87,7 +94,12 @@ function Shell() {
     [navigate],
   )
 
-  useShortcuts(shortcuts)
+  const togglePalette = useCallback(() => setShowPalette((on) => !on), [])
+  useCommandPaletteKey(togglePalette)
+  // The palette owns the keyboard while it is open. Its own box would swallow
+  // the letters anyway, but a reader who tabs to the Close button should not
+  // be able to fire the About drawer from inside the search dialog.
+  useShortcuts(shortcuts, !showPalette)
 
   return (
     <>
@@ -147,6 +159,7 @@ function Shell() {
         </Routes>
       </main>
 
+      {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
       {showShortcuts && (
         <ShortcutsDialog
           groups={SHORTCUT_GROUPS}
