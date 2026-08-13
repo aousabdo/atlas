@@ -151,6 +151,49 @@ describe('Network Topology', () => {
     expect(other.getAttribute('fill')).toBe('var(--zone-field-house)')
   })
 
+  it('lands on a site that loaded when the map names one that did not', async () => {
+    // The defect: default_site is copied verbatim off the system to device
+    // map, which names every site the analyst has coverage for rather than
+    // every site whose topology they loaded. Preferring it landed the tab on a
+    // site the provider has nothing for, with the site switcher inside the
+    // view that failed to render and no way back but editing ?site= by hand.
+    const provider = new StaticProvider('/data')
+    const real = provider.getProject.bind(provider)
+    provider.getProject = async () => {
+      const project = await real()
+      return {
+        ...project,
+        default_site: 'a_site_with_no_topology',
+        sites: project.sites.filter((site) => site.id === 'westfield'),
+      }
+    }
+    render(
+      <MemoryRouter>
+        <ProviderContext.Provider value={provider}>
+          <NetworkTab />
+        </ProviderContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/8 devices/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('still honours default_site when its topology did load', async () => {
+    const provider = new StaticProvider('/data')
+    const real = provider.getProject.bind(provider)
+    provider.getProject = async () => ({ ...(await real()), default_site: 'westfield' })
+    render(
+      <MemoryRouter>
+        <ProviderContext.Provider value={provider}>
+          <NetworkTab />
+        </ProviderContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/8 devices/)).toBeInTheDocument()
+  })
+
   it('reports a load failure instead of an empty graph', async () => {
     const provider = new StaticProvider('/data')
     provider.getTopology = () =>

@@ -77,9 +77,21 @@ function SiteView({ project }: { project: Project }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const requested = searchParams.get('site')
+  /**
+   * A site that actually loaded, in preference to the one the map names.
+   *
+   * default_site is copied verbatim off the system to device map, and that map
+   * names every site the analyst has coverage for, not every site whose
+   * topology they loaded. Load a map naming two sites with only one topology
+   * and this used to land on the missing one: the topology fetch fails, the
+   * site switcher is inside the view that failed to render, and the only way
+   * back is to hand-edit ?site= in the address bar. So default_site is
+   * consulted only when it is among the sites the provider actually has, and
+   * the first loaded site is the fallback rather than the last resort.
+   */
   const siteId: SiteId =
     project.sites.find((site) => site.id === requested)?.id ??
-    project.default_site ??
+    project.sites.find((site) => site.id === project.default_site)?.id ??
     project.sites[0]?.id ??
     ''
 

@@ -41,10 +41,27 @@ what the data says.
 | File | Required | What it is |
 |---|---|---|
 | Traceability Matrix (`.xlsx`) | yes | The workbook. Needs a `Matrix` sheet and a crosswalk sheet. |
-| Curation overrides (`.json`) | no | Cross links, suppressions, risk and confirmation overrides. |
+| Curation overrides (`.json`) | no | Cross links, suppressions and the desired-integration overlay. |
 | Glossary (`.json`) | no | Acronyms, scope notes, confidence wording. |
 | System to device map (`.json`) | no | Which devices realize which systems, per site. |
 | Site topology (`.json`) | no | One per site, each loading under a site id you can see and edit before the load commits. |
+
+**[`docs/data-inputs.md`](docs/data-inputs.md) is the contract for all five.** Every
+sheet, column and key, which of them are optional, and, for each one, what actually
+breaks when it is missing. That last column is the one nobody could answer before:
+leaving out the system to device map is not an error, it just makes realization
+coverage read zero everywhere. Tests assert the doc still names the same five inputs
+the loader accepts, with the same required-ness, and that its failure-message tables
+still match every message the loader and the panel can build, so it cannot quietly go
+stale.
+
+The panel's first block, **Sample files to start from**, downloads a sample copy of
+every input, generated in the browser from the synthetic bundle this site ships. Start
+from a file that already parses rather than from a description of one. Each JSON
+template says inside itself that it is the sample, so one that gets separated from its
+file name still says what it is. `node scripts/make-sample-workbook.mjs OUTPUT_DIR`
+writes the same files from a checkout, under plainer names, and a test compares the two
+so they cannot diverge.
 
 Drag a file onto its field, or use the file input next to it. Both are always present:
 the drop zone is the convenience, the input is what keyboard and screen reader users

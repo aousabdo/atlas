@@ -115,8 +115,40 @@ function deviceMapFile(siteId = 'harbor_point'): File {
   })
 }
 
+/** A glossary, recognisable by the one key that identifies a glossary. */
+function glossaryFile(name = 'glossary.json'): File {
+  return new File(
+    [JSON.stringify({ confidence_intro: 'Fixture intro', out_of_scope: [], acronyms: [] })],
+    name,
+    { type: 'application/json' },
+  )
+}
+
+/** Curation overrides, recognisable by their curation keys. */
+function overridesFile(name = 'overrides.json'): File {
+  return new File(
+    [JSON.stringify({ cross_links: [], suppress_links: [], desired_links: [] })],
+    name,
+    { type: 'application/json' },
+  )
+}
+
 function siteIdField(dialog: HTMLElement, fileName: string) {
   return within(dialog).getByLabelText(new RegExp(`site id for ${fileName}`, 'i'))
+}
+
+function slotSelect(dialog: HTMLElement, fileName: string) {
+  return within(dialog).getByLabelText(new RegExp(`slot for ${fileName}`, 'i'))
+}
+
+/** The one zone that takes the whole set. */
+function sortInput(dialog: HTMLElement) {
+  return within(dialog).getByLabelText(/^files to sort$/i)
+}
+
+/** The row the decision table shows for a file, so assertions can be scoped. */
+function decisionRow(dialog: HTMLElement, fileName: string) {
+  return within(dialog).getByRole('row', { name: new RegExp(fileName.replace('.', '\\.'), 'i') })
 }
 
 function renderApp(route = '/reference') {
@@ -247,6 +279,45 @@ describe('loading a file', () => {
     const file = fixtureMatrix('dropped.xlsx')
     fireEvent.drop(zone, { dataTransfer: { files: [file], types: ['Files'] } })
     expect(await within(dialog).findByText('dropped.xlsx')).toBeInTheDocument()
+  })
+
+  it('names the files a single-file slot could not keep', async () => {
+    // Dropping the whole set on the first slot is what an analyst does when
+    // they have not spotted the zone above. The slot kept one file, discarded
+    // the rest and looked exactly as if it had taken everything.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const zone = within(dialog).getByRole('group', { name: /traceability matrix/i })
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [fixtureMatrix('kept.xlsx'), fixtureMatrix('spare.xlsx'), glossaryFile()],
+        types: ['Files'],
+      },
+    })
+
+    const note = await within(dialog).findByText(/takes one file/i)
+    expect(note).toHaveTextContent(/kept\.xlsx/)
+    expect(note).toHaveTextContent(/spare\.xlsx/)
+    expect(note).toHaveTextContent(/glossary\.json/)
+  })
+
+  it('stops saying so once the slot is picked again', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const zone = within(dialog).getByRole('group', { name: /traceability matrix/i })
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [fixtureMatrix('kept.xlsx'), fixtureMatrix('spare.xlsx')],
+        types: ['Files'],
+      },
+    })
+    await within(dialog).findByText(/takes one file/i)
+
+    await user.upload(
+      within(dialog).getByLabelText(/traceability matrix file/i),
+      fixtureMatrix('chosen.xlsx'),
+    )
+    expect(within(dialog).queryByText(/takes one file/i)).toBeNull()
   })
 
   it('goes back to the sample on request', async () => {
@@ -400,6 +471,50 @@ describe('the site id a topology loads as', () => {
     expect(within(dialog).queryByRole('alert')).toBeNull()
   })
 
+  it('adds a second pick to the first rather than dropping what was chosen', async () => {
+    // A file input reports only what was chosen in that one visit, so picking
+    // two sites in two goes used to load the second and silently forget the
+    // first. Nothing said so: the missing site simply read afterwards as a
+    // site nobody had exported.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const input = within(dialog).getByLabelText(/site topology files/i)
+    await user.upload(input, topologyFile('one_network.json'))
+    await within(dialog).findByLabelText(/site id for one_network/i)
+
+    await user.upload(input, topologyFile('two_network.json'))
+    expect(await within(dialog).findByLabelText(/site id for two_network/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/site id for one_network/i)).toBeInTheDocument()
+  })
+
+  it('does not list the same file twice when a pick overlaps the last one', async () => {
+    // Re-picking a set that overlaps the previous one is ordinary use of a
+    // file picker, and a duplicate row would block the load on a site id
+    // clash the analyst never created.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const input = within(dialog).getByLabelText(/site topology files/i)
+    const same = topologyFile('one_network.json')
+    await user.upload(input, same)
+    await within(dialog).findByLabelText(/site id for one_network/i)
+
+    await user.upload(input, same)
+    expect(within(dialog).getAllByLabelText(/site id for one_network/i)).toHaveLength(1)
+  })
+
+  it('takes the chosen topologies back out again on request', async () => {
+    // The way out, now that a second pick adds rather than replaces.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(
+      within(dialog).getByLabelText(/site topology files/i),
+      topologyFile('one_network.json'),
+    )
+    await within(dialog).findByLabelText(/site id for one_network/i)
+    await user.click(within(dialog).getByRole('button', { name: /clear the chosen topologies/i }))
+    expect(within(dialog).queryByLabelText(/site id for one_network/i)).toBeNull()
+  })
+
   it('refuses an empty id rather than keying a site by nothing', async () => {
     const { user } = renderApp()
     const dialog = await openPanel(user)
@@ -441,6 +556,281 @@ describe('the site id a topology loads as', () => {
     )
     await within(dialog).findByLabelText(/site id for fixture_network_full/i)
     expect(within(dialog).queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('sorting a whole set in one action', () => {
+  it('takes every file at once and puts each one where it goes', async () => {
+    // The complaint this answers: five slots is five chances to misplace a
+    // file, and the worst of those mistakes is silent.
+    const { user } = renderApp('/network')
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      fixtureMatrix(),
+      deviceMapFile(),
+      titledTopologyFile(),
+      glossaryFile(),
+      overridesFile(),
+    ])
+    await within(dialog).findByLabelText(/site id for fixture_network_full/i)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    await within(
+      await screen.findByRole('status', { name: /data source/i }),
+    ).findByText('TEST//SYNTHETIC')
+    expect(banner()).toHaveTextContent('fixture-matrix.xlsx')
+    // The map and the topology both landed, and landed under the same id.
+    expect(await screen.findByText(/1 systems realized/)).toBeInTheDocument()
+  })
+
+  it('takes the same set dropped rather than chosen', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const zone = within(dialog).getByRole('group', { name: /drop everything here/i })
+    fireEvent.drop(zone, {
+      dataTransfer: { files: [fixtureMatrix('dropped-book.xlsx'), glossaryFile()], types: ['Files'] },
+    })
+    expect(await within(dialog).findByLabelText(/slot for dropped-book\.xlsx/i)).toHaveValue(
+      'matrix',
+    )
+    expect(slotSelect(dialog, 'glossary.json')).toHaveValue('glossary')
+  })
+
+  it('shows what it decided and why, before the load commits', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [fixtureMatrix(), glossaryFile(), deviceMapFile()])
+    // Inspection is asynchronous, so wait for the table before reading it.
+    await within(dialog).findByLabelText(/slot for glossary\.json/i)
+
+    const glossary = decisionRow(dialog, 'glossary.json')
+    expect(within(glossary).getByText(/acronyms array/i)).toBeInTheDocument()
+    expect(within(decisionRow(dialog, 'fixture-matrix.xlsx')).getByText(/matrix sheet/i))
+      .toBeInTheDocument()
+    expect(within(decisionRow(dialog, 'system_device_map.json')).getByText(/keyed by site/i))
+      .toBeInTheDocument()
+  })
+
+  it('lets the analyst overrule it, and acts on the correction', async () => {
+    // A classifier that cannot be corrected is worse than no classifier.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      new File([JSON.stringify({ title: 'Fixture notes' })], 'mystery.json', {
+        type: 'application/json',
+      }),
+    ])
+    const select = await within(dialog).findByLabelText(/slot for mystery\.json/i)
+    expect(select).toHaveValue('')
+    await user.selectOptions(select, 'topology')
+    // Corrected to a topology, it now goes through the site id resolution the
+    // topology slot has always done.
+    expect(await within(dialog).findByLabelText(/site id for mystery\.json/i)).toHaveValue(
+      'mystery',
+    )
+  })
+
+  it('drops a file back out of the load when it is set to nothing', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [titledTopologyFile()])
+    await within(dialog).findByLabelText(/site id for fixture_network_full/i)
+    await user.selectOptions(slotSelect(dialog, 'fixture_network_full.json'), '')
+    expect(within(dialog).queryByLabelText(/site id for fixture_network_full/i)).toBeNull()
+  })
+
+  it('lists a file it cannot place rather than dropping it silently', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      fixtureMatrix(),
+      new File([JSON.stringify({ title: 'Fixture notes' })], 'mystery.json', {
+        type: 'application/json',
+      }),
+    ])
+    const row = await within(dialog).findByRole('row', { name: /mystery\.json/i })
+    expect(within(row).getByText(/no key ATLAS recognises/i)).toBeInTheDocument()
+    expect(within(dialog).getByText(/not recognised/i)).toBeInTheDocument()
+  })
+
+  it('refuses an HTML document named .xlsx on the way in, and says why', async () => {
+    // The drop path used to hand every .xlsx straight to SheetJS, which has an
+    // HTML reader, so this sorted as an ordinary workbook and the upload
+    // hardening never saw it. The generated network graphs are stored XSS by
+    // construction, which is why HTML is refused rather than sanitised.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      new File(
+        ['<html><body><table><tr><td>Fixture</td></tr></table></body></html>'],
+        'fixture-page.xlsx',
+      ),
+    ])
+
+    const row = await within(dialog).findByRole('row', { name: /fixture-page\.xlsx/i })
+    expect(within(row).getByText(/zip signature/i)).toBeInTheDocument()
+    expect(within(row).getByText(/check this one/i)).toBeInTheDocument()
+    // And it still cannot load: the same gate refuses it in the provider. Its
+    // message keeps the file name the row's own wording drops, so the two are
+    // told apart by that rather than by both being the page's only alert.
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    expect(
+      await within(dialog).findByText(/fixture-page\.xlsx: not a valid xlsx/i),
+    ).toBeInTheDocument()
+    expect(banner()).toHaveTextContent(/sample data/i)
+  })
+
+  it('says how many files it did not read at all, rather than pretending it did', async () => {
+    // Through the folder input, because that is where this happens: a folder
+    // holds the scripts and the notes alongside the five files that matter.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/^folder to sort$/i) as HTMLInputElement, [
+      fixtureMatrix(),
+      new File(['notes'], 'readme.md'),
+      new File(['notes'], 'build.py'),
+    ])
+    const note = await within(dialog).findByText(/2 files were not read/i)
+    expect(note).toHaveTextContent(/readme\.md/)
+    expect(note).toHaveTextContent(/build\.py/)
+  })
+
+  it('surfaces a second file claiming a taken slot instead of letting it win', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      fixtureMatrix('first-book.xlsx'),
+      fixtureMatrix('second-book.xlsx'),
+    ])
+    await within(dialog).findByLabelText(/slot for second-book\.xlsx/i)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent(/traceability matrix/i)
+    expect(alert).toHaveTextContent(/first-book\.xlsx/)
+    expect(alert).toHaveTextContent(/second-book\.xlsx/)
+    expect(banner()).toHaveTextContent(/sample data/i)
+  })
+
+  it('loads once the contested slot is settled', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      fixtureMatrix('first-book.xlsx'),
+      fixtureMatrix('second-book.xlsx'),
+    ])
+    await within(dialog).findByLabelText(/slot for second-book\.xlsx/i)
+    await user.selectOptions(slotSelect(dialog, 'second-book.xlsx'), '')
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    await within(
+      await screen.findByRole('status', { name: /data source/i }),
+    ).findByText(/first-book\.xlsx/)
+  })
+
+  it('takes a whole folder, which is how the files already sit on disk', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const folder = within(dialog).getByLabelText(/^folder to sort$/i)
+    // Set by ref, because the attribute is not in React's typings. The test
+    // asserts the attribute reached the DOM, since a missing one turns the
+    // folder picker into a second file picker with no visible difference.
+    expect(folder).toHaveAttribute('webkitdirectory')
+    await user.upload(folder as HTMLInputElement, [fixtureMatrix(), glossaryFile()])
+    expect(await within(dialog).findByLabelText(/slot for glossary\.json/i)).toHaveValue(
+      'glossary',
+    )
+  })
+
+  it('reads a sorted topology against a map from the same batch', async () => {
+    // The regression that matters. This file's name and its title disagree,
+    // and only the ids the map declares settle which of the two is the site.
+    // If the map in the same drop were read after the topology was resolved,
+    // the title would win and the site would load with no coverage at all.
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [
+      deviceMapFile(),
+      new File(
+        [
+          JSON.stringify({
+            ...TITLED_TOPOLOGY,
+            graph: { ...TITLED_TOPOLOGY.graph, name: 'Fixture Topology Export (Old Wharf)' },
+          }),
+        ],
+        'harbor_point_network.json',
+        { type: 'application/json' },
+      ),
+    ])
+    // Read in the same render the row first appears in, not after a correction.
+    expect(await within(dialog).findByLabelText(/site id for harbor_point_network/i))
+      .toHaveValue('harbor_point')
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+  })
+
+  it('still warns when a sorted topology keys nothing the other files declare', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [deviceMapFile(), topologyFile()])
+
+    const warning = await within(dialog).findByRole('alert')
+    expect(warning).toHaveTextContent(/fixture_site/)
+    expect(warning).toHaveTextContent(/harbor_point/)
+    expect(warning).toHaveTextContent(/no coverage/i)
+  })
+
+  it('reads the marking off a sorted topology', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [topologyFile()])
+    expect(
+      await within(dialog).findByText(/the loaded files declare TEST\/\/SYNTHETIC/i),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('the explicit slots survive the sorting', () => {
+  it('keeps all five, collapsed, so the classifier is never the only way in', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    const fallback = within(dialog).getByText(/place each file yourself/i).closest('details')
+    expect(fallback).not.toBeNull()
+    expect(fallback).not.toHaveAttribute('open')
+    expect(within(fallback as HTMLElement).getByLabelText(/traceability matrix file/i))
+      .toBeInTheDocument()
+    expect(within(fallback as HTMLElement).getByLabelText(/site topology files/i))
+      .toBeInTheDocument()
+  })
+
+  it('loads a set placed entirely by hand, with nothing sorted', async () => {
+    const { user } = renderApp('/network')
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
+    await user.upload(
+      within(dialog).getByLabelText(/system to device map file/i),
+      deviceMapFile(),
+    )
+    await user.upload(
+      within(dialog).getByLabelText(/site topology files/i),
+      titledTopologyFile(),
+    )
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    expect(await screen.findByText(/1 systems realized/)).toBeInTheDocument()
+  })
+
+  it('treats a hand-placed file as claiming the slot a sorted one wanted', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    await user.upload(sortInput(dialog), [fixtureMatrix('sorted-book.xlsx')])
+    await within(dialog).findByLabelText(/slot for sorted-book\.xlsx/i)
+    await user.upload(
+      within(dialog).getByLabelText(/traceability matrix file/i),
+      fixtureMatrix('hand-placed.xlsx'),
+    )
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent(/sorted-book\.xlsx/)
+    expect(alert).toHaveTextContent(/hand-placed\.xlsx/)
   })
 })
 
