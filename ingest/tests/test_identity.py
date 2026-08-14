@@ -1,6 +1,6 @@
 import pytest
 
-from atlas_ingest.identity import LABEL_LINE_CHARS, make_id, make_label
+from atlas_ingest.identity import strip_parenthetical, LABEL_LINE_CHARS, make_id, make_label
 
 
 @pytest.mark.parametrize("name,expected", [
@@ -100,3 +100,22 @@ def test_make_label_honours_a_curated_label_verbatim_even_when_it_is_long():
     fits; this guarantees the text is the text that was chosen.
     """
     assert make_label("Enterprise Common Picture") == "Enterprise Common Picture"
+
+
+# An interior parenthetical used to join the words around it, because the old
+# expression swallowed the whitespace on both sides: "Ridge (Legacy Variant)
+# Watch" came out "RidgeWatch". The trailing shape, which is the only one the
+# sample carries, always looked right, which is why it survived.
+PARENTHETICAL_CASES = [
+    ('Ridge (Legacy Variant) Watch', 'Ridge Watch', 'ridge_watch'),
+    ('(Prefix) Name', 'Name', 'name'),
+    ('A (x) B (y) C', 'A B C', 'a_b_c'),
+    ('KRL (Kestrel Relay Layer)', 'KRL', 'krl'),
+    ('Plain Name', 'Plain Name', 'plain_name'),
+]
+
+
+@pytest.mark.parametrize("name,stripped,ident", PARENTHETICAL_CASES)
+def test_a_parenthetical_leaves_a_space_where_it_stood(name, stripped, ident):
+    assert strip_parenthetical(name) == stripped
+    assert make_id(name) == ident

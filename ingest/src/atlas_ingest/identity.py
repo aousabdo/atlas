@@ -19,6 +19,22 @@ from .config import ID_MAP, LABEL_MAP
 LABEL_LINE_CHARS = 14
 
 
+# The parenthetical strip, and why it leaves a space behind.
+#
+# The old expression was r"\s*\(.*?\)\s*" replaced with "", which eats the
+# whitespace on BOTH sides. A trailing parenthetical, which is the common shape
+# and the only one the sample carries, came out right; an interior one joined
+# the words around it, so "Ridge (Legacy Variant) Watch" became "RidgeWatch".
+# Replacing with a single space and collapsing afterwards is correct for both
+# positions, and the trailing case still trims to the same answer.
+#
+# Mirrored by stripParenthetical in src/data/localFileParse.ts.
+_PARENTHETICAL = re.compile(r"\s*\([^)]*\)\s*")
+
+
+def strip_parenthetical(name):
+    return re.sub(r"\s+", " ", _PARENTHETICAL.sub(" ", name)).strip()
+
 def make_id(name):
     """Map a system name to its short id, falling back to a slug.
 
@@ -29,7 +45,7 @@ def make_id(name):
     n = name.strip()
     if n in ID_MAP:
         return ID_MAP[n]
-    short = re.sub(r"\s*\(.*?\)\s*", "", n).strip()
+    short = strip_parenthetical(n)
     if short in ID_MAP:
         return ID_MAP[short]
     return re.sub(r"[^a-z0-9]+", "_", short.lower()).strip("_")[:30]
@@ -74,7 +90,7 @@ def make_label(name):
     sid = make_id(name)
     if sid in LABEL_MAP:
         return LABEL_MAP[sid]
-    s = re.sub(r"\s*\(.*?\)\s*", "", name).strip()
+    s = strip_parenthetical(name)
     if len(s) < 3:
         s = name.strip()
     return wrap_label(s)

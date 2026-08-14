@@ -150,6 +150,7 @@ function MapView({ systems, links, coverage }: MapData) {
   }, [])
   const chromeTop = topReserve(bandHeight)
 
+
   const zoomBy = useCallback(
     (factor: number) => {
       setTransform((previous) =>

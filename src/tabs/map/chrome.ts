@@ -26,3 +26,22 @@ export function topReserve(bandHeight: number): number {
   if (!Number.isFinite(bandHeight) || bandHeight <= 0) return CHROME_TOP_FALLBACK
   return Math.round(bandHeight + CHROME_PAD * 2)
 }
+
+/**
+ * Vertical gutter to keep free at the BOTTOM, for the legend card.
+ *
+ * The legend is click-through, so a node underneath it stays reachable, and
+ * that was judged enough. It is not: pass-through fixes the interaction and
+ * leaves the reader looking at a node they cannot read. The card is 90% opaque
+ * over a backdrop blur, which is legible for the legend and opaque enough to
+ * lose a label behind it.
+ *
+ * So the bottom is reserved the same way the top is, from a measurement rather
+ * than a constant, and the cost is the same cost: a slightly smaller drawing in
+ * exchange for nothing being hidden. Collapsing the legend hands the space
+ * straight back, which is why the collapse control matters more than it looks.
+ */
+export function bottomReserve(legendHeight: number): number {
+  if (!Number.isFinite(legendHeight) || legendHeight <= 0) return 0
+  return Math.round(legendHeight + CHROME_PAD * 2)
+}

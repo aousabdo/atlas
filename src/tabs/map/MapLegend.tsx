@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { useState } from 'react'
 
 import type { RiskLevel } from '../../types/atlas'
@@ -235,11 +236,22 @@ export function MapLegendCard(props: {
   riskMode: boolean
   showLinks: boolean
   showDesired: boolean
+  /**
+   * Measured by MapTab so the fit can keep this much of the canvas free.
+   * Collapsing the card shrinks it, which hands the space straight back.
+   */
+  cardRef?: RefObject<HTMLDivElement | null>
 }) {
-  const [open, setOpen] = useState(true)
+  // Closed by default. A legend that covers a node explains one thing while
+  // hiding another, and this card is 448x342 open against 86x37 closed.
+  // Reserving canvas for it instead was measured and rejected: it is a corner
+  // and the fit works on a band, so the whole width went and the drawing fell
+  // from 48% to 28%. One click is the cheaper price.
+  const [open, setOpen] = useState(false)
 
   return (
     <div
+      ref={props.cardRef}
       data-testid="map-legend-card"
       className="pointer-events-none max-w-md rounded border border-line bg-surface/90 px-3 py-2 backdrop-blur"
     >

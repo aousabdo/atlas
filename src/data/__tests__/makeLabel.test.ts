@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LABEL_LINE_CHARS, makeLabel } from '../localFileParse'
+import { LABEL_LINE_CHARS, makeId, makeLabel, stripParenthetical } from '../localFileParse'
 
 /**
  * The wrapping rule, mirrored case for case from ingest/tests/test_identity.py.
@@ -59,5 +59,23 @@ describe('makeLabel', () => {
    */
   it('honours a curated label verbatim even when it is long', () => {
     expect(makeLabel('Enterprise Common Picture')).toBe('Enterprise Common Picture')
+  })
+})
+
+// Mirrors PARENTHETICAL_CASES in ingest/tests/test_identity.py, case for case.
+// The two implementations are held together by the provider contract, and this
+// path is the one an analyst's own workbook exercises rather than the sample.
+describe('a parenthetical leaves a space where it stood', () => {
+  const CASES: Array<[string, string, string]> = [
+    ["Ridge (Legacy Variant) Watch", "Ridge Watch", "ridge_watch"],
+    ["(Prefix) Name", "Name", "name"],
+    ["A (x) B (y) C", "A B C", "a_b_c"],
+    ["KRL (Kestrel Relay Layer)", "KRL", "krl"],
+    ["Plain Name", "Plain Name", "plain_name"],
+  ]
+
+  it.each(CASES)('%s', (name, stripped, ident) => {
+    expect(stripParenthetical(name)).toBe(stripped)
+    expect(makeId(name)).toBe(ident)
   })
 })

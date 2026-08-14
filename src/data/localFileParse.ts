@@ -67,10 +67,26 @@ export async function assertSafeWorkbook(file: File): Promise<ArrayBuffer> {
   return buffer
 }
 
+/**
+ * Drop a parenthetical, leaving a space where it stood.
+ *
+ * The old expression matched the parenthetical along with the whitespace on
+ * BOTH sides and replaced the lot with nothing. A trailing parenthetical came
+ * out right, which is the common shape and the only one the sample carries,
+ * but an interior one joined the words around it: "Ridge (Legacy Variant)
+ * Watch" became "RidgeWatch". Substituting a space and collapsing is right in
+ * both positions, and the trailing case still trims to the same answer.
+ *
+ * Mirrors strip_parenthetical in ingest/src/atlas_ingest/identity.py.
+ */
+export function stripParenthetical(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 export function makeId(name: string): string {
   const n = name.trim()
   if (n in ID_MAP) return ID_MAP[n]
-  const short = n.replace(/\s*\(.*?\)\s*/g, '').trim()
+  const short = stripParenthetical(n)
   if (short in ID_MAP) return ID_MAP[short]
   return short
     .toLowerCase()

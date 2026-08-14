@@ -428,6 +428,7 @@ describe('Orientation Map legend', () => {
     const { user } = await renderWithProvider(<MapTab />)
     const canvas = await screen.findByRole('img', { name: /orientation map/i })
     await user.click(screen.getByRole('button', { name: 'Expand All' }))
+    await user.click(screen.getByRole('button', { name: /legend/i }))
 
     const tones = legendTones()
     expect(tones.size).toBeGreaterThan(0)
@@ -440,6 +441,7 @@ describe('Orientation Map legend', () => {
     const { user } = await renderWithProvider(<MapTab />)
     const canvas = await screen.findByRole('img', { name: /orientation map/i })
     await user.click(screen.getByRole('button', { name: 'Expand All' }))
+    await user.click(screen.getByRole('button', { name: /legend/i }))
 
     expect(legendTones()).not.toContain('var(--node-risk-high-leaf)')
 
@@ -476,7 +478,9 @@ describe('Orientation Map shortcuts', () => {
   })
 
   it('spells the keys out on screen, since nothing else does', async () => {
-    await renderWithProvider(<MapTab />)
+    const { user } = await renderWithProvider(<MapTab />)
+    await screen.findByRole('img', { name: /orientation map/i })
+    await user.click(screen.getByRole('button', { name: /legend/i }))
     const legend = await screen.findByRole('region', { name: 'Map legend' })
     for (const key of ['F', 'C', 'R', 'Esc']) {
       expect(within(legend).getByText(key)).toBeInTheDocument()
@@ -718,11 +722,19 @@ describe('Orientation Map legend footprint', () => {
     expect(claims[0]).toBe(screen.getByRole('button', { name: /legend/i }))
   })
 
-  it('collapses, so it stops covering nodes at all', async () => {
+  it('starts closed, so it covers no node until asked for', async () => {
+    // Reserving canvas for it was measured and rejected: the legend is a
+    // corner and the fit works on a band, so the whole width went and the
+    // drawing fell from 48% to 28%. One click is the cheaper price.
     const { user } = await renderWithProvider(<MapTab />)
     await screen.findByRole('img', { name: /orientation map/i })
     const toggle = screen.getByRole('button', { name: /legend/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('region', { name: 'Map legend' })).toBeNull()
+
+    await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('region', { name: 'Map legend' })).toBeInTheDocument()
 
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
