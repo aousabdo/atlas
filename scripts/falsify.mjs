@@ -140,8 +140,29 @@ const MUTATIONS = [
     what: 'the radial layout collapses onto the origin',
     kind: 'source',
     file: 'src/viz/radial.ts',
-    find: 'export const GAP = [0, 300, 280, 260, 240]',
-    replace: 'export const GAP = [0, 0, 0, 0, 0]',
+    // Zeroing GAP used to do this and no longer can. The layout became extent
+    // aware, so the ring gap is a Math.max against what the boxes themselves
+    // need and the radius bisects outward until they fit: two independent
+    // things now hold the rings apart, and GAP is the weaker of them. That is
+    // the layout getting sturdier, and it quietly left "draws its nodes away
+    // from the origin" guarding nothing. So the mutation goes after the radius
+    // itself, and after the push-out that would otherwise rescue it.
+    //
+    // Rings one pixel apart rather than zero. A literal point makes the bounds
+    // degenerate, fitToScreen's own zero-size guard then refuses the transform,
+    // and the run dies without a report: a crash proves nothing about what the
+    // suite can see. One pixel keeps the layout finite and the collapse plain.
+    //
+    // Written as Math.min(gap, 1) rather than dropping the term, because
+    // dropping it leaves `gap` unused, tsc fails inside the web server command,
+    // and the run again dies before a single test executes. A mutation has to
+    // survive the build to say anything about the suite.
+    find: '    const base = ringRadius + gap',
+    replace: '    const base = ringRadius + Math.min(gap, 1)',
+    secondary: {
+      find: '        return needed <= w.to - w.from + 1e-9',
+      replace: '        return true',
+    },
     expect: [
       'the orientation map draws its nodes away from the origin',
       'map renders in dark',

@@ -9,6 +9,8 @@ import {
   ancestorsOf, branchIds, buildTree, defaultExpanded, findNode, parentMap,
 } from '../../lib/tree'
 import type { CoverageMatrix, LinkSet, System } from '../../types/atlas'
+import type { TreeNode as TreeNodeData } from '../../types/tree'
+import { geometryFor } from '../../viz/nodeBox'
 import { boundsOf, doLayout, snapToGrid } from '../../viz/radial'
 import { DetailPanel } from './DetailPanel'
 import { legendGroups, MapLegendCard } from './MapLegend'
@@ -190,10 +192,27 @@ function MapView({ systems, links, coverage }: MapData) {
     setSelected(focus)
   }, [focus, tree])
 
+  /**
+   * The layout depends on the two view controls, because the box a node draws
+   * depends on them and the layout has to leave room for that box.
+   *
+   * The alternative was to lay out once at a reference size and reserve the
+   * worst case, so a stepper click moved nothing. Measured at 1440x900 on the
+   * committed bundle, reserving for the largest label setting costs the fitted
+   * zoom 0.42 -> 0.30 at the view the map opens at, and every reader pays that
+   * for a setting most never touch. So this recomputes instead.
+   *
+   * Recomputing does not move the map under the reader: the root stays at the
+   * origin and each ring only grows outward from it, and nothing here refits
+   * the camera, so turning the labels up spreads the tree away from the centre
+   * the reader is already looking at rather than sliding it sideways.
+   */
   const positions = useMemo(() => {
-    const radial = doLayout(tree, expanded)
-    return toggles.grid ? snapToGrid(radial, parentOf) : radial
-  }, [tree, expanded, toggles.grid, parentOf])
+    const measure = (node: TreeNodeData, level: number) =>
+      geometryFor(node, level, textScale, nodeScale)
+    const radial = doLayout(tree, expanded, { measure })
+    return toggles.grid ? snapToGrid(radial, parentOf, { measure }) : radial
+  }, [tree, expanded, toggles.grid, parentOf, textScale, nodeScale])
 
   /**
    * Fit into the area the floating chrome leaves free.

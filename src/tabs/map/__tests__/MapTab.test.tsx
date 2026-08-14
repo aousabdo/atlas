@@ -882,3 +882,113 @@ describe('Orientation Map gesture batching', () => {
     expect(worldX(screen.getByTestId('leaf-beacon')) - before).toBeCloseTo(20 / k, 6)
   })
 })
+
+/**
+ * The overlap guarantee, read off the drawn SVG rather than off the layout.
+ *
+ * The layout has its own check over its own coordinates, and a layout that
+ * measured one box and drew another would pass it. This reads the transform of
+ * every drawn node and the rect inside it, which is what the reader actually
+ * looks at, and counts the pairs whose boxes intersect. The number that made
+ * this necessary was 13 at Expand All on the committed bundle: "Enterprise
+ * Common Picture" was drawn underneath its neighbour and could not be read at
+ * any zoom.
+ */
+describe('no node is drawn on top of another', () => {
+  interface Drawn { id: string; x: number; y: number; w: number; h: number }
+
+  const drawn = (canvas: HTMLElement): Drawn[] =>
+    [...canvas.querySelectorAll('g[data-id]')].map((group) => {
+      const at = /translate\(([-\d.]+),([-\d.]+)\)/.exec(group.getAttribute('transform') ?? '')
+      const rect = group.querySelector('rect')
+      return {
+        id: group.getAttribute('data-id') ?? '?',
+        x: Number(at?.[1]) + Number(rect?.getAttribute('x')),
+        y: Number(at?.[2]) + Number(rect?.getAttribute('y')),
+        w: Number(rect?.getAttribute('width')),
+        h: Number(rect?.getAttribute('height')),
+      }
+    })
+
+  /** Pairs whose rectangles share any area. Reported by name, not counted. */
+  const collisions = (boxes: Drawn[]): string[] => {
+    const hits: string[] = []
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]
+        const b = boxes[j]
+        const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+        const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+        if (overlapX > 0 && overlapY > 0) {
+          hits.push(`${a.id} over ${b.id} by ${Math.round(overlapX)}x${Math.round(overlapY)}`)
+        }
+      }
+    }
+    return hits
+  }
+
+  it('at the view the map opens at', async () => {
+    await renderWithProvider(<MapTab />)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    const boxes = drawn(canvas)
+    expect(boxes.length).toBeGreaterThan(20)
+    for (const box of boxes) {
+      expect(Number.isFinite(box.x) && Number.isFinite(box.w), box.id).toBe(true)
+    }
+    expect(collisions(boxes)).toEqual([])
+  })
+
+  it('with every branch expanded', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    const boxes = drawn(canvas)
+    // The whole bundle: 32 systems, their groups and branches, and the root.
+    expect(boxes.length).toBe(45)
+    expect(collisions(boxes)).toEqual([])
+  })
+
+  /**
+   * The label control changes every box, so it changes the layout. Turning it
+   * to the top of its range is the case that used to bury the most nodes.
+   */
+  it('after the reader turns the labels all the way up', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const bigger = screen.getByRole('button', { name: 'Larger labels' })
+    for (let i = 0; i < 10; i++) await user.click(bigger)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    expect(collisions(drawn(canvas))).toEqual([])
+  })
+
+  /**
+   * Grid is the same map by another placement rule, and it had the same hole:
+   * a row spacing and a column pitch fixed at the sizes the boxes used to be.
+   */
+  it('with the grid placement, expanded', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    await user.click(screen.getByRole('button', { name: 'Grid' }))
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    expect(collisions(drawn(canvas))).toEqual([])
+  })
+
+  it('with the grid placement and the labels turned up', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    await user.click(screen.getByRole('button', { name: 'Grid' }))
+    const bigger = screen.getByRole('button', { name: 'Larger labels' })
+    for (let i = 0; i < 10; i++) await user.click(bigger)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    expect(collisions(drawn(canvas))).toEqual([])
+  })
+
+  it('after the reader turns the boxes all the way up', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const bigger = screen.getByRole('button', { name: 'Larger boxes' })
+    for (let i = 0; i < 10; i++) await user.click(bigger)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    expect(collisions(drawn(canvas))).toEqual([])
+  })
+})

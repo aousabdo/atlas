@@ -5,7 +5,8 @@ import { MapTab } from '../MapTab'
 import {
   DEFAULT_NODE_SCALE, DEFAULT_TEXT_SCALE, NODE_MAX, NODE_MIN, TEXT_MAX, TEXT_MIN,
 } from '../scales'
-import { PAD_X, PAD_Y, TreeNode, geometryFor, lineWidth } from '../TreeNode'
+import { TreeNode } from '../TreeNode'
+import { PAD_X, PAD_Y, geometryFor, lineWidth } from '../../../viz/nodeBox'
 import { renderWithProvider } from '../../../test/renderWithProvider'
 import type { TreeNode as TreeNodeData } from '../../../types/tree'
 
