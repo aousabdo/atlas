@@ -37,13 +37,61 @@ interface ParsedState {
   topologies: Record<SiteId, Topology>
 }
 
-const EMPTY_GLOSSARY: Glossary = {
+export const EMPTY_GLOSSARY: Glossary = {
   confidence_intro: '',
   out_of_scope: [],
   methodology_extras: {
     risk_caveat: '', mapping_confidence_scale: '', soft_ownership_note: '',
   },
   acronyms: [],
+}
+
+const text = (value: unknown, fallback: string): string =>
+  typeof value === 'string' ? value : fallback
+
+const list = <T>(value: unknown, fallback: readonly T[]): T[] =>
+  Array.isArray(value) ? (value as T[]) : [...fallback]
+
+/**
+ * Fills whatever a hand-edited glossary left out, rather than refusing it.
+ *
+ * The glossary is the one input an analyst types by hand, and every key of it
+ * is optional to the views that read it: it contributes acronym expansions and
+ * prose to the Reference tab, and nothing else reads it at all. Refusing the
+ * load over a missing methodology_extras block would cost the analyst their
+ * matrix, links, coverage and topologies to protect nothing, and would be
+ * stricter than supplying no glossary at all, which `inputs.glossary` has
+ * always allowed. load_glossary in ingest/src/atlas_ingest/curation.py fills
+ * the same four keys the same way, so the two loaders cannot disagree about
+ * which files are acceptable.
+ *
+ * A key present but written as null is treated as absent: it is the same
+ * omission with a different keystroke, and trusting it would put the crash
+ * back one line later.
+ *
+ * What is filled here is not announced here. The Reference tab says which
+ * parts of the glossary carry nothing, because that is where a reader would
+ * otherwise conclude from a blank panel that their glossary is empty rather
+ * than partial.
+ */
+export function mergeGlossary(raw: unknown): Glossary {
+  const source = (raw ?? {}) as Partial<Glossary>
+  const extras = (source.methodology_extras ?? {}) as Partial<
+    Glossary['methodology_extras']
+  >
+  const defaults = EMPTY_GLOSSARY.methodology_extras
+  return {
+    confidence_intro: text(source.confidence_intro, EMPTY_GLOSSARY.confidence_intro),
+    out_of_scope: list(source.out_of_scope, EMPTY_GLOSSARY.out_of_scope),
+    methodology_extras: {
+      risk_caveat: text(extras.risk_caveat, defaults.risk_caveat),
+      mapping_confidence_scale: text(
+        extras.mapping_confidence_scale, defaults.mapping_confidence_scale,
+      ),
+      soft_ownership_note: text(extras.soft_ownership_note, defaults.soft_ownership_note),
+    },
+    acronyms: list(source.acronyms, EMPTY_GLOSSARY.acronyms),
+  }
 }
 
 /** The same payload methodology.py emits, from the same generated tables. */
@@ -218,7 +266,9 @@ export class LocalFileProvider implements AtlasDataProvider {
     const systems = readMatrixRows(workbook, inputs.matrix.name)
     const requirements = readCrosswalkRows(workbook, inputs.matrix.name)
     const overrides = await readJson<Overrides>(inputs.overrides, {})
-    const glossary = await readJson<Glossary>(inputs.glossary, EMPTY_GLOSSARY)
+    const glossary = mergeGlossary(
+      await readJson<Partial<Glossary> | null>(inputs.glossary, null),
+    )
     const coverage = normaliseSystemDeviceMap(
       await readJson<RawSystemDeviceMap | null>(inputs.systemDeviceMap, null),
       matrixIdSet(systems),

@@ -12,10 +12,14 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Caveat({ children }: { children: ReactNode }) {
+/** Nothing rather than an empty box: a bordered blank reads as a caveat that
+ *  says nothing, when the truth is that the glossary carried no caveat. The
+ *  panel at the top of the tab names which one is missing. */
+function Caveat({ text }: { text: string }) {
+  if (text.trim() === '') return null
   return (
     <p className="mt-3 rounded border border-line bg-surface-2 p-3 text-xs leading-relaxed text-muted-2">
-      {children}
+      {text}
     </p>
   )
 }
@@ -80,7 +84,7 @@ export function MethodologySection({
         <Keywords label="High risk keywords" items={methodology.high_keywords} />
         <Keywords label="Low risk keywords" items={methodology.low_keywords} />
         <Keywords label="Medium risk keywords" items={methodology.medium_keywords} />
-        <Caveat>{extras.risk_caveat}</Caveat>
+        <Caveat text={extras.risk_caveat} />
       </Block>
 
       <Block title={'"Mapped" definition'}>
@@ -90,7 +94,7 @@ export function MethodologySection({
           no matrix system, or a matrix system with an empty device list, is not a
           mapping.
         </p>
-        <Caveat>{extras.mapping_confidence_scale}</Caveat>
+        <Caveat text={extras.mapping_confidence_scale} />
       </Block>
 
       <Block title="Coverage % calculation">
@@ -129,7 +133,7 @@ export function MethodologySection({
           for completeness. The current classifier does not consult it, so no system is
           soft by virtue of its group alone.
         </p>
-        <Caveat>{extras.soft_ownership_note}</Caveat>
+        <Caveat text={extras.soft_ownership_note} />
       </Block>
 
       <Block title="Owner classification rules">

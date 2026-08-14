@@ -153,9 +153,13 @@ export function ConfidenceSection({
 
   return (
     <div className="space-y-4">
-      <p className="max-w-3xl text-sm leading-relaxed text-muted">
-        {glossary.confidence_intro}
-      </p>
+      {/* Omitted rather than rendered blank when the glossary carried no intro.
+          The panel at the top of the tab names it as absent. */}
+      {glossary.confidence_intro.trim() !== '' && (
+        <p className="max-w-3xl text-sm leading-relaxed text-muted">
+          {glossary.confidence_intro}
+        </p>
+      )}
 
       <Card
         title="High confidence: directly lifted from an authoritative source"

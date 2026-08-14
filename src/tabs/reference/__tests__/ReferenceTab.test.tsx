@@ -146,6 +146,14 @@ describe('Reference & Methodology', () => {
     }
   })
 
+  it('says nothing about a partial glossary when the glossary is whole', async () => {
+    await renderWithProvider(<ReferenceTab />)
+    await systemsTable()
+    expect(
+      screen.queryByRole('region', { name: /partial glossary/i }),
+    ).not.toBeInTheDocument()
+  })
+
   it('reports a failed load instead of an empty table', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -159,5 +167,170 @@ describe('Reference & Methodology', () => {
       // Restores the bundle-serving stub from src/test/setup.ts, not the real fetch.
       fetchSpy.mockRestore()
     }
+  })
+})
+
+/**
+ * A glossary is hand-edited, so it arrives incomplete sooner or later.
+ *
+ * Every key of it is optional to the views that read it: it contributes
+ * acronym expansions and prose, and nothing else on this tab or any other
+ * depends on it. So a missing key must cost the reader that key and nothing
+ * more, and the tab has to say which key it lost rather than draw an empty
+ * box a reader would take for a reviewed emptiness.
+ *
+ * Content below is invented for these tests.
+ */
+describe('Reference & Methodology with a partial glossary', () => {
+  const WHOLE = {
+    confidence_intro: 'Sample intro sentence supplied by this test.',
+    out_of_scope: ['Sample exclusion one', 'Sample exclusion two'],
+    methodology_extras: {
+      risk_caveat: 'Sample risk caveat.',
+      mapping_confidence_scale: 'Sample mapping scale note.',
+      soft_ownership_note: 'Sample soft ownership note.',
+    },
+    acronyms: [
+      { acr: 'AAA', meaning: 'Sample expansion one' },
+      { acr: 'BBB', meaning: 'Sample expansion two' },
+    ],
+  }
+
+  /** Serves a hand-edited glossary and leaves every other bundle to the stub in
+   *  src/test/setup.ts, so this exercises the real StaticProvider path. */
+  function serveGlossary(body: Record<string, unknown>) {
+    const bundles = globalThis.fetch
+    return vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('glossary.json')) {
+          return Promise.resolve(
+            new Response(JSON.stringify(body), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          )
+        }
+        return bundles(input, init)
+      })
+  }
+
+  function without(...keys: string[]) {
+    const body: Record<string, unknown> = { ...WHOLE }
+    for (const key of keys) delete body[key]
+    return body
+  }
+
+  /** Renders the tab over `body` and returns the partial-glossary panel, having
+   *  first proved the tab rendered at all. */
+  async function renderWith(body: Record<string, unknown>) {
+    const spy = serveGlossary(body)
+    try {
+      await renderWithProvider(<ReferenceTab />)
+      // Every section the glossary does not feed is still here.
+      expect(await systemsTable()).toBeInTheDocument()
+      expect(
+        screen.getByRole('table', { name: /owner classification rules/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: 'Architecture & build' }),
+      ).toBeInTheDocument()
+      return screen.getByRole('region', { name: /partial glossary/i })
+    } finally {
+      spy.mockRestore()
+    }
+  }
+
+  it('renders the tab and names the intro when confidence_intro is missing', async () => {
+    const panel = await renderWith(without('confidence_intro'))
+    expect(within(panel).getByText('Confidence intro')).toBeInTheDocument()
+    expect(within(panel).getAllByRole('listitem')).toHaveLength(1)
+    // The keys that were supplied still show their content.
+    expect(screen.getByText('Sample risk caveat.')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: /acronyms/i })).toBeInTheDocument()
+  })
+
+  it('renders the tab and names the exclusions when out_of_scope is missing', async () => {
+    const panel = await renderWith(without('out_of_scope'))
+    expect(within(panel).getByText('Out of scope declarations')).toBeInTheDocument()
+    expect(within(panel).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Sample intro sentence supplied by this test.'))
+      .toBeInTheDocument()
+  })
+
+  it('renders the tab and names all three caveats when methodology_extras is missing',
+    async () => {
+      const panel = await renderWith(without('methodology_extras'))
+      const named = within(panel)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent)
+      expect(named).toEqual([
+        'Risk caveat',
+        'Mapping confidence scale',
+        'Soft ownership note',
+      ])
+    })
+
+  it('names only the caveat that is missing from a partial extras block', async () => {
+    const panel = await renderWith({
+      ...WHOLE,
+      methodology_extras: { risk_caveat: 'Sample risk caveat.' },
+    })
+    const named = within(panel)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent)
+    expect(named).toEqual(['Mapping confidence scale', 'Soft ownership note'])
+    expect(screen.getByText('Sample risk caveat.')).toBeInTheDocument()
+  })
+
+  it('renders the tab and names the acronyms when acronyms is missing', async () => {
+    const panel = await renderWith(without('acronyms'))
+    expect(within(panel).getByText('Acronyms')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: /acronyms/i })).not.toBeInTheDocument()
+    expect(screen.getByText('No acronyms in this bundle')).toBeInTheDocument()
+  })
+
+  it('names every key a glossary missing several of them left out', async () => {
+    const panel = await renderWith(without('confidence_intro', 'methodology_extras'))
+    const named = within(panel)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent)
+    expect(named).toEqual([
+      'Confidence intro',
+      'Risk caveat',
+      'Mapping confidence scale',
+      'Soft ownership note',
+    ])
+  })
+
+  it('renders the tab over a glossary with no keys at all', async () => {
+    const panel = await renderWith({})
+    const named = within(panel)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent)
+    // Named in the order the glossary declares them, so a reader can scan their
+    // own file top to bottom against this list.
+    expect(named).toEqual([
+      'Confidence intro',
+      'Out of scope declarations',
+      'Risk caveat',
+      'Mapping confidence scale',
+      'Soft ownership note',
+      'Acronyms',
+    ])
+    // Said once, in words, rather than left as blank boxes to be read as reviewed.
+    expect(panel).toHaveTextContent(/supplied no content/i)
+  })
+
+  it('treats a key present but null as absent rather than crashing on it', async () => {
+    const panel = await renderWith({
+      ...WHOLE,
+      acronyms: null,
+      out_of_scope: null,
+    })
+    const named = within(panel)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent)
+    expect(named).toEqual(['Out of scope declarations', 'Acronyms'])
   })
 })

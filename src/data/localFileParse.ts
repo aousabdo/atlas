@@ -79,17 +79,63 @@ export function makeId(name: string): string {
     .slice(0, 30)
 }
 
+/**
+ * Character budget for one line of a wrapped label.
+ *
+ * Aesthetic, not a fit guarantee: a character count cannot know how wide a
+ * glyph is, and the node box is what actually guarantees the text fits (see
+ * geometryFor in src/tabs/map/TreeNode.tsx). What this buys is a label shaped
+ * like a label, a few short lines rather than one long ribbon, for names
+ * nobody has curated. 14 is the threshold the previous rule used, and most of
+ * the curated table was already written to it.
+ *
+ * Mirrors LABEL_LINE_CHARS in ingest/src/atlas_ingest/identity.py.
+ */
+export const LABEL_LINE_CHARS = 14
+
+/**
+ * Greedy word wrap to LABEL_LINE_CHARS, transliterated from wrap_label.
+ *
+ * The guarantee is the point: no line comes out over the budget unless it is a
+ * single word that cannot be broken at a space. The rule it replaces split the
+ * word list down the middle and made no claim about the halves, so a five-word
+ * name became two fifteen-character lines and both overflowed.
+ *
+ * Long names are allowed as many lines as they need. Capping the line count
+ * would mean either dropping words or letting the last line run long, and the
+ * first loses information while the second gives back the guarantee.
+ */
+export function wrapLabel(text: string): string {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(/\s+/)) {
+    if (!word) continue
+    if (!line) line = word
+    else if (line.length + 1 + word.length <= LABEL_LINE_CHARS) line += ` ${word}`
+    else {
+      lines.push(line)
+      line = word
+    }
+  }
+  if (line) lines.push(line)
+  return lines.join('\n')
+}
+
+/**
+ * Display label: the curated short name, else the name wrapped to fit.
+ *
+ * A curated label is returned exactly as written, line breaks included, even
+ * when it is longer than the budget. That table is where a human says how a
+ * name should read, and re-wrapping it here would overrule the only place that
+ * decision can be made. Nothing is lost by honouring it: the node box sizes
+ * itself to whatever label it is handed.
+ */
 export function makeLabel(name: string): string {
   const sid = makeId(name)
   if (sid in LABEL_MAP) return LABEL_MAP[sid]
   let s = name.replace(/\s*\(.*?\)\s*/g, '').trim()
   if (s.length < 3) s = name.trim()
-  if (s.length > 14 && s.includes(' ')) {
-    const words = s.split(/\s+/)
-    const mid = Math.floor(words.length / 2)
-    s = `${words.slice(0, mid).join(' ')}\n${words.slice(mid).join(' ')}`
-  }
-  return s
+  return wrapLabel(s)
 }
 
 export function classifyOwner(

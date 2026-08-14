@@ -169,3 +169,96 @@ describe('LocalFileProvider upload hardening', () => {
     expect(await p.getSystems()).toHaveLength(32)
   })
 })
+
+/**
+ * A hand-edited glossary is the one input an analyst types by hand, so it
+ * arrives short of a key sooner or later.
+ *
+ * It must not cost them the load. The glossary contributes acronym expansions
+ * and prose to one tab; the matrix, the links, the coverage and the topologies
+ * do not read it at all. Refusing the whole load over a missing block would
+ * take all of that away to protect nothing, and would be stricter than passing
+ * no glossary at all, which this provider has always accepted.
+ *
+ * Content below is invented for these tests.
+ */
+describe('a glossary missing keys still loads', () => {
+  function glossaryFile(body: unknown): File {
+    return new File([JSON.stringify(body)], 'glossary.json')
+  }
+
+  async function loadWith(body: unknown) {
+    const p = new LocalFileProvider()
+    await p.load({ matrix: file('matrix.xlsx'), glossary: glossaryFile(body) })
+    return p
+  }
+
+  const WHOLE = {
+    confidence_intro: 'Sample intro sentence supplied by this test.',
+    out_of_scope: ['Sample exclusion one'],
+    methodology_extras: {
+      risk_caveat: 'Sample risk caveat.',
+      mapping_confidence_scale: 'Sample mapping scale note.',
+      soft_ownership_note: 'Sample soft ownership note.',
+    },
+    acronyms: [{ acr: 'AAA', meaning: 'Sample expansion one' }],
+  }
+
+  it('counts no acronyms rather than dying on the count', async () => {
+    const { acronyms, ...rest } = WHOLE
+    expect(acronyms).toHaveLength(1)
+    const p = await loadWith(rest)
+    expect((await p.getGlossary()).acronyms).toEqual([])
+    expect((await p.getManifest()).counts.acronyms).toBe(0)
+    // The load the analyst actually came for is intact.
+    expect(await p.getSystems()).toHaveLength(32)
+  })
+
+  it('fills the extras block when it is absent, keeping every other key', async () => {
+    const { methodology_extras, ...rest } = WHOLE
+    expect(methodology_extras.risk_caveat).toBeTruthy()
+    const glossary = await (await loadWith(rest)).getGlossary()
+    expect(glossary.methodology_extras).toEqual({
+      risk_caveat: '',
+      mapping_confidence_scale: '',
+      soft_ownership_note: '',
+    })
+    expect(glossary.confidence_intro).toBe(WHOLE.confidence_intro)
+    expect(glossary.out_of_scope).toEqual(WHOLE.out_of_scope)
+    expect(glossary.acronyms).toEqual(WHOLE.acronyms)
+  })
+
+  it('fills only the extras that are absent from a partial block', async () => {
+    const glossary = await (
+      await loadWith({ ...WHOLE, methodology_extras: { risk_caveat: 'Kept.' } })
+    ).getGlossary()
+    expect(glossary.methodology_extras).toEqual({
+      risk_caveat: 'Kept.',
+      mapping_confidence_scale: '',
+      soft_ownership_note: '',
+    })
+  })
+
+  it('fills every key of a glossary that has none of them', async () => {
+    const glossary = await (await loadWith({})).getGlossary()
+    expect(glossary).toEqual({
+      confidence_intro: '',
+      out_of_scope: [],
+      methodology_extras: {
+        risk_caveat: '',
+        mapping_confidence_scale: '',
+        soft_ownership_note: '',
+      },
+      acronyms: [],
+    })
+  })
+
+  it('treats a key written as null as absent rather than trusting the null', async () => {
+    const glossary = await (
+      await loadWith({ ...WHOLE, acronyms: null, confidence_intro: null })
+    ).getGlossary()
+    expect(glossary.acronyms).toEqual([])
+    expect(glossary.confidence_intro).toBe('')
+    expect(glossary.out_of_scope).toEqual(WHOLE.out_of_scope)
+  })
+})

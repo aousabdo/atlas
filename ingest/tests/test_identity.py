@@ -1,6 +1,6 @@
 import pytest
 
-from atlas_ingest.identity import make_id, make_label
+from atlas_ingest.identity import LABEL_LINE_CHARS, make_id, make_label
 
 
 @pytest.mark.parametrize("name,expected", [
@@ -40,9 +40,63 @@ def test_make_label_uses_the_label_map():
     assert make_label("Trackwell Sensor AI") == "Trackwell\nSensor AI"
 
 
-def test_make_label_wraps_long_unmapped_names_at_the_midpoint():
+def test_make_label_wraps_a_long_unmapped_name():
     assert make_label("Alpha Bravo Charlie Delta") == "Alpha Bravo\nCharlie Delta"
 
 
 def test_make_label_leaves_short_unmapped_names_alone():
     assert make_label("Short One") == "Short One"
+
+
+# --- the wrapping rule ------------------------------------------------------
+#
+# WRAP_CASES is mirrored case for case in the TypeScript suite, in
+# src/data/__tests__/localfile.test.ts. The two implementations of this rule
+# have to agree, and the sample vocabulary cannot prove it: every system in the
+# sample is in LABEL_MAP, so every label comes back off the curated table and
+# the wrap never runs. An analyst's own workbook is the opposite, nothing but
+# unmapped names, which makes this the only place the two implementations of
+# the fallback are held against each other.
+
+WRAP_CASES = [
+    ("Tiny", "Tiny"),
+    ("Short One", "Short One"),
+    ("Alpha Bravo Charlie Delta", "Alpha Bravo\nCharlie Delta"),
+    (
+        "Alpha Bravo Charlie Delta Echo Foxtrot",
+        "Alpha Bravo\nCharlie Delta\nEcho Foxtrot",
+    ),
+    ("Quadrant Overwatch Node", "Quadrant\nOverwatch Node"),
+    ("Perimeter Watch Grid Relay Node", "Perimeter\nWatch Grid\nRelay Node"),
+    ("Unbreakablesinglewordname", "Unbreakablesinglewordname"),
+    ("Ridge Watch (Legacy Variant)", "Ridge Watch"),
+]
+
+
+@pytest.mark.parametrize("name,expected", WRAP_CASES)
+def test_make_label_wrap_cases(name, expected):
+    assert make_label(name) == expected
+
+
+@pytest.mark.parametrize("name,_expected", WRAP_CASES)
+def test_make_label_keeps_every_line_inside_the_budget(name, _expected):
+    """The rule stated as its guarantee.
+
+    The old rule split the word list in half and said nothing about how long
+    the halves came out, so "Perimeter Watch Grid Relay Node" wrapped into two
+    fifteen-character lines and both of them overflowed the node. A budget the
+    output is measured against is the difference between a rule and a habit.
+    """
+    for line in make_label(name).split("\n"):
+        assert len(line) <= LABEL_LINE_CHARS or " " not in line
+
+
+def test_make_label_honours_a_curated_label_verbatim_even_when_it_is_long():
+    """The curated table outranks the budget, deliberately.
+
+    An entry in LABEL_MAP is a display decision somebody made on purpose, line
+    breaks included, and re-wrapping it would overrule the one place an analyst
+    can say how a name should read. The node box is what guarantees the text
+    fits; this guarantees the text is the text that was chosen.
+    """
+    assert make_label("Enterprise Common Picture") == "Enterprise Common Picture"

@@ -69,6 +69,11 @@ jobs:
       - run: node scripts/seed-data.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5
+      # The whole of dist, which includes the 404.html the build writes. Pages
+      # serves that document for any path naming no file, which is what makes
+      # /network and /map open instead of 404ing. Without it every shared link
+      # but the root is dead. See the fallback plugin in vite.config.ts and
+      # e2e/deep-link.spec.ts.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

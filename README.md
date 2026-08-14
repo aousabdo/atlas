@@ -169,6 +169,34 @@ html2canvas, jsPDF and two font stylesheets from CDNs. `npm run build` now fails
 remote asset reference appears in the output, so the claim is enforced rather than
 asserted. See `scripts/check-offline.mjs`.
 
+## A view is a URL, including on a static host
+
+Every view has a real route, and the query is part of the address: `/map?focus=orbit`,
+`/network?site=northgate&focus=<device ids>`, `/reference#acronyms`. The command palette
+and the cross-view links hand those URLs out, so they are meant to be pasted into a
+message and opened by somebody else.
+
+A static host does not know about routes. Asked for `/network` it looks for a file of that
+name, finds none, and answers 404, which would make every shared link but the root one
+dead. So the build writes `dist/404.html`, a byte copy of `index.html`. GitHub Pages serves
+it for any path that names no file, the browser stays on the URL it was given, and the
+router reads that URL exactly as it would on a server that knew about routes. The query
+survives because nothing rewrites it; the hash survives because it never reaches the host.
+
+It is deliberately not the usual redirect shim, which encodes the path into a query,
+bounces through `/` and restores it with an inline script. That would need the CSP relaxed
+or a hash maintained for that script, it passes through the one route that redirects
+(`/` lands on `/reference`), and it re-encodes the query and hash by hand. Three ways to
+silently lose the part of the link that carries the meaning.
+
+`e2e/deep-link.spec.ts` proves it, against `e2e/pages-host.ts` rather than `npm run
+preview`: the preview server invents an SPA fallback of its own, so a test written against
+it passes whatever the build contains. The assertions are about the URL the browser lands
+on, because a fallback that loads the app at the wrong address looks fine in a screenshot.
+
+The standalone file gets none of this. It is opened from `file://`, so it uses hash
+routing and has no host to ask.
+
 ## Regenerating the data
 
 The classification logic lives in `ingest/`, a Python package lifted from the previous

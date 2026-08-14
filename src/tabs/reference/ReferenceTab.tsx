@@ -14,11 +14,14 @@ import type {
 import { AcronymsTable } from './AcronymsTable'
 import { BuildSection } from './BuildSection'
 import { ConfidenceSection } from './ConfidenceSection'
+import { readGlossary } from './glossary'
 import { MethodologySection } from './MethodologySection'
 import { SystemsTable } from './SystemsTable'
 
 interface ReferenceData {
   glossary: Glossary
+  /** Parts of the glossary that carry nothing. See readGlossary. */
+  absent: string[]
   methodology: Methodology
   systems: System[]
   coverage: CoverageMatrix
@@ -62,9 +65,40 @@ function Section({
   )
 }
 
+/**
+ * Names the parts of the glossary that carry nothing.
+ *
+ * Without this the tab draws a blank intro and three blank caveat boxes, which
+ * a reader takes for a reviewed emptiness rather than for a file that was
+ * edited short. Rendered only when something is absent, so a whole glossary
+ * costs the reader no reassurance banner.
+ */
+function PartialGlossary({ absent }: { absent: string[] }) {
+  if (absent.length === 0) return null
+  return (
+    <section
+      aria-label="Partial glossary"
+      className="mt-6 rounded border border-l-4 border-line border-l-risk-medium bg-surface p-4"
+    >
+      <h2 className="text-sm font-semibold text-ink">Partial glossary</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted">
+        This glossary supplied no content for the parts named below, so the places that
+        would carry them are blank. Read that as unwritten rather than as reviewed and
+        found empty. Everything else on this tab is unaffected, and edits live in{' '}
+        <code>glossary.json</code>.
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-2">
+        {absent.map((part) => (
+          <li key={part}>{part}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function ReferenceTab() {
   const state = useAtlas<ReferenceData>(async (provider) => {
-    const [glossary, methodology, systems, coverage, lossiness, manifest, project] =
+    const [raw, methodology, systems, coverage, lossiness, manifest, project] =
       await Promise.all([
         provider.getGlossary(),
         provider.getMethodology(),
@@ -74,7 +108,12 @@ export function ReferenceTab() {
         provider.getManifest(),
         provider.getProject(),
       ])
-    return { glossary, methodology, systems, coverage, lossiness, manifest, project }
+    // A hand-edited glossary missing a key costs the reader that key, and is
+    // said in words below, rather than taking down the tab.
+    const { glossary, absent } = readGlossary(raw)
+    return {
+      glossary, absent, methodology, systems, coverage, lossiness, manifest, project,
+    }
   })
   const [query, setQuery] = useState('')
 
@@ -132,6 +171,8 @@ export function ReferenceTab() {
               />
             </div>
           </div>
+
+          <PartialGlossary absent={state.data.absent} />
 
           <div className="mt-8 space-y-10">
             <Section id="confidence" title="Confidence & caveats">
