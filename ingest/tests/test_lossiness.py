@@ -9,23 +9,15 @@ from atlas_ingest.lossiness import (
     composite_index, compute_lossiness, count_severity, severity_for, top_gaps,
 )
 
-from conftest import MATRIX_XLSX, NETWORK_JSON, SYSTEM_DEVICE_MAP_JSON, _require
-
-
 @pytest.fixture(scope="module")
-def report(systems, overrides):
-    from atlas_ingest.crosswalk import read_crosswalk
-    from atlas_ingest.curation import load_system_device_map
-    from atlas_ingest.links import desired_links, extract_links, merge_links
-    from atlas_ingest.network import load_network
-
+def report(systems, links, desired, crosswalk, sdmap, networks):
     return compute_lossiness(
         systems=systems,
-        links=merge_links(extract_links(systems), overrides),
-        desired=desired_links(overrides),
-        crosswalk=read_crosswalk(_require(MATRIX_XLSX)),
-        sdmap=load_system_device_map(_require(SYSTEM_DEVICE_MAP_JSON)),
-        networks={sid: load_network(_require(p), sid) for sid, p in NETWORK_JSON.items()},
+        links=links,
+        desired=desired,
+        crosswalk=crosswalk,
+        sdmap=sdmap,
+        networks=networks,
     )
 
 
@@ -45,7 +37,7 @@ def test_requirement_attrition(report):
     assert (d["numerator"], d["denominator"]) == (9, 11)
     assert d["value_pct"] == pytest.approx(81.8, abs=0.1)
     assert sorted(d["detail"]["dropped"]) == [
-        "No spectrum deconfliction process",
+        "No spectrum deconfliction process for mitigation effectors",
         "No standing training pipeline for relay operators",
     ]
 
@@ -65,8 +57,11 @@ def test_realization_gap_counts_only_matrix_systems_with_hardware(report):
     Westfield Proving Ground has no mappings at all yet."""
     d = _dim(report, "realization_gap")
     assert (d["numerator"], d["denominator"]) == (10, 32)
+    # Sorted, because lossiness._realization_gap sorts mapped_ids. This list was
+    # written in curation order, which no input could ever have matched.
     assert d["detail"]["per_site"]["northgate"]["mapped_ids"] == [
-        "ucop", "tagpoint", "civair", "fpsrel", "recon", "jetty", "crosslink", "eventrel", "bastion", "winrel",
+        "bastion", "civair", "crosslink", "eventrel", "fpsrel", "jetty",
+        "recon", "tagpoint", "ucop", "winrel",
     ]
     assert d["detail"]["per_site"]["westfield"]["mapped"] == 0
     assert len(d["detail"]["unmapped"]) == 22

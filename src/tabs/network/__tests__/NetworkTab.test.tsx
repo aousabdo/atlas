@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
@@ -639,5 +639,118 @@ describe('Network panel', () => {
     await user.click(screen.getByRole('button', { name: 'Panel' }))
     expect(container.querySelector('.left-80')).toBeNull()
     expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
+  })
+})
+
+/**
+ * The same slop rule as the map, from the same module, for the same reason.
+ *
+ * Measured in a browser before the fix: dragging a device 20px in twenty
+ * one-pixel moves moved it and also selected it, and a 60px pan from bare
+ * canvas delivered in sixty one-pixel moves cleared the selection on the click
+ * that closed it. Both look like a mouse being used normally.
+ */
+describe('Network Topology drag slop', () => {
+  const drip = (
+    target: Element,
+    pointerId: number,
+    from: { x: number; y: number },
+    total: number,
+  ) => {
+    for (let i = 1; i <= total; i += 1) {
+      fireEvent.pointerMove(target, {
+        pointerId,
+        clientX: from.x + i,
+        clientY: from.y + Math.round(i / 2),
+      })
+    }
+  }
+
+  it('does not select a device dragged 20px in twenty one-pixel moves', async () => {
+    await renderWithProvider(<NetworkTab />)
+    const svg = await screen.findByRole('img', { name: /network topology/i })
+    const node = await graphNode('device-core_switch')
+    const home = node.getAttribute('transform')
+
+    fireEvent.pointerDown(node, { pointerId: 30, button: 0, clientX: 200, clientY: 200 })
+    drip(svg, 30, { x: 200, y: 200 }, 20)
+    fireEvent.pointerUp(svg, { pointerId: 30 })
+    fireEvent.click(node)
+
+    expect(node.getAttribute('transform')).not.toBe(home)
+    expect(await graphNode('device-core_switch')).toHaveAttribute('data-selected', 'false')
+    const detail = screen.getByRole('region', { name: /device detail/i })
+    expect(within(detail).getByText(/Pick a device/)).toBeInTheDocument()
+  })
+
+  it('does not clear the selection on a pan delivered in one-pixel moves', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const svg = await screen.findByRole('img', { name: /network topology/i })
+    await user.click(await graphNode('device-field_house_effector'))
+    expect(await graphNode('device-field_house_effector')).toHaveAttribute(
+      'data-selected', 'true',
+    )
+
+    fireEvent.pointerDown(svg, { pointerId: 31, button: 0, clientX: 400, clientY: 300 })
+    drip(svg, 31, { x: 400, y: 300 }, 60)
+    fireEvent.pointerUp(svg, { pointerId: 31 })
+    fireEvent.click(svg)
+
+    expect(await graphNode('device-field_house_effector')).toHaveAttribute(
+      'data-selected', 'true',
+    )
+  })
+
+  it('does not nudge a device when the hand shakes during a click', async () => {
+    await renderWithProvider(<NetworkTab />)
+    const svg = await screen.findByRole('img', { name: /network topology/i })
+    const node = await graphNode('device-core_switch')
+    const home = node.getAttribute('transform')
+
+    fireEvent.pointerDown(node, { pointerId: 32, button: 0, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(svg, { pointerId: 32, clientX: 102, clientY: 101 })
+    fireEvent.pointerMove(svg, { pointerId: 32, clientX: 103, clientY: 102 })
+    fireEvent.pointerUp(svg, { pointerId: 32 })
+    fireEvent.click(node)
+
+    // Three pixels is a click: the device stays put and the record opens.
+    expect(node.getAttribute('transform')).toBe(home)
+    expect(await graphNode('device-core_switch')).toHaveAttribute('data-selected', 'true')
+  })
+})
+
+/**
+ * The topology shares the map's gesture rule, so it shares this test.
+ *
+ * Pointer moves can arrive many to a task, and React renders once per task, so
+ * a handler that read the transform off a prop kept only the last event of a
+ * burst. Measured on the map before the fix: a 60px pan applied 1px.
+ */
+describe('Network Topology gesture batching', () => {
+  it('applies the whole pan when sixty moves arrive in one task', async () => {
+    await renderWithProvider(<NetworkTab />)
+    const svg = await screen.findByRole('img', { name: /network topology/i })
+    const layer = svg.querySelector('g[transform]') as SVGGElement
+    const panX = () =>
+      Number(/translate\(([-\d.]+),/.exec(layer.getAttribute('transform') ?? '')?.[1])
+    const before = panX()
+
+    await act(async () => {
+      svg.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true, pointerId: 33, button: 0, clientX: 500, clientY: 300,
+        }),
+      )
+      for (let i = 1; i <= 60; i += 1) {
+        svg.dispatchEvent(
+          new PointerEvent('pointermove', {
+            bubbles: true, pointerId: 33, clientX: 500 + i, clientY: 300,
+          }),
+        )
+      }
+    })
+    fireEvent.pointerUp(svg, { pointerId: 33 })
+
+    expect(panX() - before).toBe(60)
   })
 })

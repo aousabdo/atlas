@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '../../components/EmptyState'
@@ -10,10 +10,12 @@ import {
 } from '../../lib/tree'
 import type { CoverageMatrix, LinkSet, System } from '../../types/atlas'
 import { boundsOf, doLayout, snapToGrid } from '../../viz/radial'
-import { CrossLinksLegend } from './CrossLinks'
 import { DetailPanel } from './DetailPanel'
+import { legendGroups, MapLegendCard } from './MapLegend'
+import { topReserve } from './chrome'
 import { MapToolbar, type MapToggles } from './MapToolbar'
 import { Minimap } from './Minimap'
+import { mapAction } from './shortcuts'
 import { fitToScreen, IDENTITY, zoomAbout, type Size, type Transform } from '../../viz/zoom'
 import { TreeCanvas, type Offset } from './TreeCanvas'
 import { ViewStrip } from '../../components/ViewStrip'
@@ -21,8 +23,6 @@ import {
   clamp, DEFAULT_NODE_SCALE, DEFAULT_TEXT_SCALE, NODE_MAX, NODE_MIN, TEXT_MAX, TEXT_MIN,
 } from './scales'
 
-/** Height of the title, stats and toolbar floating over the top of the canvas. */
-const CHROME_TOP = 120
 /** Zoom used when centring on the root, and the nudge that clears the chrome. */
 const ROOT_ZOOM = 0.85
 const ROOT_PAN_Y = 55
@@ -50,7 +50,9 @@ export function MapTab() {
        replaced gave the canvas the whole viewport and floated its chrome on
        top, and boxing it into a column is most of why this felt worse. */
     <section className="relative h-[calc(100vh-4.5rem)] w-full overflow-hidden">
-      <h1 className="pointer-events-none absolute top-3 left-3 z-20 text-lg font-semibold text-ink">
+      {/* Above the detail column, which docks against this edge and would
+          otherwise be drawn over the only place the view is named. */}
+      <h1 className="pointer-events-none absolute top-3 left-3 z-30 text-lg font-semibold text-ink">
         Orientation Map
       </h1>
       <MapBody />
@@ -125,6 +127,29 @@ function MapView({ systems, links, coverage }: MapData) {
   const fittedOnce = useRef(false)
   const lastNonce = useRef(0)
 
+  /**
+   * The top band is measured, not assumed.
+   *
+   * Its height depends on whether the toolbar wraps, which depends on the
+   * viewport: 55px at 1440x900, 115px at 1280x720 and at 1366x768. A constant
+   * gutter is right at one width and wrong at the rest.
+   */
+  const bandRef = useRef<HTMLDivElement>(null)
+  const [bandHeight, setBandHeight] = useState(0)
+  useLayoutEffect(() => {
+    const element = bandRef.current
+    if (!element) return
+    const measure = () => {
+      const height = Math.round(element.getBoundingClientRect().height)
+      setBandHeight((previous) => (previous === height ? previous : height))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const chromeTop = topReserve(bandHeight)
+
   const zoomBy = useCallback(
     (factor: number) => {
       setTransform((previous) =>
@@ -179,10 +204,10 @@ function MapView({ systems, links, coverage }: MapData) {
     const b = boundsOf(positions)
     const fitted = fitToScreen(
       { x: b.minX, y: b.minY, w: b.width, h: b.height },
-      { width: canvasSize.width, height: canvasSize.height - CHROME_TOP },
+      { width: canvasSize.width, height: canvasSize.height - chromeTop },
     )
-    return fitted ? { ...fitted, y: fitted.y + CHROME_TOP } : null
-  }, [positions, canvasSize.width, canvasSize.height])
+    return fitted ? { ...fitted, y: fitted.y + chromeTop } : null
+  }, [positions, canvasSize.width, canvasSize.height, chromeTop])
 
   /** Open fitted, so the whole map is visible without touching anything. */
   const [everFitted, setEverFitted] = useState(false)
@@ -208,6 +233,15 @@ function MapView({ systems, links, coverage }: MapData) {
     if (fitted) setTransform(fitted)
   }, [fitNonce, computeFit])
 
+  /** Ask for a refit. The effect above does it once the canvas has a size. */
+  const fit = useCallback(() => {
+    setFitNonce((n) => n + 1)
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    setSelected(null)
+  }, [])
+
   const centreOnRoot = useCallback(() => {
     if (!canvasSize.width || !canvasSize.height) return
     setTransform({
@@ -232,6 +266,47 @@ function MapView({ systems, links, coverage }: MapData) {
   )
 
   const selectedSystem = selected ? systems.find((s) => s.id === selected) : undefined
+
+  /** One row per colour on the canvas, so the legend cannot drift from it. */
+  const groups = useMemo(() => legendGroups(positions), [positions])
+
+  /**
+   * The map's own keys, in the same document as everything else.
+   *
+   * Capture phase and the same manners as the topology's: a keystroke aimed at
+   * a text field or at an open dialog is never taken, and only the keys this
+   * view actually consumes are stopped. Escape is left alone when there is no
+   * selection to clear, so whoever else wants it still gets it.
+   */
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (document.querySelector('[role="dialog"]')) return
+      const action = mapAction(event)
+      if (!action) return
+      if (action === 'clear' && !selected) return
+
+      switch (action) {
+        case 'fit':
+          fit()
+          break
+        case 'centre':
+          centreOnRoot()
+          break
+        case 'risk':
+          setToggles((previous) => ({ ...previous, risk: !previous.risk }))
+          break
+        case 'clear':
+          clearSelection()
+          break
+      }
+
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [selected, fit, centreOnRoot, clearSelection])
 
   const handleToggle = (key: keyof MapToggles) => {
     setToggles((previous) => {
@@ -266,63 +341,141 @@ function MapView({ systems, links, coverage }: MapData) {
         transform={transform}
         onTransform={setTransform}
         onSize={setCanvasSize}
-        onOffset={(id, offset) => setOffsets((p) => ({ ...p, [id]: offset }))}
+        // The running total lives here, and each step is added to whatever the
+        // step before it produced. Computing the total in the canvas read a
+        // prop one render out of date, so a burst of moves kept only its last.
+        // The running total lives here, and each step is added to whatever the
+        // step before it produced. Computing the total in the canvas read a
+        // prop one render out of date, so a burst of moves kept only its last.
+        onOffset={(id, delta) => {
+          setOffsets((previous) => {
+            const current = previous[id] ?? { dx: 0, dy: 0 }
+            return {
+              ...previous,
+              [id]: { dx: current.dx + delta.dx, dy: current.dy + delta.dy },
+            }
+          })
+        }}
         onToggle={(id) => {
           setExpanded((previous) => ({ ...previous, [id]: !previous[id] }))
         }}
         onSelect={setSelected}
+        onClearSelection={clearSelection}
       />
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col gap-3 p-3">
-        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-3 pl-44">
-          <div className="flex flex-col gap-2">
-            <section
-              aria-label="Map statistics"
-              className="flex flex-wrap items-stretch gap-1.5"
-            >
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  role="group"
-                  aria-label={stat.label}
-                  className="flex min-w-20 flex-col rounded border border-line bg-surface/90 px-2.5 py-1.5 backdrop-blur"
-                >
-                  <span className="tabular text-base font-semibold text-ink">{stat.value}</span>
-                  <span className="text-[11px] text-muted">{stat.label}</span>
-                </div>
-              ))}
-            </section>
-          </div>
+      {/*
+        The record docks beside the chrome instead of floating over it.
 
-          <div className="ml-auto rounded border border-line bg-surface/90 p-2 backdrop-blur">
+        It used to be an absolutely positioned column at z-10 on the right hand
+        edge, and the chrome layer below has no z-index at all and is an earlier
+        sibling, so the panel won the stack and buried the minimap whole and
+        every control in the view strip. Network Topology already answers this:
+        the record lives in a rail on one edge and the floating chrome is inset
+        by the width of that rail, so nothing is ever painted over.
+
+        Left, to match that tab. A reader moving between the two graph views
+        finds the record in the same place, and if the inset below is ever lost
+        again the panel lands on the statistics, which are a readout, rather
+        than on the zoom, fit and overview, which are how you drive the canvas.
+      */}
+      {selectedSystem && (
+        <div
+          data-testid="map-detail"
+          className="absolute inset-y-0 left-0 z-20 w-80 overflow-y-auto overscroll-contain border-r border-line bg-surface/95 px-2 pt-11 pb-3 backdrop-blur"
+        >
+          <DetailPanel
+            system={selectedSystem}
+            links={links}
+            coverage={coverage}
+            names={names}
+            onClose={clearSelection}
+          />
+        </div>
+      )}
+
+      <div
+        data-testid="map-chrome"
+        className={[
+          'pointer-events-none absolute inset-y-0 right-0 z-10 flex flex-col gap-3 p-3',
+          selectedSystem ? 'left-80' : 'left-0',
+        ].join(' ')}
+      >
+        {/*
+          The band itself takes no pointer events.
+
+          It is as wide as the canvas and mostly empty: at 1440 by 900 it is
+          1416 by 55 with a fifth of that area belonging to no control at all,
+          which is the gutter that clears the heading and the space between the
+          statistics and the toolbar. Marked interactive, that empty space ate
+          every pan and every node click that started under it. The two blocks
+          inside it claim the pointer for themselves instead.
+        */}
+        <div
+          ref={bandRef}
+          data-testid="map-chrome-top"
+          className={[
+            'flex flex-wrap items-start justify-between gap-3',
+            // The gutter exists to clear the heading. With the record open the
+            // heading sits in that column, so the space would be for nothing.
+            selectedSystem ? '' : 'pl-44',
+          ].join(' ')}
+        >
+          {/*
+            The tiles claim the pointer, the section does not.
+
+            The section is a block that stretches the width its flex row gives
+            it, and most of that width is the gaps between tiles and the empty
+            run out to the toolbar. Marked interactive it ate every pan and
+            every node click that started under it: sampling elementFromPoint
+            every 40px across the band at 1440x900, the canvas was reachable
+            only in the left gutter and one 40px gap, with x=200 through x=760
+            belonging to a readout that has nothing to respond to a click with.
+          */}
+          <section
+            aria-label="Map statistics"
+            className="flex flex-wrap items-stretch gap-1.5"
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                role="group"
+                aria-label={stat.label}
+                className="pointer-events-auto flex min-w-20 flex-col rounded border border-line bg-surface/90 px-2.5 py-1.5 backdrop-blur"
+              >
+                <span className="tabular text-base font-semibold text-ink">{stat.value}</span>
+                <span className="text-[11px] text-muted">{stat.label}</span>
+              </div>
+            ))}
+          </section>
+
+          <div className="pointer-events-auto ml-auto rounded border border-line bg-surface/90 p-2 backdrop-blur">
             <MapToolbar
               toggles={toggles}
               onToggle={handleToggle}
               onReset={() => {
                 setExpanded(defaultExpanded(tree))
-                setSelected(null)
+                clearSelection()
                 setToggles(NO_TOGGLES)
                 setOffsets({})
                 setTextScale(DEFAULT_TEXT_SCALE)
                 setNodeScale(DEFAULT_NODE_SCALE)
-                setFitNonce((n) => n + 1)
+                fit()
               }}
               onExpandAll={() => {
                 setExpanded(Object.fromEntries(branchIds(tree).map((id) => [id, true])))
-                setFitNonce((n) => n + 1)
+                fit()
               }}
             />
           </div>
         </div>
 
         <div className="mt-auto flex items-end justify-between gap-3">
-          <div className="pointer-events-auto max-w-xs rounded border border-line bg-surface/90 p-2 backdrop-blur">
-            <CrossLinksLegend
-              showLinks={toggles.links}
-              showDesired={toggles.desired}
-              riskMode={toggles.risk}
-            />
-          </div>
+          <MapLegendCard
+            groups={groups}
+            showLinks={toggles.links}
+            showDesired={toggles.desired}
+            riskMode={toggles.risk}
+          />
 
           <div className="flex flex-col items-end gap-2">
             <ViewStrip
@@ -352,12 +505,12 @@ function MapView({ systems, links, coverage }: MapData) {
               actions={[
                 {
                   label: 'Fit',
-                  title: 'Fit the whole map',
-                  onClick: () => setFitNonce((n) => n + 1),
+                  title: 'Fit the whole map (F)',
+                  onClick: fit,
                 },
                 {
                   label: 'Centre',
-                  title: 'Centre on the root at a legible zoom',
+                  title: 'Centre on the root at a legible zoom (C)',
                   onClick: centreOnRoot,
                 },
               ]}
@@ -375,20 +528,6 @@ function MapView({ systems, links, coverage }: MapData) {
           </div>
         </div>
       </div>
-
-      {selectedSystem && (
-        <div className="absolute top-3 right-3 bottom-3 z-10 w-80 overflow-y-auto rounded border border-line bg-surface/95 p-3 backdrop-blur">
-          <DetailPanel
-            system={selectedSystem}
-            links={links}
-            coverage={coverage}
-            names={names}
-            onClose={() => {
-              setSelected(null)
-            }}
-          />
-        </div>
-      )}
     </div>
   )
 }

@@ -105,23 +105,25 @@ def test_validate_is_pure_and_returns_strings():
     assert all(isinstance(f, str) for f in out)
 
 
-def test_the_real_dataset_passes_every_gate(systems, overrides):
-    """The shipped data must clear its own gates, or the gates are wrong."""
-    from atlas_ingest.crosswalk import read_crosswalk
-    from atlas_ingest.curation import load_glossary, load_system_device_map
-    from atlas_ingest.links import extract_links, merge_links
-    from atlas_ingest.network import load_network
+def test_this_run_s_dataset_passes_every_gate(
+    systems, links, sdmap, networks, crosswalk, glossary,
+):
+    """The dataset this run read must clear its own gates, or the gates are
+    wrong.
 
-    from conftest import (
-        GLOSSARY_JSON, MATRIX_XLSX, NETWORK_JSON, SYSTEM_DEVICE_MAP_JSON, _require,
-    )
-
+    That dataset is the generated sample workbook, in every mode. This used to
+    say "and against the reference data when ATLAS_SOURCE_REPO names it", which
+    was never true: with the variable set, this test errored along with 98
+    others because the fixtures resolved paths a real checkout does not carry.
+    Reference data now adds the reserved tests in test_source_layout.py rather
+    than redirecting this one.
+    """
     fails = validate(
         systems=systems,
-        links=merge_links(extract_links(systems), overrides),
-        sdmap=load_system_device_map(_require(SYSTEM_DEVICE_MAP_JSON)),
-        networks={sid: load_network(_require(p), sid) for sid, p in NETWORK_JSON.items()},
-        crosswalk=read_crosswalk(_require(MATRIX_XLSX)),
-        glossary=load_glossary(_require(GLOSSARY_JSON)),
+        links=links,
+        sdmap=sdmap,
+        networks=networks,
+        crosswalk=crosswalk,
+        glossary=glossary,
     )
     assert fails == []

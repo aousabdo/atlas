@@ -93,3 +93,24 @@ export function zoomAbout(t: Transform, factor: number, px: number, py: number):
     y: py - ((py - t.y) / t.k) * k,
   }
 }
+
+/**
+ * A zoom scale safe to divide by, and whether it had to be rescued.
+ *
+ * Five call sites across the two canvases had each grown their own
+ * `Number.isFinite(k) && k > 0 ? k : 1`, and every one of them was silent. A
+ * silent clamp is the wrong trade here: if fitToScreen ever hands back a
+ * degenerate transform, the canvas renders a perfectly plausible picture at
+ * 100% zoom instead of failing, so the bug ships looking correct. That is the
+ * confident wrong answer this project exists to argue against, and it already
+ * cost the visual suite its ability to see the zero-size guard being removed.
+ *
+ * So the clamp stays, because a division by zero helps nobody, but it reports
+ * itself. Callers mark the DOM, the e2e scan asserts the mark never appears,
+ * and a degenerate zoom becomes a failing test rather than a screenshot nobody
+ * questions.
+ */
+export function safeScale(k: number): { k: number; degenerate: boolean } {
+  if (Number.isFinite(k) && k > 0) return { k, degenerate: false }
+  return { k: 1, degenerate: true }
+}

@@ -1,5 +1,5 @@
-import { fireEvent, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MapTab } from '../MapTab'
 import { StaticProvider } from '../../../data/StaticProvider'
@@ -227,6 +227,56 @@ describe('Orientation Map interaction', () => {
     expect(screen.queryByRole('complementary', { name: /system detail/i })).not.toBeInTheDocument()
   })
 
+  it('does not open a system when the click that closes a drag arrives', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const node = await screen.findByTestId('leaf-beacon')
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+
+    fireEvent.pointerDown(node, { pointerId: 6, button: 0, clientX: 200, clientY: 200 })
+    fireEvent.pointerMove(svg, { pointerId: 6, clientX: 280, clientY: 250 })
+    fireEvent.pointerUp(svg, { pointerId: 6 })
+    // The browser dispatches click after pointerup, and fireEvent does not
+    // synthesise it. Without this line the drag tests never reach activate().
+    fireEvent.click(node)
+
+    expect(
+      screen.queryByRole('complementary', { name: /system detail/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not collapse a branch that was only dragged', async () => {
+    await renderWithProvider(<MapTab />)
+    const svg = await screen.findByRole('img', { name: /orientation map/i })
+    const branch = await screen.findByTestId('branch-inv')
+    expect(branch).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.pointerDown(branch, { pointerId: 7, button: 0, clientX: 300, clientY: 300 })
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: 370, clientY: 340 })
+    fireEvent.pointerUp(svg, { pointerId: 7 })
+    fireEvent.click(branch)
+
+    expect(screen.getByTestId('branch-inv')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('still opens a system on the next real click after a drag', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const node = await screen.findByTestId('leaf-beacon')
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+
+    fireEvent.pointerDown(node, { pointerId: 8, button: 0, clientX: 200, clientY: 200 })
+    fireEvent.pointerMove(svg, { pointerId: 8, clientX: 280, clientY: 250 })
+    fireEvent.pointerUp(svg, { pointerId: 8 })
+    fireEvent.click(node)
+
+    // Swallowing one click must not latch. The next press is a fresh gesture.
+    await user.click(screen.getByTestId('leaf-beacon'))
+    expect(
+      await screen.findByRole('complementary', { name: /system detail/i }),
+    ).toBeInTheDocument()
+  })
+
   it('shows a viewport rectangle on the minimap', async () => {
     await renderWithProvider(<MapTab />)
     await screen.findByRole('img', { name: /orientation map/i })
@@ -295,6 +345,145 @@ describe('Orientation Map label size', () => {
   })
 })
 
+/**
+ * Where the floating pieces sit, asserted on the class list.
+ *
+ * jsdom lays nothing out, so a rectangle overlap cannot be measured here. What
+ * can be pinned is the rule that produces the overlap: a fixed-width column on
+ * one edge, and a chrome layer inset by that same width on that same edge. A
+ * panel that shares an edge with the chrome without the inset is the defect.
+ */
+describe('Orientation Map chrome layout', () => {
+  const has = (element: Element, token: string) =>
+    element.className.split(/\s+/).includes(token)
+
+  it('docks the detail panel beside the chrome, not on top of it', async () => {
+    await renderWithProvider(<MapTab />, { route: '/map?focus=beacon' })
+    await screen.findByRole('complementary', { name: /system detail/i })
+
+    const detail = screen.getByTestId('map-detail')
+    const chrome = screen.getByTestId('map-chrome')
+    expect(has(detail, 'left-0')).toBe(true)
+    expect(has(detail, 'w-80')).toBe(true)
+    expect(has(chrome, 'left-80')).toBe(true)
+
+    // Everything the panel used to bury is still on screen and still complete.
+    const strip = screen.getByRole('toolbar', { name: 'View controls' })
+    expect(within(strip).getAllByRole('button')).toHaveLength(8)
+    expect(screen.getByRole('img', { name: /map overview/i })).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: 'Map controls' })).toBeInTheDocument()
+  })
+
+  it('gives the chrome the whole canvas back when the panel closes', async () => {
+    const { user } = await renderWithProvider(<MapTab />, { route: '/map?focus=beacon' })
+    const panel = await screen.findByRole('complementary', { name: /system detail/i })
+    await user.click(within(panel).getByRole('button', { name: 'Close' }))
+
+    expect(screen.queryByTestId('map-detail')).toBeNull()
+    expect(has(screen.getByTestId('map-chrome'), 'left-0')).toBe(true)
+  })
+
+  it('lets a pan through the gaps in the top chrome band', async () => {
+    await renderWithProvider(<MapTab />)
+    await screen.findByRole('img', { name: /orientation map/i })
+
+    // The band spans the full canvas width and is mostly empty. Only the two
+    // control blocks inside it may take the pointer.
+    const band = screen.getByTestId('map-chrome-top')
+    expect(has(band, 'pointer-events-auto')).toBe(false)
+    expect(
+      screen.getByRole('region', { name: /statistics/i }).closest('.pointer-events-auto'),
+    ).not.toBe(band)
+    expect(
+      screen.getByRole('toolbar', { name: 'Map controls' }).closest('.pointer-events-auto'),
+    ).not.toBe(band)
+  })
+})
+
+/**
+ * The legend has to answer the question the colours pose.
+ *
+ * Asserted against the canvas rather than against a list of names, so a group
+ * added to the bundle cannot end up drawn in a colour nothing explains.
+ */
+describe('Orientation Map legend', () => {
+  const legendTones = () => {
+    const legend = screen.getByRole('region', { name: 'Map legend' })
+    const tones = new Set<string>()
+    for (const row of legend.querySelectorAll('[data-swatch-fill]')) {
+      tones.add(row.getAttribute('data-swatch-fill') ?? '')
+      tones.add(row.getAttribute('data-swatch-stroke') ?? '')
+    }
+    return tones
+  }
+
+  const drawnFills = (canvas: HTMLElement) =>
+    new Set(
+      [...canvas.querySelectorAll('g[data-id] > rect')].map(
+        (rect) => rect.getAttribute('fill') ?? '',
+      ),
+    )
+
+  it('names a colour for everything drawn on the canvas', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    await user.click(screen.getByRole('button', { name: 'Expand All' }))
+
+    const tones = legendTones()
+    expect(tones.size).toBeGreaterThan(0)
+    for (const fill of drawnFills(canvas)) {
+      expect([...tones]).toContain(fill)
+    }
+  })
+
+  it('explains the risk ramp, and only while Risk View is on', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    const canvas = await screen.findByRole('img', { name: /orientation map/i })
+    await user.click(screen.getByRole('button', { name: 'Expand All' }))
+
+    expect(legendTones()).not.toContain('var(--node-risk-high-leaf)')
+
+    await user.click(screen.getByRole('button', { name: 'Risk View' }))
+    const tones = legendTones()
+    for (const fill of drawnFills(canvas)) {
+      expect([...tones]).toContain(fill)
+    }
+    expect(tones).toContain('var(--node-risk-high-leaf)')
+  })
+})
+
+describe('Orientation Map shortcuts', () => {
+  it('toggles Risk View on R', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await screen.findByRole('img', { name: /orientation map/i })
+    await user.keyboard('r')
+    expect(screen.getByRole('button', { name: 'Risk View' })).toHaveAttribute(
+      'aria-pressed', 'true',
+    )
+    await user.keyboard('R')
+    expect(screen.getByRole('button', { name: 'Risk View' })).toHaveAttribute(
+      'aria-pressed', 'false',
+    )
+  })
+
+  it('clears the selection on Escape', async () => {
+    const { user } = await renderWithProvider(<MapTab />, { route: '/map?focus=beacon' })
+    await screen.findByRole('complementary', { name: /system detail/i })
+    await user.keyboard('{Escape}')
+    expect(
+      screen.queryByRole('complementary', { name: /system detail/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('spells the keys out on screen, since nothing else does', async () => {
+    await renderWithProvider(<MapTab />)
+    const legend = await screen.findByRole('region', { name: 'Map legend' })
+    for (const key of ['F', 'C', 'R', 'Esc']) {
+      expect(within(legend).getByText(key)).toBeInTheDocument()
+    }
+  })
+})
+
 describe('Orientation Map box size and zoom', () => {
   const boxOf = () =>
     Number(screen.getByTestId('leaf-beacon').querySelector('rect')?.getAttribute('width'))
@@ -357,5 +546,327 @@ describe('Orientation Map box size and zoom', () => {
     await user.click(screen.getByRole('button', { name: 'Reset' }))
     expect(screen.getByRole('group', { name: 'Boxes' }).textContent).toContain('100%')
     expect(screen.getByRole('group', { name: 'Labels' }).textContent).toContain('150%')
+  })
+})
+
+/**
+ * A real mouse does not jump. It emits a stream of one and two pixel moves,
+ * and the slop has to be measured against where the press landed, not against
+ * the previous move.
+ *
+ * Measured in a browser against the code these tests were written for: a 20px
+ * drag delivered as twenty one-pixel moves moved a leaf 43.71 world pixels and
+ * still opened its detail panel; a 60px drag over sixty moves moved it 131.15
+ * and still opened it. The same travel in one move behaved correctly, which is
+ * why the single-move tests above passed throughout.
+ */
+describe('Orientation Map drag slop', () => {
+  /** Deliver `total` px of travel one pixel at a time, as a mouse does. */
+  const drip = (
+    target: Element,
+    pointerId: number,
+    from: { x: number; y: number },
+    total: number,
+  ) => {
+    for (let i = 1; i <= total; i += 1) {
+      fireEvent.pointerMove(target, {
+        pointerId,
+        clientX: from.x + i,
+        clientY: from.y + Math.round(i / 2),
+      })
+    }
+  }
+
+  it('does not open a system dragged 20px in twenty one-pixel moves', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const node = await screen.findByTestId('leaf-beacon')
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+    const home = node.getAttribute('transform')
+
+    fireEvent.pointerDown(node, { pointerId: 20, button: 0, clientX: 200, clientY: 200 })
+    drip(svg, 20, { x: 200, y: 200 }, 20)
+    fireEvent.pointerUp(svg, { pointerId: 20 })
+    fireEvent.click(node)
+
+    expect(node.getAttribute('transform')).not.toBe(home)
+    expect(
+      screen.queryByRole('complementary', { name: /system detail/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not collapse a branch dragged in one-pixel moves', async () => {
+    await renderWithProvider(<MapTab />)
+    const svg = await screen.findByRole('img', { name: /orientation map/i })
+    const branch = await screen.findByTestId('branch-inv')
+    expect(branch).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.pointerDown(branch, { pointerId: 21, button: 0, clientX: 300, clientY: 300 })
+    drip(svg, 21, { x: 300, y: 300 }, 30)
+    fireEvent.pointerUp(svg, { pointerId: 21 })
+    fireEvent.click(branch)
+
+    expect(screen.getByTestId('branch-inv')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('does not nudge a node when the hand shakes during a click', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const node = await screen.findByTestId('leaf-beacon')
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+    const home = node.getAttribute('transform')
+
+    fireEvent.pointerDown(node, { pointerId: 22, button: 0, clientX: 200, clientY: 200 })
+    fireEvent.pointerMove(svg, { pointerId: 22, clientX: 202, clientY: 201 })
+    fireEvent.pointerMove(svg, { pointerId: 22, clientX: 203, clientY: 202 })
+    fireEvent.pointerUp(svg, { pointerId: 22 })
+    fireEvent.click(node)
+
+    // Two pixels is a click, so the record opens and the node has not moved.
+    expect(node.getAttribute('transform')).toBe(home)
+    expect(
+      await screen.findByRole('complementary', { name: /system detail/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not pan the canvas during a click either', async () => {
+    await renderWithProvider(<MapTab />)
+    const svg = await screen.findByRole('img', { name: /orientation map/i })
+    const layer = svg.querySelector('g[transform]') as SVGGElement
+    const before = layer.getAttribute('transform')
+
+    fireEvent.pointerDown(svg, { pointerId: 23, button: 0, clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(svg, { pointerId: 23, clientX: 402, clientY: 301 })
+    fireEvent.pointerUp(svg, { pointerId: 23 })
+
+    expect(layer.getAttribute('transform')).toBe(before)
+  })
+})
+
+/**
+ * The two graph tabs used to disagree one tab apart: the topology cleared the
+ * selection when the ground was clicked, the map did nothing at all. One rule,
+ * and it is the topology's.
+ */
+describe('Orientation Map bare canvas', () => {
+  it('clears the selection when the bare canvas is clicked', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    await user.click(await screen.findByTestId('leaf-beacon'))
+    expect(
+      await screen.findByRole('complementary', { name: /system detail/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('img', { name: /orientation map/i }))
+    expect(
+      screen.queryByRole('complementary', { name: /system detail/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the record open through a pan delivered in one-pixel moves', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    await user.click(await screen.findByTestId('leaf-beacon'))
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+
+    fireEvent.pointerDown(svg, { pointerId: 24, button: 0, clientX: 400, clientY: 300 })
+    for (let i = 1; i <= 60; i += 1) {
+      fireEvent.pointerMove(svg, { pointerId: 24, clientX: 400 + i, clientY: 300 })
+    }
+    fireEvent.pointerUp(svg, { pointerId: 24 })
+    fireEvent.click(svg)
+
+    expect(
+      screen.getByRole('complementary', { name: /system detail/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not clear when a system is picked, though the click starts on it', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    await user.click(await screen.findByTestId('leaf-trackwell'))
+    // The click must not bubble on to the ground and undo itself.
+    expect(
+      await screen.findByRole('complementary', { name: /system detail/i }),
+    ).toBeInTheDocument()
+  })
+})
+
+/**
+ * The legend floats over the canvas, so it must cost the canvas nothing.
+ *
+ * Selecting a system insets the chrome by the width of the record, sliding the
+ * legend from x=25 to x=345 across a tree that does not move. Hit-testable
+ * nodes fell from 20 of 22 to 11 of 22 at 1280x720, 22 to 14 at 1366x768, 22
+ * to 18 at 1440x900, and with Expand All and four marks on the card is 422x305
+ * and covers 9 of 45.
+ */
+describe('Orientation Map legend footprint', () => {
+  const has = (element: Element, token: string) =>
+    element.className.split(/\s+/).includes(token)
+
+  it('lets the pointer through to the tree underneath it', async () => {
+    await renderWithProvider(<MapTab />)
+    await screen.findByRole('img', { name: /orientation map/i })
+
+    const card = screen.getByTestId('map-legend-card')
+    expect(has(card, 'pointer-events-none')).toBe(true)
+    expect(has(card, 'pointer-events-auto')).toBe(false)
+    // Only the control that opens and closes it takes the pointer back.
+    const claims = card.querySelectorAll('.pointer-events-auto')
+    expect(claims).toHaveLength(1)
+    expect(claims[0]).toBe(screen.getByRole('button', { name: /legend/i }))
+  })
+
+  it('collapses, so it stops covering nodes at all', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await screen.findByRole('img', { name: /orientation map/i })
+    const toggle = screen.getByRole('button', { name: /legend/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('region', { name: 'Map legend' })).toBeNull()
+
+    await user.click(toggle)
+    expect(screen.getByRole('region', { name: 'Map legend' })).toBeInTheDocument()
+  })
+
+  it('gives the pointer to the stat tiles, not to the block they sit in', async () => {
+    await renderWithProvider(<MapTab />)
+    const stats = await screen.findByRole('region', { name: /statistics/i })
+
+    // The section is a full-width block, and from x=200 to x=760 at 1440x900
+    // it ate every pan and every node click that started under it.
+    expect(has(stats, 'pointer-events-auto')).toBe(false)
+    const tiles = within(stats).getAllByRole('group')
+    expect(tiles).toHaveLength(7)
+    for (const tile of tiles) {
+      expect(has(tile, 'pointer-events-auto')).toBe(true)
+    }
+  })
+})
+
+/**
+ * The gutter the fit leaves at the top has to be the band's actual height.
+ *
+ * Measured, map-chrome-top is 1416x55 at 1440x900 but 1256x115 at 1280x720 and
+ * 1342x115 at 1366x768, because the toolbar wraps onto its own line. A constant
+ * cannot be both.
+ */
+describe('Orientation Map top gutter', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const box = (width: number, height: number) =>
+    ({
+      width, height, top: 0, left: 0, right: width, bottom: height, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+  /** Lay the page out for real: jsdom reports every box as 0x0. */
+  const layoutWith = (bandHeight: number) => {
+    const real = Element.prototype.getBoundingClientRect
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function measured(this: Element) {
+        const id = this.getAttribute('data-testid')
+        if (id === 'map-chrome-top') return box(1256, bandHeight)
+        if (id === 'map-canvas') return box(1256, 720)
+        return real.call(this)
+      },
+    )
+  }
+
+  const fittedY = async (bandHeight: number) => {
+    layoutWith(bandHeight)
+    const { container } = await renderWithProvider(<MapTab />)
+    const svg = await within(container).findByRole('img', { name: /orientation map/i })
+    const layer = svg.querySelector('g[transform]') as SVGGElement
+    const y = /translate\([-\d.]+,([-\d.]+)\)/.exec(layer.getAttribute('transform') ?? '')?.[1]
+    expect(y).toBeDefined()
+    return Number(y)
+  }
+
+  it('reserves more room when the toolbar wraps than when it does not', async () => {
+    const single = await fittedY(55)
+    cleanup()
+    vi.restoreAllMocks()
+    const wrapped = await fittedY(115)
+
+    // A fixed gutter fits both to the same place, which is the defect.
+    expect(wrapped).toBeGreaterThan(single)
+  })
+})
+
+/**
+ * A gesture arrives as a burst of events, and every one of them must count.
+ *
+ * fireEvent flushes React between events, which no browser promises: pointer
+ * moves can arrive many to a task, and React batches everything in a task into
+ * one render. Handlers that computed `transform.x + dx` from a prop therefore
+ * kept only the last event of the burst. Measured in Chrome before the fix: a
+ * 60px pan delivered as sixty one-pixel moves panned the canvas 1px, and a
+ * 20px node drag delivered the same way moved the node 1 screen pixel's worth.
+ *
+ * These dispatch raw DOM events in one task, so they see what a browser sees.
+ */
+describe('Orientation Map gesture batching', () => {
+  const burst = (target: Element, pointerId: number, from: { x: number; y: number }, total: number) => {
+    for (let i = 1; i <= total; i += 1) {
+      target.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true, pointerId, clientX: from.x + i, clientY: from.y,
+        }),
+      )
+    }
+  }
+  const down = (target: Element, pointerId: number, at: { x: number; y: number }) => {
+    target.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true, pointerId, button: 0, clientX: at.x, clientY: at.y,
+      }),
+    )
+  }
+  const panX = (layer: Element) =>
+    Number(/translate\(([-\d.]+),/.exec(layer.getAttribute('transform') ?? '')?.[1])
+
+  it('applies the whole pan when sixty moves arrive in one task', async () => {
+    await renderWithProvider(<MapTab />)
+    const svg = await screen.findByRole('img', { name: /orientation map/i })
+    const layer = svg.querySelector('g[transform]') as SVGGElement
+    const before = panX(layer)
+
+    // One act, so all sixty land in one task and React renders once, exactly
+    // as a browser delivers a fast pan.
+    await act(async () => {
+      down(svg, 40, { x: 700, y: 400 })
+      burst(svg, 40, { x: 700, y: 400 }, 60)
+    })
+    fireEvent.pointerUp(svg, { pointerId: 40 })
+
+    expect(panX(layer) - before).toBe(60)
+  })
+
+  it('applies the whole node drag when twenty moves arrive in one task', async () => {
+    const { user } = await renderWithProvider(<MapTab />)
+    await user.click(await screen.findByRole('button', { name: 'Expand All' }))
+    const svg = screen.getByRole('img', { name: /orientation map/i })
+    const node = await screen.findByTestId('leaf-beacon')
+    const worldX = (element: Element) =>
+      Number(/translate\(([-\d.]+),/.exec(element.getAttribute('transform') ?? '')?.[1])
+    const before = worldX(node)
+    const k = Number(/scale\(([-\d.]+)\)/.exec(
+      (svg.querySelector('g[transform]') as SVGGElement).getAttribute('transform') ?? '',
+    )?.[1])
+
+    await act(async () => {
+      down(node, 41, { x: 200, y: 200 })
+      burst(svg, 41, { x: 200, y: 200 }, 20)
+    })
+    fireEvent.pointerUp(svg, { pointerId: 41 })
+
+    // 20 screen pixels of travel, in world units. Every move counted.
+    expect(worldX(screen.getByTestId('leaf-beacon')) - before).toBeCloseTo(20 / k, 6)
   })
 })

@@ -3,15 +3,12 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { LinkSet } from '../../types/atlas'
 import type { TreeNode as TreeNodeData } from '../../types/tree'
 import type { Position } from '../../viz/radial'
-import { zoomAbout, type Size, type Transform } from '../../viz/zoom'
+import { advanceGesture, beginGesture, type Gesture } from '../../viz/gesture'
+import { zoomAbout, type Size, type Transform, safeScale } from '../../viz/zoom'
 import { CrossLinks } from './CrossLinks'
 import { TreeNode, fillFor } from './TreeNode'
 
 const round = (v: number) => Math.round(v * 100) / 100
-
-
-/** Movement past this many screen pixels is a drag, not a click. */
-const DRAG_SLOP = 4
 
 export interface Offset {
   dx: number
@@ -32,11 +29,24 @@ export interface TreeCanvasProps {
   nodeScale: number
   offsets: Record<string, Offset>
   transform: Transform
-  onTransform: (next: Transform) => void
+  /**
+   * A setter, not a sink for a value.
+   *
+   * A pan is a stream of pointermove events, and a browser can deliver a whole
+   * burst of them in one task. Computing `transform.x + dx` from the prop reads
+   * whatever value the last render carried, so every event in the burst but the
+   * last is thrown away: measured, a 60px pan delivered as sixty one-pixel
+   * moves panned the canvas 1px. Handing back an updater makes each step apply
+   * to the value the one before it produced.
+   */
+  onTransform: (next: Transform | ((previous: Transform) => Transform)) => void
   onSize: (size: Size) => void
-  onOffset: (id: string, offset: Offset) => void
+  /** A delta to add, for the same reason: the parent owns the running total. */
+  onOffset: (id: string, delta: Offset) => void
   onToggle: (id: string) => void
   onSelect: (id: string) => void
+  /** Clicking bare canvas clears the selection, exactly as the topology does. */
+  onClearSelection: () => void
 }
 
 /** Parent-to-child edge, the same easing as the tool being replaced. */
@@ -89,15 +99,24 @@ function useMeasuredSize(ref: React.RefObject<HTMLDivElement | null>, report: (s
 export function TreeCanvas({
   positions, parentOf, links, expanded, selected, riskMode,
   showLinks, showDesired, clean, textScale, nodeScale, offsets, transform,
-  onTransform, onSize, onOffset, onToggle, onSelect,
+  onTransform, onSize, onOffset, onToggle, onSelect, onClearSelection,
 }: TreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   useMeasuredSize(containerRef, onSize)
 
-  const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
-  const nodeDragRef = useRef<
-    { pointerId: number; id: string; x: number; y: number; moved: boolean } | null
-  >(null)
+  const panRef = useRef<Gesture | null>(null)
+  const nodeDragRef = useRef<(Gesture & { id: string }) | null>(null)
+  /**
+   * Whether the gesture now ending actually moved.
+   *
+   * Separate from nodeDragRef because the click that closes a gesture is
+   * dispatched after pointerup, and pointerup is where the drag record is
+   * released. Reading `moved` off that record from the click handler read it
+   * one event too late, so every drag also landed as a click: a leaf opened its
+   * detail panel, a branch collapsed. This survives the release and is cleared
+   * by the next press, which is what ForceGraph does on the topology.
+   */
+  const movedRef = useRef(false)
 
   /** Layout position plus any offset the reader dragged it to. */
   const at = useCallback(
@@ -115,18 +134,19 @@ export function TreeCanvas({
     (event: React.WheelEvent<SVGSVGElement>) => {
       const rect = event.currentTarget.getBoundingClientRect()
       const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15
-      onTransform(
-        zoomAbout(transform, factor, event.clientX - rect.left, event.clientY - rect.top),
-      )
+      const px = event.clientX - rect.left
+      const py = event.clientY - rect.top
+      onTransform((previous) => zoomAbout(previous, factor, px, py))
     },
-    [transform, onTransform],
+    [onTransform],
   )
 
   const onPointerDown = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
     // Reject secondary buttons only. Synthetic pointer events do not always
     // carry `button`, and `undefined !== 0` would refuse every drag.
     if (event.button > 0 || nodeDragRef.current) return
-    panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+    movedRef.current = false
+    panRef.current = beginGesture(event.pointerId, event.clientX, event.clientY)
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }, [])
 
@@ -139,25 +159,29 @@ export function TreeCanvas({
 
       const drag = nodeDragRef.current
       if (drag && drag.pointerId === event.pointerId) {
-        const dx = (event.clientX - drag.x) / transform.k
-        const dy = (event.clientY - drag.y) / transform.k
-        if (Math.abs(event.clientX - drag.x) > DRAG_SLOP || Math.abs(event.clientY - drag.y) > DRAG_SLOP) {
-          drag.moved = true
-        }
-        const existing = offsets[drag.id] ?? { dx: 0, dy: 0 }
-        onOffset(drag.id, { dx: existing.dx + dx, dy: existing.dy + dy })
-        nodeDragRef.current = { ...drag, x: event.clientX, y: event.clientY }
+        const step = advanceGesture(drag, event.clientX, event.clientY)
+        nodeDragRef.current = step.next
+        if (step.moved) movedRef.current = true
+        // Zero until the slop is passed, so a click never nudges the node.
+        if (step.dx === 0 && step.dy === 0) return
+        const { k } = safeScale(transform.k)
+        onOffset(drag.id, { dx: step.dx / k, dy: step.dy / k })
         return
       }
 
       const pan = panRef.current
       if (!pan || pan.pointerId !== event.pointerId) return
-      const dx = event.clientX - pan.x
-      const dy = event.clientY - pan.y
-      panRef.current = { ...pan, x: event.clientX, y: event.clientY }
-      onTransform({ ...transform, x: transform.x + dx, y: transform.y + dy })
+      const step = advanceGesture(pan, event.clientX, event.clientY)
+      panRef.current = step.next
+      if (step.moved) movedRef.current = true
+      if (step.dx === 0 && step.dy === 0) return
+      onTransform((previous) => ({
+        ...previous,
+        x: previous.x + step.dx,
+        y: previous.y + step.dy,
+      }))
     },
-    [transform, offsets, onTransform, onOffset],
+    [transform.k, onTransform, onOffset],
   )
 
   const endPointer = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
@@ -171,13 +195,26 @@ export function TreeCanvas({
   }, [])
 
   const startNodeDrag = useCallback((id: string, event: React.PointerEvent) => {
+    if (event.button > 0) return
+    movedRef.current = false
     nodeDragRef.current = {
-      pointerId: event.pointerId, id, x: event.clientX, y: event.clientY, moved: false,
+      ...beginGesture(event.pointerId, event.clientX, event.clientY),
+      id,
     }
   }, [])
 
-  /** A drag that moved must not also count as a click. */
-  const didDrag = useCallback(() => nodeDragRef.current?.moved === true, [])
+  /**
+   * True once, for the click that closes a gesture which actually moved.
+   *
+   * Consumed rather than merely read: a drag released outside the SVG never
+   * produces a click, and a flag left standing would eat the next honest one.
+   * The next press clears it anyway, so this is belt and braces.
+   */
+  const didDrag = useCallback(() => {
+    const moved = movedRef.current || nodeDragRef.current?.moved === true
+    movedRef.current = false
+    return moved
+  }, [])
 
   const resolve = useCallback(
     (id: string): { x: number; y: number } | null => {
@@ -209,17 +246,25 @@ export function TreeCanvas({
     }
   }
 
-  // Strokes keep a constant screen weight under zoom. transform.k is never 0,
-  // which is what the fitToScreen guard exists to guarantee.
-  const inv = 1 / transform.k
+  // Strokes keep a constant screen weight under zoom. safeScale rescues a
+  // degenerate k so this division cannot produce Infinity, and reports that
+  // it had to, because a canvas drawn at a rescued 100% looks entirely
+  // plausible and is the wrong answer.
+  const { k: safeK, degenerate: degenerateZoom } = safeScale(transform.k)
+  const inv = 1 / safeK
 
   return (
     <div
       ref={containerRef}
+      data-testid="map-canvas"
       className="relative h-full w-full overflow-hidden bg-bg"
     >
       <svg
         role="img"
+        // A rescued zoom means fitToScreen handed back something degenerate.
+        // Marked so the e2e scan fails instead of photographing a plausible
+        // picture drawn at 100%.
+        data-degenerate-zoom={degenerateZoom || undefined}
         aria-label="Orientation map"
         className="h-full w-full cursor-grab touch-none select-none active:cursor-grabbing"
         onWheel={onWheel}
@@ -227,6 +272,18 @@ export function TreeCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={endPointer}
         onPointerCancel={endPointer}
+        /*
+          Bare canvas dismisses the record, the same rule the topology has had
+          all along. The two graph tabs used to disagree one tab apart: there,
+          clicking the ground cleared the selection; here, nothing happened and
+          the panel could only be dismissed from its own Close button or Esc.
+          A gesture that moved is a pan, not a dismissal, so it is guarded by
+          the same consumed flag a node click uses. A click that landed on a
+          node never reaches here: TreeNode stops it.
+        */
+        onClick={() => {
+          if (!didDrag()) onClearSelection()
+        }}
       >
         <g
           transform={`translate(${round(transform.x)},${round(transform.y)}) scale(${round(transform.k)})`}
@@ -283,11 +340,6 @@ export function TreeCanvas({
           </g>
         </g>
       </svg>
-
-
-      <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-muted-3">
-        Scroll to zoom, drag to pan, drag a node to move it.
-      </p>
     </div>
   )
 }

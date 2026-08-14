@@ -105,6 +105,12 @@ test('no tab emits NaN or Infinity into the DOM', async ({ page }) => {
     await settle(page, tab)
     const html = await page.content()
     expect(html, `${tab.name} has non-finite geometry`).not.toMatch(/NaN|Infinity/)
+
+    // A canvas that had to rescue its own zoom draws a perfectly plausible
+    // picture at 100%, so nothing above catches it and neither does a
+    // screenshot. safeScale marks the DOM precisely so this assertion can.
+    const rescued = await page.locator('[data-degenerate-zoom]').count()
+    expect(rescued, `${tab.name} rendered with a rescued zoom scale`).toBe(0)
   }
 })
 

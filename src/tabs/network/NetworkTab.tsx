@@ -20,8 +20,9 @@ import {
   type NodeOffset,
   type ViewMode,
 } from '../../viz/force'
-import { IDENTITY, panToFit, zoomAbout, type Size, type Transform } from '../../viz/zoom'
+import { IDENTITY, panToFit, zoomAbout, type Size, type Transform, safeScale } from '../../viz/zoom'
 import { DeviceDetail, type DeviceConnection, type DeviceSystem } from './DeviceDetail'
+import { type ChromeInset } from './chrome'
 import { ForceGraph } from './ForceGraph'
 import { NetworkLegend } from './NetworkLegend'
 import { NetworkMinimap } from './NetworkMinimap'
@@ -212,6 +213,70 @@ function SiteTopology({
 
   const searchRef = useRef<HTMLInputElement>(null)
   const detailRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * What the floating controls actually cover, measured rather than assumed.
+   *
+   * The canvas is full bleed and these are painted over it, so the fit has to
+   * treat them as gone. Measured on the built app, the top strip is 72px at
+   * 1280x720 and 1366x768 but 38px at 1440x900, because the view-mode buttons
+   * and the counts share a line only when there is room for both, and the
+   * bottom stack is 222px at all three. A constant is wrong at two sizes out
+   * of three. See ./chrome.ts for what the unfitted version buried.
+   *
+   * The hint line under the strip is deliberately not counted. It swaps for the
+   * what-if banner, so reserving it would move the fit, and therefore jump the
+   * view, every time a reader opened an analysis. It is one line of text and it
+   * buried no device at any of the three sizes.
+   *
+   * Null, not zeroes: React runs ForceGraph's layout effects before this
+   * component's, so a zeroed starting value would let the graph fit into the
+   * whole container once and then hold that fit forever.
+   */
+  const chromeRef = useRef<HTMLDivElement>(null)
+  const chromeTopRef = useRef<HTMLDivElement>(null)
+  const chromeBottomRef = useRef<HTMLDivElement>(null)
+  const [chrome, setChrome] = useState<ChromeInset | null>(null)
+  useLayoutEffect(() => {
+    const layer = chromeRef.current
+    if (!layer) return
+    const measure = () => {
+      const box = layer.getBoundingClientRect()
+      // Against the canvas, which is the box the fit divides up. Reading the
+      // offsets off the layer's parent instead would be silently wrong the day
+      // that parent grows a padding.
+      const canvas = layer.parentElement?.querySelector('[data-testid="network-canvas"]')
+      const ground = canvas ? canvas.getBoundingClientRect() : box
+      const below = (el: Element | null) =>
+        el ? el.getBoundingClientRect().bottom - ground.top : 0
+      const above = (el: Element | null) =>
+        el ? ground.bottom - el.getBoundingClientRect().top : 0
+      const next: ChromeInset = {
+        // The layer is inset by the rail when the rail is docked, so its own
+        // left edge is the rail's right edge and nothing else has to be read.
+        left: Math.max(0, Math.round(box.left - ground.left)),
+        top: Math.max(0, Math.round(below(chromeTopRef.current))),
+        bottom: Math.max(0, Math.round(above(chromeBottomRef.current))),
+      }
+      setChrome((previous) =>
+        previous
+          && previous.left === next.left
+          && previous.top === next.top
+          && previous.bottom === next.bottom
+          ? previous
+          : next,
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(layer)
+    for (const el of [chromeTopRef.current, chromeBottomRef.current]) {
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+    // The rail comes and goes under backslash, which moves the layer's left
+    // edge by its whole width, so the measurement is redone when it does.
+  }, [showPanel])
 
   const deviceById = useMemo(
     () => new Map(topology.devices.map((device) => [device.id, device])),
@@ -587,7 +652,10 @@ function SiteTopology({
         onHover={setHoverId}
         onOffset={onOffset}
         onClearSelection={clearSelection}
-        fitKey={`${topology.site_id}:${mode}`}
+        chrome={chrome}
+        // Docking or hiding the rail moves the free area by 320px, so it refits
+        // for the same reason a new view mode does. A drag or a pan must not.
+        fitKey={`${topology.site_id}:${mode}:${showPanel ? 'rail' : 'bare'}`}
         fitNonce={fitNonce}
       />
 
@@ -696,12 +764,18 @@ function SiteTopology({
 
       {/* Chrome floating over the canvas, clear of the sidebar. */}
       <div
+        ref={chromeRef}
+        data-testid="network-chrome"
         className={[
           'pointer-events-none absolute inset-y-0 right-0 z-10 flex flex-col p-3',
           showPanel ? 'left-80' : 'left-0',
         ].join(' ')}
       >
-        <div className="flex flex-wrap items-start justify-between gap-2">
+        <div
+          ref={chromeTopRef}
+          data-testid="network-chrome-top"
+          className="flex flex-wrap items-start justify-between gap-2"
+        >
           <div className="pointer-events-auto flex flex-wrap items-center gap-2">
             <div
               role="group"
@@ -843,7 +917,11 @@ function SiteTopology({
           <p className="pointer-events-none mt-1 text-[11px] text-muted-3">{modeHint}</p>
         )}
 
-        <div className="mt-auto flex items-end justify-between gap-3">
+        <div
+          ref={chromeBottomRef}
+          data-testid="network-chrome-bottom"
+          className="mt-auto flex items-end justify-between gap-3"
+        >
           <div className="pointer-events-auto max-w-3xl rounded border border-line bg-surface/90 px-3 py-2 backdrop-blur">
             <NetworkLegend
               deviceTypes={deviceTypes}
@@ -929,7 +1007,7 @@ function RemovedMarker({
   node: { x: number; y: number }
   transform: Transform
 }) {
-  const k = Number.isFinite(transform.k) && transform.k > 0 ? transform.k : 1
+  const { k } = safeScale(transform.k)
   const x = transform.x + node.x * k
   const y = transform.y + node.y * k
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null

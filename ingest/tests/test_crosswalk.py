@@ -3,11 +3,6 @@ import pytest
 from atlas_ingest.crosswalk import CrosswalkError, read_crosswalk
 
 
-@pytest.fixture(scope="module")
-def crosswalk(matrix_path):
-    return read_crosswalk(matrix_path)
-
-
 def test_eleven_requirements(crosswalk):
     assert len(crosswalk) == 11
 
@@ -27,14 +22,17 @@ def test_dropped_requirements_carry_no_current_systems(crosswalk):
 def test_dropped_requirements_are_the_governance_and_acquisition_ones(crosswalk):
     dropped = sorted(r["orig"] for r in crosswalk if r["status"] == "Didn't keep")
     assert dropped == [
-        "No spectrum deconfliction process",
+        "No spectrum deconfliction process for mitigation effectors",
         "No standing training pipeline for relay operators",
     ]
 
 
 def test_current_systems_are_split_on_semicolons(crosswalk):
+    """The sheet writes several current systems into one cell, separated by
+    semicolons. They have to come back as a list or the requirement looks like
+    it landed on a single system named 'A; B; C'."""
     row = next(r for r in crosswalk
-               if r["orig"] == "No audit trail for who read which track")
+               if r["orig"] == "No retained audit trail of who read a detection record")
     assert row["current"] == ["CROSSLINK", "Fathom", "Ember"]
 
 

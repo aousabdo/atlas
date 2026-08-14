@@ -161,12 +161,19 @@ const MUTATIONS = [
       find: '  if (!Number.isFinite(k) || k <= 0) return null',
       replace: '  if (!Number.isFinite(k)) return null',
     },
-    // Measured, not assumed: with both guard lines gone the graphs commit a
-    // degenerate transform and render visibly wrong, but the 1/k = Infinity
-    // path does not reach the DOM in the current mount order, so the NaN scan
-    // stays green. The screenshots are what catch this one. The Infinity path
-    // itself is covered directly by src/viz/__tests__/zoom.test.ts.
-    expect: ['network renders in dark', 'map renders in dark'],
+    // Measured, not assumed. With both guard lines gone the 1/k = Infinity path
+    // still does not reach the DOM, so the raw NaN scan stays green and the
+    // Infinity case is covered directly by src/viz/__tests__/zoom.test.ts.
+    // The screenshots catch the map, where a lost guard visibly wrecks the
+    // layout. The topology instead renders a plausible picture at a rescued
+    // scale(1) with all 71 devices drawn, which no screenshot and no NaN scan
+    // can distinguish from a correct one. safeScale marks the DOM for exactly
+    // that case, and the scan below is what reads the mark, so it belongs here:
+    // without it this mutation was only ever half seen.
+    expect: [
+      'map renders in dark',
+      'no tab emits NaN or Infinity into the DOM',
+    ],
   },
   {
     id: 'A5',

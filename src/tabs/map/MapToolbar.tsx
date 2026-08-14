@@ -12,7 +12,7 @@ const TOGGLES: { key: keyof MapToggles; label: string; hint: string }[] = [
   { key: 'clean', label: 'Clean', hint: 'Route links as right angles instead of curves' },
   { key: 'grid', label: 'Grid', hint: 'Snap nodes to aligned columns. Auto-enables Clean' },
   { key: 'desired', label: 'Desired', hint: 'Desired, not yet built, integration links' },
-  { key: 'risk', label: 'Risk View', hint: 'Recolour system nodes by risk level' },
+  { key: 'risk', label: 'Risk View', hint: 'Recolour system nodes by risk level (R)' },
 ]
 
 export interface MapToolbarProps {

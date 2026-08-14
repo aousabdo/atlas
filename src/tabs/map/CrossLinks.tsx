@@ -77,70 +77,33 @@ function orthogonalPath(a: { x: number; y: number }, b: { x: number; y: number }
   }
 }
 
-/** Reads the same STYLE table the paths do, so it cannot drift from them. */
-export function CrossLinksLegend({
-  showLinks, showDesired, riskMode,
-}: {
-  showLinks: boolean
-  showDesired: boolean
-  riskMode: boolean
-}) {
-  const entries: { key: string; swatch: string; dash: string; text: string }[] = []
-  if (showLinks) {
-    entries.push({
-      key: 'current',
-      swatch: STYLE.current.stroke,
-      dash: STYLE.current.dash,
-      text: 'Current integration link',
-    })
-  }
-  if (showDesired) {
-    entries.push({
-      key: 'desired',
-      swatch: STYLE.desired.stroke,
-      dash: STYLE.desired.dash,
-      text: 'Desired integration link',
-    })
-  }
+export interface LinkLegendEntry {
+  kind: LinkKind
+  stroke: string
+  dash: string
+  text: string
+}
 
-  return (
-    <div className="rounded border border-line bg-surface p-3 text-xs text-muted">
-      <p className="font-medium text-ink">Legend</p>
-      <ul className="mt-2 space-y-1">
-        {entries.map((entry) => (
-          <li key={entry.key} className="flex items-center gap-2">
-            <svg width={24} height={6} aria-hidden="true">
-              <line
-                x1={0} y1={3} x2={24} y2={3}
-                stroke={entry.swatch}
-                strokeWidth={1.5}
-                strokeDasharray={entry.dash}
-              />
-            </svg>
-            {entry.text}
-          </li>
-        ))}
-        <li className="flex items-center gap-2">
-          <svg width={24} height={12} aria-hidden="true">
-            <rect
-              x={1} y={1} width={22} height={10} rx={3}
-              fill="none"
-              stroke="var(--color-risk-medium)"
-              strokeWidth={1.5}
-              strokeDasharray="5,3"
-            />
-          </svg>
-          Unconfirmed ownership
-        </li>
-        {riskMode && (
-          <li className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-sm bg-risk-high" />
-            High risk, then medium, then low
-          </li>
-        )}
-      </ul>
-    </div>
-  )
+/**
+ * The link encoding, read off the same STYLE table the paths use.
+ *
+ * A separate literal would be free to drift from what is drawn; this cannot.
+ * The legend that renders these lives in MapLegend, so the map has one box
+ * explaining everything rather than one box per encoding.
+ */
+export const LINK_LEGEND: Record<LinkKind, LinkLegendEntry> = {
+  current: {
+    kind: 'current',
+    stroke: STYLE.current.stroke,
+    dash: STYLE.current.dash,
+    text: 'Current integration link',
+  },
+  desired: {
+    kind: 'desired',
+    stroke: STYLE.desired.stroke,
+    dash: STYLE.desired.dash,
+    text: 'Desired integration link',
+  },
 }
 
 export interface CrossLinksProps {

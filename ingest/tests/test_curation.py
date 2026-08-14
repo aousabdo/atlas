@@ -6,17 +6,10 @@ from atlas_ingest.curation import (
     load_glossary, load_overrides, load_system_device_map, mapping_confidence_counts,
 )
 
-from conftest import GLOSSARY_JSON, OVERRIDES_JSON, SYSTEM_DEVICE_MAP_JSON, _require
-
 
 @pytest.fixture(scope="module")
-def gloss():
-    return load_glossary(_require(GLOSSARY_JSON))
-
-
-@pytest.fixture(scope="module")
-def sdmap():
-    return load_system_device_map(_require(SYSTEM_DEVICE_MAP_JSON))
+def gloss(glossary):
+    return glossary
 
 
 def test_glossary_has_48_acronyms(gloss):
@@ -47,8 +40,8 @@ def test_a_missing_glossary_is_an_error_not_a_placeholder(tmp_path):
         load_glossary(tmp_path / "nope.json")
 
 
-def test_overrides_counts():
-    ov = load_overrides(_require(OVERRIDES_JSON))
+def test_overrides_counts(paths):
+    ov = load_overrides(paths["overrides"])
     assert len(ov["cross_links"]) == 2
     assert len(ov["suppress_links"]) == 4
     assert len(ov["desired_links"]) == 13
@@ -57,8 +50,8 @@ def test_overrides_counts():
     assert list(ov["node_order"]) == ["dhshq"]
 
 
-def test_suppress_links_are_pairs():
-    ov = load_overrides(_require(OVERRIDES_JSON))
+def test_suppress_links_are_pairs(paths):
+    ov = load_overrides(paths["overrides"])
     for pair in ov["suppress_links"]:
         assert len(pair) == 2
 

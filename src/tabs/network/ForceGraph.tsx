@@ -3,15 +3,14 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWork } from '../../lib/ready'
 import type { RiskLevel } from '../../types/atlas'
 import type { Layout, NodeOffset } from '../../viz/force'
-import { fitToScreen, zoomAbout, type Size, type Transform } from '../../viz/zoom'
+import { advanceGesture, beginGesture, type Gesture } from '../../viz/gesture'
+import { zoomAbout, type Size, type Transform, safeScale } from '../../viz/zoom'
+import { fitInsideChrome, type ChromeInset } from './chrome'
 import { linkStyle, nodeShapePath, nodeStyle } from './NetworkLegend'
 import { riskColor } from './risk'
 import { typeGlyph, zoneColor, zoneShort } from './zones'
 
 const round = (v: number) => Math.round(v * 100) / 100
-
-/** Movement past this many screen pixels is a drag, not a click. */
-const DRAG_SLOP = 4
 
 /** Above this zoom every label fits, so they all come on, as in the original. */
 const LABEL_ZOOM = 1.6
@@ -41,13 +40,32 @@ export interface ForceGraphProps {
   riskMode: boolean
   riskById: Map<string, RiskLevel>
   transform: Transform
-  onTransform: (next: Transform) => void
+  /**
+   * A setter, not a sink for a value.
+   *
+   * A pan is a stream of pointermove events and a browser can deliver a burst
+   * of them in a single task, so computing `transform.x + dx` from the prop
+   * keeps only the last event of the burst: measured on the map, a 60px pan
+   * delivered as sixty one-pixel moves panned 1px. An updater makes each step
+   * apply to what the step before it produced.
+   */
+  onTransform: (next: Transform | ((previous: Transform) => Transform)) => void
   onSize: (size: Size) => void
   onSelect: (deviceId: string) => void
   onHover: (deviceId: string | null) => void
   onOffset: (deviceId: string, offset: NodeOffset) => void
   /** Clicking bare canvas clears the selection, as in the original. */
   onClearSelection: () => void
+  /**
+   * What the rail and the floating controls cover, in screen pixels.
+   *
+   * Null until the parent has measured them, and the fit waits for it. React
+   * runs a child's layout effects before its parent's, so a zeroed placeholder
+   * would let this component fit into the whole container on the first commit
+   * and then never refit, which is the defect with an extra step. See
+   * ./chrome.ts for what was measured.
+   */
+  chrome: ChromeInset | null
   /** Changing this refits: a new site or a new view mode, not a drag. */
   fitKey: string
   /** Bumped to ask for a refit without changing the layout. */
@@ -204,16 +222,15 @@ export function ForceGraph({
   onHover,
   onOffset,
   onClearSelection,
+  chrome,
   fitKey,
   fitNonce,
 }: ForceGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measured = useMeasuredSize(containerRef, onSize)
 
-  const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
-  const nodeDragRef = useRef<
-    { pointerId: number; id: string; x: number; y: number; moved: boolean } | null
-  >(null)
+  const panRef = useRef<Gesture | null>(null)
+  const nodeDragRef = useRef<(Gesture & { id: string }) | null>(null)
   /** A gesture that moved must not also land as a click and clear the view. */
   const movedRef = useRef(false)
   const fittedFor = useRef<string>('')
@@ -238,23 +255,43 @@ export function ForceGraph({
   )
 
   const fit = useCallback(() => {
-    const fitted = fitToScreen(layout.bbox, measured)
+    // Null chrome means the parent has not measured its controls yet, which is
+    // not a size to fit into. Same treatment as an unlaid-out container.
+    if (!chrome) return false
+    const fitted = fitInsideChrome(layout.bbox, measured, chrome)
     // Null means the container has not been laid out yet. Hold the transform
     // and wait for the next resize rather than accepting a k of 0, which turns
     // every 1/k below into Infinity and the SVG into NaN.
     if (fitted) onTransform(fitted)
     return fitted !== null
-  }, [layout.bbox, measured, onTransform])
+  }, [layout.bbox, measured, chrome, onTransform])
+
+  /**
+   * What a fit was last computed for.
+   *
+   * The chrome is part of it, not just the site and the view mode. A child's
+   * layout effects run before its parent's, so on the commit that hides the
+   * rail this effect sees the new fitKey and the OLD inset: measured, the graph
+   * stayed fitted for a 320px rail that was no longer there at 1280x720 and
+   * 1440x900, and refitted only at 1366x768, where the observer happened to win
+   * the race. Keying on the inset as well makes the corrected measurement a
+   * second, correct fit rather than one the guard throws away. The inset only
+   * changes on a resize, a view mode or the rail, all of which are refits
+   * already.
+   */
+  const fitIdentity = chrome
+    ? `${fitKey}|${chrome.left}:${chrome.top}:${chrome.bottom}`
+    : ''
 
   /** Refit on a new site or view mode, and once the container gets a size. */
   const [everFitted, setEverFitted] = useState(false)
   useLayoutEffect(() => {
-    if (fittedFor.current === fitKey) return
+    if (!fitIdentity || fittedFor.current === fitIdentity) return
     if (fit()) {
-      fittedFor.current = fitKey
+      fittedFor.current = fitIdentity
       setEverFitted(true)
     }
-  }, [fitKey, fit])
+  }, [fitIdentity, fit])
 
   // Unfitted means the transform is still IDENTITY and the graph is drawn at
   // the wrong scale in a corner. That is a frame nothing should photograph.
@@ -271,11 +308,11 @@ export function ForceGraph({
     (event: React.WheelEvent<SVGSVGElement>) => {
       const rect = event.currentTarget.getBoundingClientRect()
       const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15
-      onTransform(
-        zoomAbout(transform, factor, event.clientX - rect.left, event.clientY - rect.top),
-      )
+      const px = event.clientX - rect.left
+      const py = event.clientY - rect.top
+      onTransform((previous) => zoomAbout(previous, factor, px, py))
     },
-    [transform, onTransform],
+    [onTransform],
   )
 
   const onPointerDown = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
@@ -283,7 +320,7 @@ export function ForceGraph({
     // carry `button`, and `undefined !== 0` would refuse every drag.
     if (event.button > 0 || nodeDragRef.current) return
     movedRef.current = false
-    panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+    panRef.current = beginGesture(event.pointerId, event.clientX, event.clientY)
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }, [])
 
@@ -296,28 +333,29 @@ export function ForceGraph({
 
       const drag = nodeDragRef.current
       if (drag && drag.pointerId === event.pointerId) {
-        const k = Number.isFinite(transform.k) && transform.k > 0 ? transform.k : 1
-        if (
-          Math.abs(event.clientX - drag.x) > DRAG_SLOP ||
-          Math.abs(event.clientY - drag.y) > DRAG_SLOP
-        ) {
-          drag.moved = true
-          movedRef.current = true
-        }
-        onOffset(drag.id, { dx: (event.clientX - drag.x) / k, dy: (event.clientY - drag.y) / k })
-        nodeDragRef.current = { ...drag, x: event.clientX, y: event.clientY }
+        const { k } = safeScale(transform.k)
+        const step = advanceGesture(drag, event.clientX, event.clientY)
+        nodeDragRef.current = step.next
+        if (step.moved) movedRef.current = true
+        // Zero until the slop is passed, so a click never nudges the device.
+        if (step.dx === 0 && step.dy === 0) return
+        onOffset(drag.id, { dx: step.dx / k, dy: step.dy / k })
         return
       }
 
       const pan = panRef.current
       if (!pan || pan.pointerId !== event.pointerId) return
-      const dx = event.clientX - pan.x
-      const dy = event.clientY - pan.y
-      if (Math.abs(dx) > DRAG_SLOP || Math.abs(dy) > DRAG_SLOP) movedRef.current = true
-      panRef.current = { ...pan, x: event.clientX, y: event.clientY }
-      onTransform({ ...transform, x: transform.x + dx, y: transform.y + dy })
+      const step = advanceGesture(pan, event.clientX, event.clientY)
+      panRef.current = step.next
+      if (step.moved) movedRef.current = true
+      if (step.dx === 0 && step.dy === 0) return
+      onTransform((previous) => ({
+        ...previous,
+        x: previous.x + step.dx,
+        y: previous.y + step.dy,
+      }))
     },
-    [transform, onTransform, onOffset],
+    [transform.k, onTransform, onOffset],
   )
 
   const endPointer = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
@@ -334,11 +372,8 @@ export function ForceGraph({
     if (event.button > 0) return
     movedRef.current = false
     nodeDragRef.current = {
-      pointerId: event.pointerId,
+      ...beginGesture(event.pointerId, event.clientX, event.clientY),
       id,
-      x: event.clientX,
-      y: event.clientY,
-      moved: false,
     }
   }, [])
 
@@ -351,7 +386,7 @@ export function ForceGraph({
 
   // Constant screen weight for strokes and labels under zoom. This is the
   // division the fitToScreen guard protects: k is never 0, so inv is finite.
-  const k = Number.isFinite(transform.k) && transform.k > 0 ? transform.k : 1
+  const { k, degenerate: degenerateZoom } = safeScale(transform.k)
   const inv = 1 / k
 
   const labels = useMemo(
@@ -377,7 +412,11 @@ export function ForceGraph({
     riskMode ? riskColor(riskById.get(nodeId)) : zoneColor(zone, zoneOrder)
 
   return (
-    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-bg">
+    <div
+      ref={containerRef}
+      data-testid="network-canvas"
+      className="absolute inset-0 overflow-hidden bg-bg"
+    >
       {/* The dotted ground the original drew the graph on. It is what makes a
           pan read as movement rather than as nothing happening. */}
       <div
@@ -391,6 +430,10 @@ export function ForceGraph({
       />
       <svg
         role="img"
+        // A rescued zoom means fitToScreen handed back something degenerate.
+        // Marked so the e2e scan fails instead of photographing a plausible
+        // picture drawn at 100%.
+        data-degenerate-zoom={degenerateZoom || undefined}
         aria-label={`Network topology of ${siteLabel}: ${layout.nodes.length} devices, ${layout.edges.length} links`}
         className="h-full w-full cursor-grab touch-none select-none active:cursor-grabbing"
         onWheel={onWheel}

@@ -23,7 +23,7 @@ export const RISK_FILL: Record<RiskLevel, string> = {
   low: 'var(--node-risk-low-leaf)',
 }
 
-const RISK_STROKE: Record<RiskLevel, string> = {
+export const RISK_STROKE: Record<RiskLevel, string> = {
   high: 'var(--node-risk-high-bg)',
   medium: 'var(--node-risk-medium-bg)',
   low: 'var(--node-risk-low-bg)',
@@ -37,7 +37,11 @@ const ON_COLOR_INK = '#ffffff'
 
 const SOFT_MARK = '#fbbf24'
 
-function nodeToken(colorKey: string, leaf: boolean): string {
+/**
+ * The two tones a colour key carries, exported because the legend has to name
+ * exactly the colours the canvas paints and must not keep its own copy.
+ */
+export function nodeTone(colorKey: string, leaf: boolean): string {
   const name = TOKEN[colorKey]
   if (!name) return 'var(--color-muted)'
   return `var(--node-${name}-${leaf ? 'leaf' : 'bg'})`
@@ -45,13 +49,13 @@ function nodeToken(colorKey: string, leaf: boolean): string {
 
 export function fillFor(node: TreeNodeData, riskMode: boolean): string {
   if (riskMode && node.leaf && node.risk) return RISK_FILL[node.risk]
-  return nodeToken(node.colorKey, Boolean(node.leaf))
+  return nodeTone(node.colorKey, Boolean(node.leaf))
 }
 
 /** Border colour. Leaves outline in their branch tone, which reads as depth. */
 export function strokeFor(node: TreeNodeData, riskMode: boolean): string {
   if (riskMode && node.leaf && node.risk) return RISK_STROKE[node.risk]
-  return nodeToken(node.colorKey, false)
+  return nodeTone(node.colorKey, false)
 }
 
 export interface NodeGeometry {
@@ -85,7 +89,12 @@ export interface TreeNodeProps {
   onToggle: (id: string) => void
   onSelect: (id: string) => void
   onDragStart: (id: string, event: React.PointerEvent) => void
-  /** True when the pointer moved far enough that this was a drag, not a click. */
+  /**
+   * True when the pointer moved far enough that this was a drag, not a click.
+   *
+   * Call it once per activation: the canvas consumes the flag, because the
+   * click that closes a drag arrives after the drag record has been released.
+   */
   didDrag: () => boolean
 }
 
@@ -114,6 +123,19 @@ export function TreeNode({
     else onSelect(node.id)
   }
 
+  /**
+   * A click on a node is not a click on the ground.
+   *
+   * The canvas below clears the selection when the bare ground is clicked, so
+   * without this a click that opened a system would bubble straight on and
+   * close it again in the same tick. Same guard the topology puts on its
+   * device groups.
+   */
+  const onNodeClick = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    activate()
+  }
+
   const name = node.label.replace(/\n/g, ' ')
   const label = hasChildren
     ? `${name}, ${expanded ? 'expanded' : 'collapsed'}`
@@ -137,7 +159,7 @@ export function TreeNode({
         event.stopPropagation()
         onDragStart(node.id, event)
       }}
-      onClick={activate}
+      onClick={onNodeClick}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()

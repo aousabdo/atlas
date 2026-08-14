@@ -2,17 +2,15 @@ import pytest
 
 from atlas_ingest.network import NetworkError, load_network
 
-from conftest import NETWORK_JSON, _require
+
+@pytest.fixture(scope="module")
+def northgate(networks):
+    return networks["northgate"]
 
 
 @pytest.fixture(scope="module")
-def northgate():
-    return load_network(_require(NETWORK_JSON["northgate"]), site_id="northgate")
-
-
-@pytest.fixture(scope="module")
-def westfield():
-    return load_network(_require(NETWORK_JSON["westfield"]), site_id="westfield")
+def westfield(networks):
+    return networks["westfield"]
 
 
 def test_northgate_shape(northgate):
@@ -54,14 +52,69 @@ def test_every_edge_endpoint_is_a_known_device(northgate, westfield):
             assert e["target"] in ids
 
 
-def test_device_ip_is_an_opaque_string_or_null(northgate):
-    """Values mix bare addresses and CIDR. Never parse these as plain IPs."""
-    for d in northgate["devices"]:
-        assert d["ip"] is None or isinstance(d["ip"], str)
+def test_the_loader_hands_back_device_addressing_byte_for_byte(tmp_path):
+    """`ip` is opaque: the loader must not parse, normalise or reformat it.
+
+    This replaces a test that read the fixture's devices and asserted each
+    `ip` was a string or None. load_network passes nodes straight through, so
+    that assertion held for whatever the fixture happened to contain and would
+    have held just as well against an empty device list. It was a property of
+    the fixture, not of any code, and a loader that started parsing addresses
+    would not have troubled it.
+
+    Stated against the loader, on values chosen because parsing would visibly
+    damage them: a CIDR block loses its prefix length, a range or a
+    non-address note becomes unrepresentable, and an empty string becomes None
+    under any "clean it up" pass. The UI prints these verbatim, so any of those
+    is a silent change to what an operator reads.
+    """
+    import json
+
+    quirky = [
+        ("bare", "192.0.2.11"),
+        ("cidr", "198.51.100.64/29"),
+        ("range", "203.0.113.10-203.0.113.20"),
+        ("note", "DHCP, see site records"),
+        ("blank", ""),
+        ("padded", "  192.0.2.12  "),
+        ("absent", None),
+    ]
+    net = {
+        "graph": {},
+        "zones": {"z": {"label": "Z"}},
+        "nodes": [{"id": did, "label": did.upper(), "zone": "z", "type": "server",
+                   "ip": value, "subnet": None, "description": None}
+                  for did, value in quirky],
+        "edges": [],
+    }
+    path = tmp_path / "addressing.json"
+    path.write_text(json.dumps(net), encoding="utf-8")
+
+    devices = {d["id"]: d["ip"] for d in load_network(path, site_id="s")["devices"]}
+    assert devices == dict(quirky)
 
 
-def test_nullable_description_survives(westfield):
-    assert any(d["description"] is None for d in westfield["devices"])
+def test_a_null_description_survives_the_loader(tmp_path):
+    """A device with no description has to come back as None rather than "" or
+    a placeholder string: the UI renders a blank cell for one and prints the
+    other as if it were content.
+
+    This used to assert that some Westfield device had a null description.
+    That is a fact about one topology file rather than about the loader, it is
+    not true of the generated sample, and the test skipped everywhere so
+    nothing found out. Stated against the loader it holds for any input.
+    """
+    import json
+
+    net = {"graph": {}, "zones": {"z": {"label": "Z"}},
+           "nodes": [{"id": "a", "label": "A", "zone": "z", "type": "server",
+                      "ip": None, "subnet": None, "description": None}],
+           "edges": []}
+    path = tmp_path / "nulldesc.json"
+    path.write_text(json.dumps(net), encoding="utf-8")
+
+    loaded = load_network(path, site_id="s")
+    assert loaded["devices"][0]["description"] is None
 
 
 def test_a_dangling_edge_is_fatal(tmp_path):

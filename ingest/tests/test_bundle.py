@@ -4,26 +4,17 @@ import pytest
 
 from atlas_ingest.bundle import BUNDLE_VERSION, emit_bundles
 
-from conftest import (
-    GLOSSARY_JSON, MATRIX_XLSX, NETWORK_JSON, SYSTEM_DEVICE_MAP_JSON, _require,
-)
 
-
-def _emit(target, systems, overrides):
-    from atlas_ingest.crosswalk import read_crosswalk
-    from atlas_ingest.curation import load_glossary, load_system_device_map
-    from atlas_ingest.links import desired_links, extract_links, merge_links
-    from atlas_ingest.network import load_network
-
+def _emit(target, systems, links, desired, crosswalk, glossary, sdmap, networks):
     return emit_bundles(
         out_dir=target,
         systems=systems,
-        links=merge_links(extract_links(systems), overrides),
-        desired=desired_links(overrides),
-        crosswalk=read_crosswalk(_require(MATRIX_XLSX)),
-        glossary=load_glossary(_require(GLOSSARY_JSON)),
-        sdmap=load_system_device_map(_require(SYSTEM_DEVICE_MAP_JSON)),
-        networks={sid: load_network(_require(p), sid) for sid, p in NETWORK_JSON.items()},
+        links=links,
+        desired=desired,
+        crosswalk=crosswalk,
+        glossary=glossary,
+        sdmap=sdmap,
+        networks=networks,
         source_label="Traceability Matrix 5 MAR 2026 (enhanced)",
         baseline_date="2026-03-05",
         built_at="2026-08-05T12:00:00",
@@ -32,9 +23,21 @@ def _emit(target, systems, overrides):
 
 
 @pytest.fixture(scope="module")
-def out(tmp_path_factory, systems, overrides):
+def emitted(systems, links, desired, crosswalk, glossary, sdmap, networks):
+    """Emit this run's inputs into a directory the caller names.
+
+    Handed out as a callable rather than a directory because
+    test_bundles_are_deterministic needs to emit the SAME inputs twice, into
+    two directories, and compare the bytes.
+    """
+    return lambda target: _emit(target, systems, links, desired, crosswalk,
+                                glossary, sdmap, networks)
+
+
+@pytest.fixture(scope="module")
+def out(tmp_path_factory, emitted):
     target = tmp_path_factory.mktemp("data")
-    _emit(target, systems, overrides)
+    emitted(target)
     return target
 
 
@@ -156,11 +159,11 @@ def test_coverage_keeps_the_negative_facts(out):
     assert len(cov["pending_review"]) == 7
 
 
-def test_bundles_are_deterministic(out, tmp_path, systems, overrides):
+def test_bundles_are_deterministic(out, tmp_path, emitted):
     """Two runs on the same inputs must produce byte-identical files, or every
     rebuild churns the git diff and real changes get lost in the noise."""
     second = tmp_path / "again"
-    _emit(second, systems, overrides)
+    emitted(second)
     for name in ["systems.json", "links.json", "lossiness.json", "manifest.json",
                  "coverage.json", "project.json", "methodology.json"]:
         assert (out / name).read_bytes() == (second / name).read_bytes(), name

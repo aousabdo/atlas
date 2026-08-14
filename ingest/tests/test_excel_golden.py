@@ -48,14 +48,23 @@ def test_unconfirmed_ids_exactly(systems):
 
 
 def test_high_risk_ids_exactly(systems):
+    """Expected list is in sorted order because the assertion sorts.
+
+    It used to be written in workbook order against a sorted actual, which is
+    an equality that no input could satisfy. The test skipped everywhere, so
+    nothing ever ran it and found out. The ids are unchanged.
+    """
     assert sorted(s["id"] for s in systems if s["risk"] == "high") == [
-        "orbit", "scan", "beacon", "cirrus", "dwell", "partner", "fpsrel",
-        "halyard", "dispatch", "ingot", "bastion",
+        "bastion", "beacon", "cirrus", "dispatch", "dwell", "fpsrel",
+        "halyard", "ingot", "orbit", "partner", "scan",
     ]
 
 
 def test_low_risk_ids_exactly(systems):
-    assert sorted(s["id"] for s in systems if s["risk"] == "low") == ["homing", "enterprise"]
+    """Sorted for the same reason as the high-risk list above."""
+    assert sorted(s["id"] for s in systems if s["risk"] == "low") == [
+        "enterprise", "homing",
+    ]
 
 
 def test_ids_are_unique(systems):
