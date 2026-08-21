@@ -40,6 +40,39 @@ def test_matrix_id_exists_false_exempts_a_mapping():
     assert validate(**_inputs(sdmap=sdmap)) == []
 
 
+def test_matrix_id_exists_false_on_a_matrix_system_fails():
+    """The inverse of the gate above, and it went unchecked for longer.
+
+    The flag and matrix membership are two readings of one fact, and the gate
+    only ever looked for an id the matrix lacked. A mapping declaring
+    matrix_id_exists false for an id the matrix DOES carry passed validation,
+    and then every consumer downstream read whichever signal it happened to
+    test: lossiness._realization_gap counted the mapping, and
+    curation.mapping_confidence_counts excluded it. Reproduced end to end in
+    test_lossiness.test_realization_gap_ignores_a_flag_that_contradicts_the_matrix,
+    where both figures were rendered in one card.
+    """
+    sdmap = _site(mappings={"ucop": {"devices": ["d1"], "matrix_id_exists": False}})
+    fails = validate(**_inputs(sdmap=sdmap))
+    assert len(fails) == 1
+    assert "ucop" in fails[0]
+    assert "does carry" in fails[0]
+
+
+def test_a_mapping_with_no_flag_at_all_is_still_fine():
+    """The gate is about disagreement, not about requiring the flag. Almost
+    every mapping names a matrix id and carries no flag."""
+    sdmap = _site(mappings={"ucop": {"devices": ["d1"]}})
+    assert validate(**_inputs(sdmap=sdmap)) == []
+
+
+def test_matrix_id_exists_true_on_a_matrix_system_is_fine():
+    """Only `is False` is the curator's declaration of absence. An explicit
+    true agrees with the matrix and must not be read as a disagreement."""
+    sdmap = _site(mappings={"ucop": {"devices": ["d1"], "matrix_id_exists": True}})
+    assert validate(**_inputs(sdmap=sdmap)) == []
+
+
 def test_a_not_deployed_entry_for_an_unknown_system_fails():
     sdmap = _site(not_deployed_at_site={"ghost": "checked"})
     assert any("ghost" in f for f in validate(**_inputs(sdmap=sdmap)))

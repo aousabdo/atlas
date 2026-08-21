@@ -1,9 +1,9 @@
 import { matrixIdSet, realizedConfidenceCounts } from '../lib/coverage'
 import { computeLossiness } from '../lib/lossiness'
 import type {
-  CoverageMatrix, CoverageSite, Glossary, LinkSet, LossinessReport, Manifest,
-  Methodology, Project, Requirement, SiteId, SnapshotMetrics, System, SystemId,
-  Topology,
+  CoverageMatrix, CoverageSite, Glossary, Link, LinkSet, LossinessReport,
+  Manifest, Methodology, Project, Requirement, SiteId, SnapshotMetrics, System,
+  SystemId, Topology,
 } from '../types/atlas'
 import {
   ALWAYS_SOFT, CATEGORY_MAP, HIGH_KEYWORDS, ID_MAP, LINK_NAME_FRAGMENTS,
@@ -246,6 +246,144 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
 }
 
 /**
+ * Cross-file integrity, ported from validate() in
+ * ingest/src/atlas_ingest/validate.py.
+ *
+ * Pure, and returns the failure strings rather than throwing, for the same
+ * reason the Python one does: it makes every gate unit-testable without a
+ * workbook, and it lets one run tell the analyst everything that needs fixing
+ * instead of the first thing. The strings are the Python strings, word for
+ * word, so an analyst who runs the CLI gate and then loads the same files in
+ * the browser reads the same sentence about the same row.
+ *
+ * Why this had to exist at all: the browser path ran none of it. It
+ * shape-normalised, tallied confidence and threw only on JSON and shape
+ * errors, which is backwards. The CLI gate stands between a curator and a
+ * bundle that has already been reviewed; this stands between an analyst and
+ * their own hand-maintained files, which is where an inconsistency is MORE
+ * likely, not less.
+ *
+ * One gate of validate() is deliberately not ported: the glossary pair
+ * ("no acronyms", "no confidence_intro"). See mergeGlossary above, which
+ * decided the opposite for the opposite reason - a partial glossary costs no
+ * correctness, so refusing a load over it would take the matrix, the links,
+ * the coverage and the topologies away to protect nothing. Everything gated
+ * here does cost correctness, which is what makes the two decisions the same
+ * decision rather than a contradiction.
+ */
+export function crossFileFailures(parsed: {
+  systems: readonly System[]
+  /** The merged current links. Same input validate() is handed. */
+  links: readonly Link[]
+  coverage: CoverageMatrix
+  topologies: Readonly<Record<SiteId, Topology>>
+  requirements: readonly Requirement[]
+}): string[] {
+  const fails: string[] = []
+  const matrixIds = matrixIdSet(parsed.systems)
+  const systemNames = new Set(parsed.systems.map((s) => s.name))
+
+  for (const [siteId, site] of Object.entries(parsed.coverage.sites)) {
+    // No topology for this site means nothing to check the devices against.
+    // Inventing a failure there would block a legitimate partial load, which
+    // is the common shape here: the panel takes topologies one file at a time.
+    const topology = parsed.topologies[siteId]
+    const deviceIds = topology
+      ? new Set(topology.devices.map((device) => device.id))
+      : null
+
+    for (const [systemId, mapping] of Object.entries(site.mappings)) {
+      // matrix_id_exists: false is a documented negative fact, not a loophole:
+      // it records that someone checked and the system is deliberately absent
+      // from the matrix. Both directions are gated, because the flag and
+      // matrix membership are two readings of one fact and different consumers
+      // read different ones.
+      if (!matrixIds.has(systemId) && mapping.matrix_id_exists !== false) {
+        fails.push(
+          `system_device_map.sites.${siteId}.mappings.${systemId}: not a matrix ` +
+            `system id; add it to the workbook or set matrix_id_exists:false`,
+        )
+      }
+      if (matrixIds.has(systemId) && mapping.matrix_id_exists === false) {
+        fails.push(
+          `system_device_map.sites.${siteId}.mappings.${systemId}: ` +
+            `matrix_id_exists:false, but the matrix does carry that system ` +
+            `id; drop the flag or rename the mapping`,
+        )
+      }
+      if (deviceIds) {
+        for (const device of mapping.devices ?? []) {
+          if (!deviceIds.has(device)) {
+            fails.push(
+              `system_device_map.sites.${siteId}.mappings.${systemId}: ` +
+                `device '${device}' is not in the ${siteId} topology`,
+            )
+          }
+        }
+      }
+    }
+
+    for (const systemId of Object.keys(site.not_deployed_at_site)) {
+      if (!matrixIds.has(systemId)) {
+        fails.push(
+          `system_device_map.sites.${siteId}.not_deployed_at_site.${systemId}: ` +
+            `not a matrix system id`,
+        )
+      }
+    }
+
+    if (deviceIds) {
+      for (const device of site.unclaimed_devices?.infrastructure ?? []) {
+        if (!deviceIds.has(device)) {
+          fails.push(
+            `system_device_map.sites.${siteId}.unclaimed_devices: ` +
+              `device '${device}' is not in the ${siteId} topology`,
+          )
+        }
+      }
+    }
+  }
+
+  for (const link of parsed.links) {
+    for (const end of ['from', 'to'] as const) {
+      if (!matrixIds.has(link[end])) {
+        fails.push(
+          `link ${link.from}->${link.to}: '${link[end]}' is not a matrix system id`,
+        )
+      }
+    }
+  }
+
+  for (const row of parsed.requirements) {
+    for (const name of row.current) {
+      if (!systemNames.has(name)) {
+        fails.push(
+          `crosswalk '${row.orig.slice(0, 40)}...': current system '${name}' ` +
+            `does not match any Project/System name in the matrix`,
+        )
+      }
+    }
+  }
+
+  return fails
+}
+
+/**
+ * One message carrying every failure, in validate()'s shape.
+ *
+ * No fileName: a cross-file failure is a disagreement BETWEEN files, and
+ * naming one of them would point the analyst at whichever half was innocent.
+ * Each line names the file, the site and the row instead.
+ */
+function integrityError(fails: readonly string[]): LocalFileError {
+  return new LocalFileError(
+    `${fails.length} cross-file integrity failure(s). Nothing was loaded, and ` +
+      `whatever was already on screen is unchanged.\n` +
+      fails.map((fail) => `  - ${fail}`).join('\n'),
+  )
+}
+
+/**
  * Parses the analyst's own files, entirely in the browser.
  *
  * Nothing is uploaded. This is strictly safer than the hosted path for
@@ -258,6 +396,21 @@ export class LocalFileProvider implements AtlasDataProvider {
   /**
    * Parse everything up front so a partial failure never leaves the UI reading
    * a half-built state. On any throw the previous state stays intact.
+   *
+   * The integrity gates run last, over the fully parsed set, because they are
+   * the only checks that need more than one file to answer. They refuse the
+   * load rather than loading with the problem stated, and the reason is not
+   * strictness for its own sake: there is nowhere in Phase 1 to put a warning
+   * beside the number it taints. Every id gated below is read downstream as a
+   * fact - the confidence tally, the realization gap, the attrition flow and
+   * the network graph all key off them - so a load that proceeded would print
+   * figures derived from rows that do not resolve, with no mark on them. A
+   * warning nobody renders is the same defect as the one this closes.
+   *
+   * Refusing costs the analyst nothing they had: the load is atomic, the
+   * previous data stays on screen, and every failing row is named so the fix
+   * is one edit and one reload. That is also what the CLI gate does, and the
+   * two paths now refuse the same files for the same stated reasons.
    */
   async load(inputs: LocalFileInputs): Promise<void> {
     const buffer = await assertSafeWorkbook(inputs.matrix)
@@ -288,6 +441,11 @@ export class LocalFileProvider implements AtlasDataProvider {
     const lossiness = computeLossiness({
       systems, links, requirements, coverage, topologies,
     })
+
+    const fails = crossFileFailures({
+      systems, links: links.current, coverage, topologies, requirements,
+    })
+    if (fails.length > 0) throw integrityError(fails)
 
     const builtAt = new Date().toISOString().replace(/\.\d+Z$/, '')
     this.state = {

@@ -5,8 +5,9 @@ worked out from the source data on 2026-08-05 and is asserted exactly.
 """
 import pytest
 
+from atlas_ingest.curation import mapping_confidence_counts, matrix_id_set
 from atlas_ingest.lossiness import (
-    composite_index, compute_lossiness, count_severity, severity_for, top_gaps,
+    _pct, composite_index, compute_lossiness, count_severity, severity_for, top_gaps,
 )
 
 @pytest.fixture(scope="module")
@@ -192,3 +193,101 @@ def test_empty_inputs_do_not_divide_by_zero():
     )
     for d in report["dimensions"]:
         assert d["value_pct"] in (0.0, None)
+
+
+# THE MIRRORED TABLE. src/lib/__tests__/lossiness.test.ts carries the same one
+# under the same name, and the two must stay identical line for line.
+#
+# Nothing else compares the ingest's arithmetic against the browser's. The
+# provider contract runs the same assertions against both providers, but it
+# asserts counts and shapes and not a single percentage, so when the two
+# engines rounded 10 of 32 to 31.2 and 31.3 the whole suite stayed green and
+# the app printed both figures.
+#
+# Every ratio here whose denominator is 32 and whose numerator is even but not
+# a multiple of four lands EXACTLY on a half at the tenth place, which is the
+# only place the two rules could ever differ:
+#
+#   10 of 32 is 31.25, and rounds DOWN to 31.2, because 2 is even.
+#    6 of 32 is 18.75, and rounds UP   to 18.8, because 7 is odd.
+#
+# Both directions are here on purpose. A table of ties that all fell the same
+# way would pass just as happily against half-up.
+PCT_CASES = [
+    (0, 0, 0),
+    (0, 32, 0),
+    (32, 32, 100),
+    (9, 11, 81.8),
+    (1, 3, 33.3),
+    (2, 32, 6.2),
+    (6, 32, 18.8),
+    (10, 32, 31.2),
+    (14, 32, 43.8),
+    (18, 32, 56.2),
+    (22, 32, 68.8),
+    (26, 32, 81.2),
+    (30, 32, 93.8),
+]
+
+
+@pytest.mark.parametrize("num,den,expected", PCT_CASES)
+def test_pct_matches_the_browser_case_for_case(num, den, expected):
+    assert _pct(num, den) == expected
+
+
+def test_pct_breaks_a_tie_to_even_in_both_directions():
+    """The half-away-from-zero rule the browser used returned 31.3 and 18.8.
+    Asserting both ties is what stops a future "just use round()" from
+    passing, since round() agrees on one of them by accident."""
+    assert _pct(10, 32) == 31.2
+    assert _pct(6, 32) == 18.8
+
+
+def test_pct_leaves_an_empty_denominator_at_zero():
+    assert _pct(3, 0) == 0.0
+
+
+def test_composite_index_averages_in_tenths_tie_to_even():
+    """31.2 and 31.3 average to 31.25, a tie at the tenth place. 312 is even,
+    so it stands. The browser's half-up mean returned 31.3."""
+    report = {"dimensions": [
+        {"key": "requirement_attrition", "unit": "pct", "value_pct": 31.2},
+        {"key": "ownership_ambiguity", "unit": "pct", "value_pct": 31.3},
+    ]}
+    assert composite_index(report) == 31.2
+
+
+def test_realization_gap_ignores_a_flag_that_contradicts_the_matrix():
+    """The bundle that used to be counted two ways at once.
+
+    A mapping declaring matrix_id_exists false for an id the matrix DOES carry
+    passed validate, and then this dimension counted it (it tested membership
+    alone) while curation.mapping_confidence_counts dropped it (it tested the
+    flag alone). Both figures render in one card in ConfidenceSection. The
+    inverse gate in validate now refuses such a bundle; this asserts that if
+    one reaches here anyway, the two agree on excluding it.
+    """
+    systems = [
+        {"id": "alpha", "name": "Alpha", "soft": False, "risk": "low",
+         "risk_source": "explicit"},
+        {"id": "bravo", "name": "Bravo", "soft": False, "risk": "low",
+         "risk_source": "explicit"},
+    ]
+    sdmap = {"sites": {"harbor": {
+        "label": "Harbor Yard",
+        "mappings": {
+            "alpha": {"devices": ["dev-1"], "matrix_id_exists": False,
+                      "confidence": "high"},
+            "bravo": {"devices": ["dev-2"], "confidence": "high"},
+        },
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {"infrastructure": []},
+    }}, "pending_review": {}}
+
+    report = compute_lossiness(systems=systems, links=[], desired=[],
+                               crosswalk=[], sdmap=sdmap, networks={})
+    gap = _dim(report, "realization_gap")
+    assert gap["numerator"] == 1
+    assert gap["detail"]["per_site"]["harbor"]["mapped_ids"] == ["bravo"]
+    assert mapping_confidence_counts(sdmap)["total"] == gap["numerator"]
+    assert mapping_confidence_counts(sdmap, matrix_id_set(systems))["total"] == 1

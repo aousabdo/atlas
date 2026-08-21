@@ -7,6 +7,24 @@ import type { SnapshotMetrics } from '../../types/atlas'
  * One snapshot is not a trend. A single-point chart reads as a flat line,
  * which is a claim about stability nobody has evidence for, so the honest
  * render is an empty state that says how many snapshots exist.
+ *
+ * What this component is allowed to assume, and who guarantees it. Every
+ * snapshot the manifest indexes either loaded or the whole tab failed:
+ * StaticProvider.getSnapshots throws an AtlasDataError naming the labels that
+ * would not load, and LossinessTab renders LoadFailed instead of this. So the
+ * list arriving here is complete, and the two claims below - "this bundle
+ * carries none" and a first-to-last change across the columns shown - are
+ * about the data rather than about the network.
+ *
+ * That was not true before. The provider swallowed a failed snapshot fetch and
+ * filtered it out, so three 404s and a dead network both arrived here as an
+ * empty array and were stated as "This bundle carries none". A partial loss
+ * was worse: the table rendered the survivors and computed a change from the
+ * first to the last across a hole nothing on screen disclosed.
+ *
+ * Nothing here re-checks that, because a component handed a list has no way
+ * to. If the invariant is ever weakened, it has to be weakened at the provider
+ * and this comment has to go with it.
  */
 export function TrendView({ snapshots }: { snapshots: SnapshotMetrics[] }) {
   return (

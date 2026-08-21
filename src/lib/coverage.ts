@@ -29,10 +29,20 @@ export function matrixIdSet(systems: readonly System[]): ReadonlySet<SystemId> {
  *
  * Two signals, and both must agree. `matrix_id_exists: false` is the curator's
  * explicit declaration that the id is deliberately absent; membership in the
- * matrix is the fact. The ingest's validator rejects a mapping whose id is
- * absent without the flag, so on a validated bundle the two never disagree.
- * Consulting both means a bundle assembled some other way still fails closed
- * rather than counting a non-system as coverage.
+ * matrix is the fact.
+ *
+ * atlas_ingest.validate rejects a bundle where the two disagree in EITHER
+ * direction: an id the matrix lacks carrying no flag, and the flag set on an
+ * id the matrix does carry. Only the first was gated until
+ * ingest/tests/test_validate.py::test_matrix_id_exists_false_on_a_matrix_system_fails,
+ * and in that gap one bundle could pass validation and then be counted three
+ * different ways - the realization gap tested membership and counted it, the
+ * confidence tally tested the flag and dropped it, and this function required
+ * both. Two of those figures render in one card in ConfidenceSection.
+ *
+ * Consulting both signals here means a bundle assembled some other way, an
+ * upload that never went through the ingest, still fails closed rather than
+ * counting a non-system as coverage.
  */
 export function namesMatrixSystem(
   systemId: SystemId,
@@ -110,9 +120,17 @@ export function countMappings(
 /**
  * Confidence grades of the realized mappings, across every site.
  *
- * Mirrors atlas_ingest.curation.mapping_confidence_counts, which produces the
- * same tally for the pre-built bundle. Grading a mapping the tabs do not count
- * as coverage would overstate how much of the architecture is verified.
+ * Mirrors atlas_ingest.curation.mapping_confidence_counts, which writes the
+ * tally into the pre-built bundle. Both apply the one predicate above.
+ * Grading a mapping the tabs do not count as coverage would overstate how
+ * much of the architecture is verified.
+ *
+ * No test runs the two implementations over one input and diffs the tallies;
+ * the provider contract asserts neither. What is guaranteed is narrower and
+ * worth stating plainly: both call the same predicate, and the one input on
+ * which the Python's reading could differ from this one - a flag disagreeing
+ * with matrix membership - is gated by atlas_ingest.validate in both
+ * directions.
  */
 export function realizedConfidenceCounts(
   coverage: CoverageMatrix,
@@ -163,12 +181,45 @@ export function percentOf(numerator: number, denominator: number): number {
 /**
  * The one percentage formatter.
  *
- * Whole percent, because every ratio here is a ratio of small integers: 10 of
- * 32 systems. A tenth of a point claims a resolution of one part in a thousand
- * when the smallest change the data can express, one system, moves the figure
- * by 3.1 points. The tenth digit is noise, and printing it in one tab while
- * another rounds it away is what made the same quantity read as 31.2% and 31%.
+ * Whole percent by default, because most ratios here are ratios of small
+ * integers: 10 of 32 systems. A tenth of a point claims a resolution of one
+ * part in a thousand when the smallest change the data can express, one
+ * system, moves the figure by 3.1 points. The tenth digit is noise, and
+ * printing it in one tab while another rounds it away is what made the same
+ * quantity read as 31.2% and 31%.
+ *
+ * `maxDecimals` is for the one place that has earned the extra digit: the
+ * Lossiness scorecard, whose cards sit beside a trend table quoting deltas in
+ * tenths of a point, so rounding the card to a whole percent would leave a
+ * "+9.1 pts" with no figure it could have moved. It is a precision argument to
+ * this function rather than a second formatter, because a second formatter is
+ * exactly how the two spellings drifted apart in the first place. A value that
+ * lands on a whole number still prints without a decimal, so 100 is "100%" at
+ * any precision.
+ *
+ * Ties break to even, the same rule computeLossiness rounds report figures by.
+ * It matters as soon as a caller asks for a tenth: percentOf(10, 32) is 31.25
+ * exactly, and Math.round would have spelled it 31.3 here while the Lossiness
+ * report spells the identical fraction 31.2.
  */
-export function formatPercent(value: number): string {
-  return `${Math.round(value)}%`
+export function formatPercent(value: number, maxDecimals = 0): string {
+  const scale = 10 ** maxDecimals
+  return `${roundHalfToEven(value * scale) / scale}%`
+}
+
+/**
+ * Nearest integer, breaking an exact tie to even.
+ *
+ * The display half of the rounding rule stated at roundRatio in
+ * src/lib/lossiness.ts. That one decides the tie on integers, because it has
+ * to give bit-identical answers to a Python transliteration of itself. This
+ * one is handed a float that a caller already divided, so it decides the tie
+ * where it can, and the two must never disagree about which way a tie falls.
+ */
+function roundHalfToEven(value: number): number {
+  const whole = Math.floor(value)
+  const fraction = value - whole
+  if (fraction > 0.5) return whole + 1
+  if (fraction < 0.5) return whole
+  return whole % 2 === 0 ? whole : whole + 1
 }

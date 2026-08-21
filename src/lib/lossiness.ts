@@ -3,8 +3,18 @@
  *
  * A transliteration of ingest/src/atlas_ingest/lossiness.py. StaticProvider
  * serves the Python's output; LocalFileProvider computes it here from the
- * analyst's own file. The contract suite asserts both produce the same shape
- * and the same numbers for the same inputs.
+ * analyst's own file.
+ *
+ * WHAT HOLDS THE TWO IN STEP, because it is not the provider contract:
+ * src/data/__tests__/contract.ts runs one set of assertions against both
+ * providers, but they are assertions about shape and about a few baseline
+ * counts (32 systems, 9 of 11 requirements). It asserts no percentage at all,
+ * and it never feeds one input to both engines and diffs the results, so it
+ * could not see the two round the same fraction differently. For a while they
+ * did: 10 of 32 read 31.2 from the bundle and 31.3 from an uploaded file. The
+ * rounding rule is stated once below and mirrored in the Python, and the
+ * mirrored tables named PCT_CASES in src/lib/__tests__/lossiness.test.ts and
+ * ingest/tests/test_lossiness.py are what actually pin the two together.
  */
 import type {
   CoverageMatrix, LinkSet, LossinessDimension, LossinessReport, Requirement,
@@ -39,8 +49,39 @@ export function countSeverity(count: number, watchAt = 1, criticalAt = 10): Seve
   return 'ok'
 }
 
-function pct(num: number, den: number): number {
-  return den ? Math.round((1000 * num) / den) / 10 : 0
+/**
+ * Round num/den to the nearest integer, breaking an exact tie to even.
+ *
+ * THE ROUNDING RULE, and it is shared: _round_ratio in
+ * ingest/src/atlas_ingest/lossiness.py is the same function, statement for
+ * statement.
+ *
+ * Ties break to even because that is the rule every figure this repo has
+ * already published was rounded by. Python's round() is half-to-even, the
+ * committed sample bundle and everything baselined from it were built with it,
+ * and JavaScript's Math.round - half away from zero - was the half with no
+ * persisted output to contradict. Unifying the other way would have restated
+ * shipped figures (10 of 32 moving from 31.2 to 31.3) to settle a tiebreak no
+ * reader can observe on a single number. Tie-to-even also does not drift one
+ * way when the percentage dimensions are averaged into the composite
+ * indicator, which half-up would.
+ *
+ * The tie is decided on integers rather than on a float. 100 * num / den lands
+ * a hair off the boundary for most ratios, and deciding the tie on that would
+ * make the two languages agree only as far as their division does. Numerator
+ * and denominator here are counts, so neither is negative.
+ */
+function roundRatio(num: number, den: number): number {
+  const whole = Math.floor(num / den)
+  const twiceRemainder = 2 * (num - whole * den)
+  if (twiceRemainder > den) return whole + 1
+  if (twiceRemainder < den) return whole
+  return whole % 2 === 0 ? whole : whole + 1
+}
+
+/** A percentage to one decimal place, under the rounding rule above. */
+export function pct(num: number, den: number): number {
+  return den ? roundRatio(1000 * num, den) / 10 : 0
 }
 
 function dimension(
@@ -188,7 +229,13 @@ export function compositeIndex(report: LossinessReport): number {
   const pcts = report.dimensions
     .filter((d) => d.unit === 'pct' && d.value_pct !== null)
     .map((d) => d.value_pct as number)
-  return pcts.length ? Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 10) / 10 : 0
+  if (pcts.length === 0) return 0
+  // Averaged in tenths, so the mean is rounded by the same rule as the figures
+  // it averages. value_pct already carries at most one decimal, so scaling it
+  // back to an integer never lands on a tiebreak of its own, and the mean is
+  // again a ratio of two counts.
+  const tenths = pcts.reduce((total, value) => total + Math.round(value * 10), 0)
+  return roundRatio(tenths, pcts.length) / 10
 }
 
 function topGaps(dimensions: LossinessDimension[], systems: System[], limit = 10): TopGap[] {

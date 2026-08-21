@@ -10,6 +10,8 @@ that were wanted and still do not exist; 6 is its inverse, hardware in the rack
 that no architecture document explains.
 """
 
+from .curation import is_realized_mapping, matrix_id_set
+
 DIMENSION_ORDER = [
     "requirement_attrition", "ownership_ambiguity", "realization_gap",
     "integration_gap", "evidence_gap", "orphaned_hardware", "open_questions",
@@ -50,8 +52,40 @@ def count_severity(count, watch_at=1, critical_at=10):
     return "ok"
 
 
+def _round_ratio(num, den):
+    """Round num/den to the nearest integer, breaking an exact tie to even.
+
+    THE ROUNDING RULE, and it is shared: roundRatio in src/lib/lossiness.ts is
+    the same function, statement for statement.
+
+    Ties break to even because that is the rule every figure this repo has
+    already published was rounded by. Python's round() is half-to-even, the
+    committed sample bundle and everything baselined from it were built with
+    it, and JavaScript's Math.round - half away from zero - was the half with
+    no persisted output to contradict. Unifying the other way would have
+    restated shipped figures (10 of 32 moving from 31.2 to 31.3) to settle a
+    tiebreak no reader can observe on a single number. Tie-to-even also does
+    not drift one way when the percentage dimensions are averaged into the
+    composite indicator, which half-up would.
+
+    The tie is decided on integers rather than on a float, which is the part
+    round() could not give us. 100.0 * num / den lands a hair off the boundary
+    for most ratios, and deciding the tie on that would make the two languages
+    agree only as far as their division does. Numerator and denominator here
+    are counts, so neither is negative.
+    """
+    whole, remainder = divmod(num, den)
+    twice_remainder = 2 * remainder
+    if twice_remainder > den:
+        return whole + 1
+    if twice_remainder < den:
+        return whole
+    return whole if whole % 2 == 0 else whole + 1
+
+
 def _pct(num, den):
-    return round(100.0 * num / den, 1) if den else 0.0
+    """A percentage to one decimal place, under the rounding rule above."""
+    return _round_ratio(1000 * num, den) / 10 if den else 0.0
 
 
 def _dimension(key, numerator, denominator, severity, detail, unit="pct"):
@@ -100,13 +134,21 @@ def _realization_gap(systems, sdmap):
     Mappings naming a system that is not in the matrix (atak, which carries
     matrix_id_exists: false) do not count: they describe hardware, not a
     realized matrix system.
+
+    "Realized" is curation.is_realized_mapping and nothing local, because this
+    dimension and curation.mapping_confidence_counts are read side by side in
+    one component (src/tabs/reference/ConfidenceSection.tsx) and used to
+    disagree there. This counted a mapping on matrix membership alone while the
+    tally excluded it on the flag alone, so a mapping carrying
+    matrix_id_exists: false for an id the matrix DOES hold was counted here and
+    excluded there, in the same bundle.
     """
-    matrix_ids = {s["id"] for s in systems}
+    matrix_ids = matrix_id_set(systems)
     per_site, mapped_anywhere = {}, set()
     for site_id, site in sdmap.get("sites", {}).items():
         mapped = sorted(
             sid for sid, entry in site.get("mappings", {}).items()
-            if entry.get("devices") and sid in matrix_ids
+            if is_realized_mapping(sid, entry, matrix_ids)
         )
         mapped_anywhere.update(mapped)
         per_site[site_id] = {
@@ -203,7 +245,13 @@ def composite_index(report):
     """
     pcts = [d["value_pct"] for d in report["dimensions"]
             if d["unit"] == "pct" and d["value_pct"] is not None]
-    return round(sum(pcts) / len(pcts), 1) if pcts else 0.0
+    if not pcts:
+        return 0.0
+    # Averaged in tenths, so the mean is rounded by the same rule as the
+    # figures it averages. value_pct already carries at most one decimal, so
+    # scaling it back to an integer never lands on a tiebreak of its own, and
+    # the mean is again a ratio of two counts.
+    return _round_ratio(sum(round(v * 10) for v in pcts), len(pcts)) / 10
 
 
 def _find(report, key):

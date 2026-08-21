@@ -3,7 +3,8 @@ import json
 import pytest
 
 from atlas_ingest.curation import (
-    load_glossary, load_overrides, load_system_device_map, mapping_confidence_counts,
+    is_realized_mapping, load_glossary, load_overrides, load_system_device_map,
+    mapping_confidence_counts, matrix_id_set, names_matrix_system,
 )
 
 
@@ -118,6 +119,48 @@ def test_confidence_counts_grade_only_the_realized_mappings(sdmap):
     assert mapping_confidence_counts(sdmap) == {
         "high": 5, "medium": 3, "low": 2, "unspecified": 0, "total": 10,
     }
+
+
+def test_the_predicate_is_the_one_the_browser_applies():
+    """is_realized_mapping mirrors isRealizedMapping in src/lib/coverage.ts.
+
+    Two signals for matrix membership and both must agree, so a stale matrix
+    that still happens to carry an id the curator marked absent does not turn
+    that mapping back into coverage.
+    """
+    matrix = matrix_id_set([{"id": "ucop"}, {"id": "recon"}])
+    assert is_realized_mapping("ucop", {"devices": ["d1"]}, matrix) is True
+    assert is_realized_mapping("ucop", {"devices": []}, matrix) is False
+    assert is_realized_mapping("atak", {"devices": ["d1"]}, matrix) is False
+    assert is_realized_mapping(
+        "ucop", {"devices": ["d1"], "matrix_id_exists": False}, matrix
+    ) is False
+
+
+def test_without_a_matrix_the_flag_carries_the_whole_fact():
+    """The bundle writers hand mapping_confidence_counts the mapping file and
+    nothing else, so the predicate has to answer without a systems list. It
+    falls back to the flag, which is sound only because validate refuses a
+    bundle where the flag and the matrix disagree either way; see
+    test_validate.test_matrix_id_exists_false_on_a_matrix_system_fails.
+    """
+    matrix = matrix_id_set([{"id": "ucop"}])
+    entry = {"devices": ["d1"]}
+    assert names_matrix_system("ucop", entry, matrix) is True
+    assert names_matrix_system("ucop", entry, None) is True
+
+    absent = {"devices": ["d1"], "matrix_id_exists": False}
+    assert names_matrix_system("atak", absent, matrix) is False
+    assert names_matrix_system("atak", absent, None) is False
+
+
+def test_the_tally_is_the_same_with_or_without_the_matrix(sdmap, systems):
+    """The two readings agree on the sample bundle, which is what lets the
+    bundle writers omit the matrix. It is an assertion about this bundle, not
+    a proof for every bundle: the proof is the validate gate."""
+    assert mapping_confidence_counts(sdmap) == mapping_confidence_counts(
+        sdmap, matrix_id_set(systems)
+    )
 
 
 def test_the_atak_mapping_declares_it_is_not_a_matrix_system(sdmap):

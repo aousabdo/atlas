@@ -18,7 +18,7 @@ import {
   realizedConfidenceCounts,
   realizedSystemIds,
 } from '../coverage'
-import { computeLossiness } from '../lossiness'
+import { computeLossiness, pct } from '../lossiness'
 
 const MATRIX = new Set(['ucop', 'recon', 'homing'])
 
@@ -91,6 +91,40 @@ describe('formatPercent', () => {
 
   it('leaves an empty denominator at zero rather than dividing by it', () => {
     expect(formatPercent(percentOf(0, 0))).toBe('0%')
+  })
+
+  /**
+   * The Lossiness scorecard used to carry its own one-decimal formatter, so
+   * the same quantity had two spellings and only one of them was anybody's
+   * responsibility. The precision is an argument now, and these pin what the
+   * argument may and may not change.
+   */
+  it('prints a tenth when a caller asks for one', () => {
+    expect(formatPercent(31.2, 1)).toBe('31.2%')
+    expect(formatPercent(percentOf(9, 11), 1)).toBe('81.8%')
+  })
+
+  it('drops a trailing zero rather than printing 100.0%', () => {
+    expect(formatPercent(100, 1)).toBe('100%')
+    expect(formatPercent(0, 1)).toBe('0%')
+  })
+
+  it('rounds to the precision asked for, never past it', () => {
+    expect(formatPercent(percentOf(10, 32), 1)).toBe('31.2%')
+    expect(formatPercent(percentOf(10, 32))).toBe('31%')
+  })
+
+  it('breaks a tie the way the lossiness report breaks it', () => {
+    // percentOf(10, 32) is 31.25 exactly. Rounding it half away from zero
+    // here would print 31.3% for the fraction computeLossiness reports as
+    // 31.2, which is the same quantity reading two ways all over again.
+    expect(formatPercent(percentOf(10, 32), 1)).toBe(`${pct(10, 32)}%`)
+    expect(formatPercent(percentOf(6, 32), 1)).toBe(`${pct(6, 32)}%`)
+    expect(formatPercent(percentOf(4, 32))).toBe('12%')
+  })
+
+  it('defaults to whole percent, so no caller gets a tenth by accident', () => {
+    expect(formatPercent(31.24)).toBe(formatPercent(31.24, 0))
   })
 })
 

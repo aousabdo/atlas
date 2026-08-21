@@ -394,7 +394,7 @@ topology messages name the **site id**, not the file, because by the time they
 run the file has already been keyed and the id is the more useful of the two.
 
 `...` below stands for a value filled in at the time: a file name, a site id, a
-list. The two tables are complete, and a test keeps them that way: it extracts
+list. The three tables are complete, and a test keeps them that way: it extracts
 every message `src/data/localFileParse.ts`, `src/data/LocalFileProvider.ts` and
 `src/components/LoadDataPanel.tsx` can build, and fails if one of them is
 missing here or if a row here quotes wording no code path produces.
@@ -416,6 +416,57 @@ missing here or if a row here quotes wording no code path produces.
 | `...: topology file is empty` | A topology file parsed, and parsed to `null`. |
 | `...: device '...' is in zone '...', which is not declared` | A topology names a zone its own `zones` object does not have. The name before the colon is the site id. |
 | `...: edge ...->... references unknown device '...'` | A topology has an edge to a device that is not in `nodes`. Site id again, not the file name. |
+
+### The files disagree with each other
+
+Every check above reads one file. These read several, and they run last, over
+the fully parsed set, because they cannot be answered any earlier: whether a
+mapping names a real system depends on the workbook, and whether it names a real
+device depends on the site's topology.
+
+They are the same gates the command-line ingest applies before it will write a
+bundle (`ingest/src/atlas_ingest/validate.py`), in the same words, so the same
+files are refused with the same sentences whichever way you load them. They
+refuse rather than warn for the reason the ingest does: every id below is read
+downstream as a fact, by the confidence tally, the realization gap, the
+attrition flow and the network graph, and there is nowhere on screen to put a
+caveat beside the number it would taint. The load is atomic, so a refusal costs
+you nothing: the data already showing stays, and every failing row is named so
+the fix is one edit and one reload.
+
+The glossary is deliberately exempt. A glossary missing keys still loads, and
+the Reference tab says which parts of it carry nothing. See "3. Glossary,
+optional" above: a missing block costs no figure its meaning, so refusing over
+one would take the matrix, the links, the coverage and the topologies away to
+protect nothing.
+
+| Message | What it means |
+|---|---|
+| `... cross-file integrity failure(s). Nothing was loaded, and whatever was already on screen is unchanged.` | One or more of the checks below did not pass. The count is how many, and each is listed underneath it on its own line. |
+
+Each line under that heading is one of:
+
+- `system_device_map.sites.<site>.mappings.<system>: not a matrix system id; add
+  it to the workbook or set matrix_id_exists:false` - the map claims a system the
+  workbook does not carry. The flag is the way to record hardware that no matrix
+  row explains.
+- `system_device_map.sites.<site>.mappings.<system>: matrix_id_exists:false, but
+  the matrix does carry that system id; drop the flag or rename the mapping` -
+  the same fact stated two ways, and different views read different ones.
+- `system_device_map.sites.<site>.mappings.<system>: device '<device>' is not in
+  the <site> topology` - a mapping realizes a system with hardware the site does
+  not have. Only checked when that site's topology was loaded.
+- `system_device_map.sites.<site>.not_deployed_at_site.<system>: not a matrix
+  system id` - a documented absence for something that was never present.
+- `system_device_map.sites.<site>.unclaimed_devices: device '<device>' is not in
+  the <site> topology` - orphaned hardware that the topology does not list.
+- `link <from>-><to>: '<end>' is not a matrix system id` - a link with an end that
+  resolves to nothing. Covers the links mined from the integration prose and the
+  `cross_links` in the overrides file, which is the same set the ingest gate
+  checks.
+- `crosswalk '<requirement>...': current system '<name>' does not match any
+  Project/System name in the matrix` - the crosswalk sheet names a current system
+  by a spelling the Matrix sheet does not use.
 
 ### The panel refuses, before the parser is called
 

@@ -8,6 +8,38 @@ import re
 
 from .config import ID_MAP, LABEL_MAP
 
+#: Longest id make_id will emit.
+#:
+#: An id keys every mapping, every link end, every DOM id and every cross-file
+#: reference, so it is kept short enough to read in a URL and in a JSON key.
+ID_MAX_CHARS = 30
+
+#: Hex digits of the fingerprint appended when a slug will not fit the budget.
+#:
+#: 32 bits of FNV-1a. The budget spends 21 characters on readable prefix and 9
+#: on the separator and the fingerprint, which lands exactly on ID_MAX_CHARS.
+_FINGERPRINT_CHARS = 8
+
+_FNV_OFFSET_BASIS = 0x811C9DC5
+_FNV_PRIME = 0x01000193
+_UINT32 = 0xFFFFFFFF
+
+
+def _fingerprint(slug):
+    """FNV-1a over the whole slug, as 8 hex digits.
+
+    The slug is [a-z0-9_] by construction, so its UTF-8 bytes are its code
+    points and the JavaScript twin can hash charCodeAt directly and get the
+    same answer. Mirrored by fingerprint in src/data/localFileParse.ts, and
+    pinned to literal ids in both suites so neither can drift.
+    """
+    h = _FNV_OFFSET_BASIS
+    for byte in slug.encode("utf-8"):
+        h ^= byte
+        h = (h * _FNV_PRIME) & _UINT32
+    return format(h, "0%dx" % _FINGERPRINT_CHARS)
+
+
 #: Character budget for one line of a wrapped label.
 #:
 #: Aesthetic, not a fit guarantee: a character count cannot know how wide a
@@ -41,6 +73,25 @@ def make_id(name):
     The second lookup exists because several matrix names carry a
     parenthetical that the curated table omits, e.g. "SCAN (Automated Targeting
     System)" resolves only after the parenthetical is stripped.
+
+    Why the fallback fingerprints instead of truncating.
+
+    The rule used to be slug[:30], and a plain truncation is not injective:
+    "Coastal Perimeter Surveillance and Tracking Alpha" and the same name
+    ending "Bravo" both came out "coastal_perimeter_surveillance". Nothing
+    anywhere gated ids for uniqueness, so the two rows became one id and
+    whichever was read second replaced the first in every dict keyed by id.
+    That is a system disappearing from the matrix with no message.
+
+    A slug over the budget therefore keeps a readable prefix and carries a
+    fingerprint of the WHOLE slug, so two names that differ anywhere differ
+    here. It stays a pure function of one name, which is what lets the
+    TypeScript twin be a transliteration rather than a second gate that has to
+    be wired into a second call site and kept in step by hand.
+
+    What still merges is only what is meant to: two names that normalise to the
+    same slug are the same name as far as this tool is concerned, which is the
+    point of stripping the parenthetical and folding punctuation.
     """
     n = name.strip()
     if n in ID_MAP:
@@ -48,7 +99,11 @@ def make_id(name):
     short = strip_parenthetical(n)
     if short in ID_MAP:
         return ID_MAP[short]
-    return re.sub(r"[^a-z0-9]+", "_", short.lower()).strip("_")[:30]
+    slug = re.sub(r"[^a-z0-9]+", "_", short.lower()).strip("_")
+    if len(slug) <= ID_MAX_CHARS:
+        return slug
+    keep = slug[: ID_MAX_CHARS - _FINGERPRINT_CHARS - 1].rstrip("_")
+    return keep + "_" + _fingerprint(slug)
 
 
 def wrap_label(text):

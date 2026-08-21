@@ -2,6 +2,14 @@ name: CI
 
 # Deploy only runs on push to main, so without this a PR that breaks the build
 # or the tests would merge green and break the next production deploy.
+#
+# The runs of THIS workflow are what deploy.yml triggers on, and a bare
+# `pull_request` means a fork PR produces one. That is fine and wanted here:
+# this workflow holds `contents: read` and nothing else. It is deploy.yml's job
+# to refuse a run it should not publish, which it does by requiring
+# workflow_run.event == 'push' and head_repository.full_name == the repository
+# before it checks anything out. Anyone adding a trigger here should read that
+# condition first: a trigger this file gains is a run deploy.yml has to reject.
 on:
   pull_request:
   push:

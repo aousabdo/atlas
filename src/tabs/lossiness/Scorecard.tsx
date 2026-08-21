@@ -1,5 +1,6 @@
 import { ProvenanceChip } from '../../components/ProvenanceChip'
 import { SeverityPill } from '../../components/SeverityPill'
+import { formatPercent } from '../../lib/coverage'
 import type { LossinessDimension, RiskSource } from '../../types/atlas'
 import { drillCount } from './DimensionDrawer'
 
@@ -70,11 +71,19 @@ function DimensionCard({
   )
 }
 
-/** Percentages read as percentages; counts read as counts, never as a fake rate. */
+/**
+ * Percentages read as percentages; counts read as counts, never as a fake rate.
+ *
+ * The percent spelling comes from formatPercent in src/lib/coverage.ts, which
+ * calls itself the one percentage formatter and means it. This card asks it
+ * for a tenth rather than reimplementing one: a card here and a row in
+ * Analytics were formatting the same quantity through two functions, which is
+ * how one of them can start printing a different figure without anything
+ * going red.
+ */
 export function displayValue(dimension: LossinessDimension): string {
   if (dimension.unit === 'pct' && dimension.value_pct !== null) {
-    const value = dimension.value_pct
-    return `${Number.isInteger(value) ? value : value.toFixed(1)}%`
+    return formatPercent(dimension.value_pct, 1)
   }
   return String(dimension.numerator)
 }

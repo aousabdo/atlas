@@ -1,6 +1,8 @@
 import pytest
 
-from atlas_ingest.identity import strip_parenthetical, LABEL_LINE_CHARS, make_id, make_label
+from atlas_ingest.identity import (
+    ID_MAX_CHARS, LABEL_LINE_CHARS, make_id, make_label, strip_parenthetical,
+)
 
 
 @pytest.mark.parametrize("name,expected", [
@@ -29,7 +31,87 @@ def test_make_id_falls_back_to_a_slug():
 
 def test_make_id_slug_is_capped_at_30_chars():
     out = make_id("A" * 60)
-    assert len(out) <= 30
+    assert len(out) <= ID_MAX_CHARS
+
+
+# --- the slug fallback, and why it fingerprints ------------------------------
+#
+# SLUG_CASES is mirrored case for case, expected id for expected id, in the
+# TypeScript suite in src/data/__tests__/makeLabel.test.ts. The ids are written
+# out as literals on both sides on purpose: the fingerprint is the one place
+# the two implementations do arithmetic rather than string work, and a Python
+# int wrapping at 32 bits and a JavaScript Math.imul agreeing is a claim that
+# has to be checked rather than assumed.
+#
+# Names below are invented for this test.
+SLUG_CASES = [
+    # Short enough to fit: no fingerprint, exactly the old answer.
+    ("Some Brand New System", "some_brand_new_system"),
+    # Exactly at the budget: still no fingerprint.
+    ("Harbour Point Relay Node Alpha", "harbour_point_relay_node_alpha"),
+    # One character over: the fingerprint starts here.
+    ("Harbour Point Relay Node Bravos", "harbour_point_relay_n_37a500b0"),
+    # The prefix would end on an underscore, so it is trimmed and the id comes
+    # out one character short of the budget rather than carrying a double.
+    ("Sentinel Watch Relay North Field Array", "sentinel_watch_relay_705cddce"),
+    # The pair that used to collide.
+    (
+        "Coastal Perimeter Surveillance and Tracking Alpha",
+        "coastal_perimeter_sur_fa065cd1",
+    ),
+    (
+        "Coastal Perimeter Surveillance and Tracking Bravo",
+        "coastal_perimeter_sur_eef71871",
+    ),
+    ("A" * 60, "aaaaaaaaaaaaaaaaaaaaa_92b9e111"),
+]
+
+
+@pytest.mark.parametrize("name,expected", SLUG_CASES)
+def test_make_id_slug_cases(name, expected):
+    assert make_id(name) == expected
+
+
+@pytest.mark.parametrize("name,_expected", SLUG_CASES)
+def test_make_id_never_exceeds_the_budget(name, _expected):
+    assert len(make_id(name)) <= ID_MAX_CHARS
+
+
+def test_two_names_agreeing_in_their_first_30_slug_chars_get_different_ids():
+    """The collision this rule exists to prevent.
+
+    make_id used to end in [:30]. These two names slug identically for 30
+    characters, so both came out "coastal_perimeter_surveillance" and nothing
+    anywhere gated ids for uniqueness: the two rows became one id and whichever
+    was read second replaced the first in every dict keyed by id. A system
+    leaving the matrix with no message is the failure this pins shut.
+    """
+    alpha = make_id("Coastal Perimeter Surveillance and Tracking Alpha")
+    bravo = make_id("Coastal Perimeter Surveillance and Tracking Bravo")
+    assert alpha != bravo
+    assert alpha.startswith("coastal_perimeter_sur")
+    assert bravo.startswith("coastal_perimeter_sur")
+
+
+def test_a_difference_in_the_last_character_alone_still_separates_them():
+    """The fingerprint covers the WHOLE slug, not the part that survives.
+
+    A fingerprint taken over the truncated prefix would have reproduced the
+    original defect with extra steps.
+    """
+    a = make_id("Regional Airspace Coordination Centre East Wing A")
+    b = make_id("Regional Airspace Coordination Centre East Wing B")
+    assert a != b
+
+
+def test_names_that_normalise_to_the_same_slug_still_share_an_id():
+    """What is allowed to merge, stated so the fix cannot creep past it.
+
+    Folding punctuation and stripping a parenthetical are deliberate: two
+    names that normalise to the same slug are the same name as far as this
+    tool is concerned. Only truncation collisions were the bug.
+    """
+    assert make_id("Ridge Watch (Legacy Variant)") == make_id("Ridge  Watch")
 
 
 def test_make_id_slug_has_no_leading_or_trailing_underscores():

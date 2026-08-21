@@ -81,9 +81,23 @@ function perSiteRealization(report: LossinessReport): SiteRealization[] {
     .filter((site) => site.total > 0)
 }
 
-/** The bundle's tally is authoritative; the walk over the matrix is the fallback
- *  for a bundle that predates the tally, never a second opinion about it. Both
- *  now apply the same predicate, so the fallback cannot disagree. */
+/**
+ * The bundle's tally is authoritative; the walk over the matrix is the fallback
+ * for a bundle that predates the tally, never a second opinion about it.
+ *
+ * The tally comes from atlas_ingest.curation.mapping_confidence_counts and the
+ * fallback from realizedConfidenceCounts in src/lib/coverage.ts. Nothing runs
+ * both over one input and diffs them. What is guaranteed is that both call the
+ * one realized-mapping predicate, and that the one input where their readings
+ * of matrix membership could part company - the curator's matrix_id_exists
+ * flag disagreeing with the matrix itself - is refused by
+ * atlas_ingest.validate in both directions.
+ *
+ * That gate is why the card below can put "N of M realized mappings" beside
+ * the per-site "N of M systems mapped" without the two contradicting each
+ * other. Until the inverse direction was gated, they could: one figure counted
+ * a mapping the other had excluded, in one bundle, in this component.
+ */
 function tallied(counts: Record<string, number>, key: string, fallback: number): number {
   const value = counts[key]
   return typeof value === 'number' ? value : fallback

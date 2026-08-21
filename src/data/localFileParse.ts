@@ -3,8 +3,17 @@
  *
  * A transliteration of the Python in ingest/src/atlas_ingest/: same tables
  * (imported from the generated module, never re-typed), same precedence, same
- * outputs. The provider contract suite runs against both, so a divergence
- * fails a test rather than producing two different answers.
+ * outputs.
+ *
+ * What actually holds the two in step, stated precisely, because a vaguer
+ * claim here would tell the next maintainer not to look. The provider contract
+ * suite runs against both providers over the sample vocabulary, which catches
+ * any disagreement the sample can express. It cannot express the fallbacks:
+ * every sample name is in ID_MAP and LABEL_MAP, so the slug and the wrap never
+ * run there at all. Those rules are held instead by cases pinned literally and
+ * identically in src/data/__tests__/makeLabel.test.ts and ingest/tests/
+ * test_identity.py. A rule with neither the contract nor a mirrored case
+ * behind it is not covered, whatever this comment says.
  *
  * Nothing here uploads anything. The File objects come from an <input> and are
  * read with FileReader; no request leaves the tab.
@@ -83,16 +92,73 @@ export function stripParenthetical(name: string): string {
   return name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * Longest id makeId will emit.
+ *
+ * An id keys every mapping, every link end, every DOM id and every cross-file
+ * reference, so it is kept short enough to read in a URL and in a JSON key.
+ *
+ * Mirrors ID_MAX_CHARS in ingest/src/atlas_ingest/identity.py.
+ */
+export const ID_MAX_CHARS = 30
+
+/**
+ * Hex digits of the fingerprint appended when a slug will not fit the budget.
+ *
+ * 32 bits of FNV-1a. The budget spends 21 characters on readable prefix and 9
+ * on the separator and the fingerprint, which lands exactly on ID_MAX_CHARS.
+ */
+const FINGERPRINT_CHARS = 8
+
+/**
+ * FNV-1a over the whole slug, as 8 hex digits.
+ *
+ * The slug is [a-z0-9_] by construction, so charCodeAt returns exactly the
+ * UTF-8 bytes the Python twin hashes and the two cannot disagree. Math.imul is
+ * the multiply, because the plain one loses the low bits above 2^53.
+ *
+ * Mirrors _fingerprint in ingest/src/atlas_ingest/identity.py. Both suites pin
+ * the same literal ids, so neither implementation can drift quietly.
+ */
+function fingerprint(slug: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < slug.length; i += 1) {
+    h = (h ^ slug.charCodeAt(i)) >>> 0
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(FINGERPRINT_CHARS, '0')
+}
+
+/**
+ * System name to short id, transliterated from make_id.
+ *
+ * Why the fallback fingerprints instead of truncating. The rule used to be
+ * slug.slice(0, 30), and a plain truncation is not injective: "Coastal
+ * Perimeter Surveillance and Tracking Alpha" and the same name ending "Bravo"
+ * both came out "coastal_perimeter_surveillance". Nothing anywhere gated ids
+ * for uniqueness, so the two rows became one id and whichever was read second
+ * replaced the first in every map keyed by id, which is a system vanishing
+ * from the matrix with no message.
+ *
+ * A slug over the budget therefore keeps a readable prefix and carries a
+ * fingerprint of the WHOLE slug, so two names that differ anywhere differ
+ * here. What still merges is only what is meant to: two names that normalise
+ * to the same slug are the same name as far as this tool is concerned.
+ */
 export function makeId(name: string): string {
   const n = name.trim()
   if (n in ID_MAP) return ID_MAP[n]
   const short = stripParenthetical(n)
   if (short in ID_MAP) return ID_MAP[short]
-  return short
+  const slug = short
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
-    .slice(0, 30)
+  if (slug.length <= ID_MAX_CHARS) return slug
+  const keep = slug
+    .slice(0, ID_MAX_CHARS - FINGERPRINT_CHARS - 1)
+    .replace(/_+$/, '')
+  return `${keep}_${fingerprint(slug)}`
 }
 
 /**

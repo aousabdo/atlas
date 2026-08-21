@@ -13,10 +13,15 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# Workflow-level: read the code and nothing else.
+#
+# The build job below runs `npm ci` and `npm run build` over a checkout of the
+# commit that triggered CI, which means it executes package.json lifecycle
+# scripts and a vite config from that commit. Whatever token that job holds is
+# a token those scripts hold. Pages write and OIDC token minting live on the
+# deploy job, which runs no code from the checkout at all.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One concurrent deploy; don't cancel an in-progress publish.
 concurrency:
@@ -24,11 +29,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Pages is deliberately disabled on this repository until the data owner
-  # answers what marking the real content carries. Without this gate the deploy
-  # fails on every push, and a workflow that is always red is a workflow nobody
-  # reads, which costs more than the check is worth. It skips with a reason
-  # instead, and starts working by itself the day Pages is turned on.
+  # Pages IS enabled on this repository, so this gate passes and the jobs below
+  # it run. It is kept because the state it guards against is real and silent:
+  # if Pages is ever turned off, every deploy fails at the last step with an API
+  # error that reads like a broken workflow, and a workflow that is always red
+  # is a workflow nobody reads. This skips with a reason instead.
+  #
+  # It is NOT a publication control. The comment here used to say publishing was
+  # gated on a data marking decision, which stopped being true the day Pages was
+  # switched on, and a stale claim that something is disabled is worse than no
+  # claim at all. What keeps controlled content out of the build is
+  # scripts/check-no-real-data.mjs and the pre-commit hook, not this step.
   gate:
     runs-on: ubuntu-latest
     outputs:
@@ -42,15 +53,39 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Pages is not enabled for this repository, so there is nothing to deploy. This is deliberate: publishing is gated on the data marking decision. Enable Pages to activate this workflow."
+            echo "::notice::Pages is not enabled for this repository, so there is nothing to deploy. Enable Pages in the repository settings to activate this workflow."
           fi
 
+  # This job runs code out of the checked-out commit, so it gets the smallest
+  # token there is and every condition below has to hold before it starts.
+  #
+  # `branches: [main]` on the trigger is not a guard. It matches
+  # workflow_run.head_branch, which is the branch name in the HEAD repository,
+  # and on a pull request from a fork that is a name the PR author picked. CI
+  # triggers on a bare `pull_request`, so a fork PR does produce a CI run that
+  # concludes success, and without the two checks below this job would then
+  # check out the fork's commit and run `npm ci` on it, executing that fork's
+  # package.json lifecycle scripts. That is the pwn-request shape.
+  #
+  # It has not been exploitable because the repository is private with a single
+  # collaborator. That is a repository setting, not a guard: it is not visible
+  # from this file, nothing here depends on it, and it stops being true the
+  # moment the repo is opened up or someone is added.
+  #
+  #   head_repository.full_name == github.repository  the run came from HERE,
+  #                                                   not from a fork
+  #   workflow_run.event == 'push'                    it came from a push to
+  #                                                   main, not a pull request
   build:
     needs: gate
+    permissions:
+      contents: read
     if: >-
       needs.gate.outputs.enabled == 'true' &&
       (github.event_name == 'workflow_dispatch' ||
-       github.event.workflow_run.conclusion == 'success')
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +103,6 @@ jobs:
       # and the build would ship an app with no data in it.
       - run: node scripts/seed-data.mjs
       - run: npm run build
-      - uses: actions/configure-pages@v5
       # The whole of dist, which includes the 404.html the build writes. Pages
       # serves that document for any path naming no file, which is what makes
       # /network and /map open instead of 404ing. Without it every shared link
@@ -78,12 +112,24 @@ jobs:
         with:
           path: dist
 
+  # The only job that holds a Pages-scoped token and can mint an OIDC token, and
+  # the only one that checks out nothing and runs nothing from the repository.
+  # It publishes an artifact another job already built.
   deploy:
     needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Moved here from the build job. Its outputs are unused (the base path is
+      # ATLAS_BASE plus public/CNAME, see vite.config.ts), and it reads the
+      # Pages API, so leaving it in the build job would have forced a
+      # Pages-scoped token onto the job that runs npm ci.
+      - uses: actions/configure-pages@v5
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { LABEL_LINE_CHARS, makeId, makeLabel, stripParenthetical } from '../localFileParse'
+import {
+  ID_MAX_CHARS, LABEL_LINE_CHARS, makeId, makeLabel, stripParenthetical,
+} from '../localFileParse'
 
 /**
  * The wrapping rule, mirrored case for case from ingest/tests/test_identity.py.
@@ -77,5 +79,87 @@ describe('a parenthetical leaves a space where it stood', () => {
   it.each(CASES)('%s', (name, stripped, ident) => {
     expect(stripParenthetical(name)).toBe(stripped)
     expect(makeId(name)).toBe(ident)
+  })
+})
+
+/**
+ * The slug fallback, and why it fingerprints.
+ *
+ * Mirrored case for case, expected id for expected id, from SLUG_CASES in
+ * ingest/tests/test_identity.py. The ids are written out as literals on both
+ * sides on purpose: the fingerprint is the one place the two implementations
+ * do arithmetic rather than string work, and a JavaScript Math.imul and a
+ * Python int wrapping at 32 bits agreeing is a claim that has to be checked
+ * rather than assumed. Change one list, change the other.
+ *
+ * Names below are invented for this test.
+ */
+const SLUG_CASES: Array<[string, string]> = [
+  // Short enough to fit: no fingerprint, exactly the old answer.
+  ['Some Brand New System', 'some_brand_new_system'],
+  // Exactly at the budget: still no fingerprint.
+  ['Harbour Point Relay Node Alpha', 'harbour_point_relay_node_alpha'],
+  // One character over: the fingerprint starts here.
+  ['Harbour Point Relay Node Bravos', 'harbour_point_relay_n_37a500b0'],
+  // The prefix would end on an underscore, so it is trimmed and the id comes
+  // out one character short of the budget rather than carrying a double.
+  ['Sentinel Watch Relay North Field Array', 'sentinel_watch_relay_705cddce'],
+  // The pair that used to collide.
+  [
+    'Coastal Perimeter Surveillance and Tracking Alpha',
+    'coastal_perimeter_sur_fa065cd1',
+  ],
+  [
+    'Coastal Perimeter Surveillance and Tracking Bravo',
+    'coastal_perimeter_sur_eef71871',
+  ],
+  ['A'.repeat(60), 'aaaaaaaaaaaaaaaaaaaaa_92b9e111'],
+]
+
+describe('makeId falls back to a slug that cannot collide by truncation', () => {
+  it.each(SLUG_CASES)('%j', (name, expected) => {
+    expect(makeId(name)).toBe(expected)
+  })
+
+  it.each(SLUG_CASES)('keeps %j inside the id budget', (name) => {
+    expect(makeId(name).length).toBeLessThanOrEqual(ID_MAX_CHARS)
+  })
+
+  /**
+   * The collision this rule exists to prevent.
+   *
+   * makeId used to end in .slice(0, 30). These two names slug identically for
+   * 30 characters, so both came out "coastal_perimeter_surveillance" and
+   * nothing anywhere gated ids for uniqueness: the two rows became one id and
+   * whichever was read second replaced the first in every map keyed by id. A
+   * system leaving the matrix with no message is the failure this pins shut.
+   */
+  it('separates two names that agree in their first 30 slug characters', () => {
+    const alpha = makeId('Coastal Perimeter Surveillance and Tracking Alpha')
+    const bravo = makeId('Coastal Perimeter Surveillance and Tracking Bravo')
+    expect(alpha).not.toBe(bravo)
+    expect(alpha.startsWith('coastal_perimeter_sur')).toBe(true)
+    expect(bravo.startsWith('coastal_perimeter_sur')).toBe(true)
+  })
+
+  /**
+   * The fingerprint covers the WHOLE slug, not the part that survives. One
+   * taken over the truncated prefix would have reproduced the defect with
+   * extra steps.
+   */
+  it('separates names that differ only in their last character', () => {
+    expect(makeId('Regional Airspace Coordination Centre East Wing A')).not.toBe(
+      makeId('Regional Airspace Coordination Centre East Wing B'),
+    )
+  })
+
+  /**
+   * What is allowed to merge, stated so the fix cannot creep past it. Folding
+   * punctuation and stripping a parenthetical are deliberate: two names that
+   * normalise to the same slug are the same name as far as this tool is
+   * concerned. Only truncation collisions were the bug.
+   */
+  it('still gives one id to two spellings of the same name', () => {
+    expect(makeId('Ridge Watch (Legacy Variant)')).toBe(makeId('Ridge  Watch'))
   })
 })

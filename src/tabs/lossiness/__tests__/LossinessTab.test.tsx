@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest'
 
 import { ProviderContext } from '../../../data/ProviderContext'
 import { AtlasDataError, type AtlasDataProvider } from '../../../data/provider'
+import { formatPercent } from '../../../lib/coverage'
 import { renderWithProvider } from '../../../test/renderWithProvider'
-import type { SnapshotMetrics } from '../../../types/atlas'
+import type { LossinessDimension, SnapshotMetrics } from '../../../types/atlas'
 import { LossinessTab } from '../LossinessTab'
+import { displayValue } from '../Scorecard'
 import { TrendView } from '../TrendView'
 
 /** Open a card's drill-down and hand back the dialog. */
@@ -273,5 +275,54 @@ describe('TrendView', () => {
     render(<TrendView snapshots={[]} />)
     expect(screen.getByText(/no snapshots yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The card's figure and the rest of the app's figures come from one function.
+ *
+ * This card carried its own percent formatter while src/lib/coverage.ts
+ * declared itself the one percentage formatter, so the same quantity had two
+ * spellings and a change to either could pass unnoticed. displayValue now asks
+ * the canonical formatter for a tenth.
+ */
+describe('the scorecard figure', () => {
+  const pctDimension = (value: number | null) =>
+    ({
+      key: 'realization_gap',
+      label: 'Realization gap',
+      numerator: 10,
+      denominator: 32,
+      value_pct: value,
+      unit: 'pct',
+      severity: 'critical',
+      detail: {},
+    }) as LossinessDimension
+
+  it.each([100, 81.8, 71.9, 31.2, 6.2, 0])(
+    'spells %f the way the canonical formatter does',
+    (value) => {
+      expect(displayValue(pctDimension(value))).toBe(formatPercent(value, 1))
+    },
+  )
+
+  it('never prints more than the one decimal the report carries', () => {
+    expect(displayValue(pctDimension(31.25))).toBe('31.2%')
+    expect(displayValue(pctDimension(100))).toBe('100%')
+  })
+
+  it('prints a count dimension as a bare count, never as a rate', () => {
+    expect(
+      displayValue({
+        key: 'integration_gap',
+        label: 'Integration gap',
+        numerator: 13,
+        denominator: 13,
+        value_pct: null,
+        unit: 'count',
+        severity: 'critical',
+        detail: {},
+      } as LossinessDimension),
+    ).toBe('13')
   })
 })

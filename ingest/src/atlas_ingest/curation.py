@@ -82,29 +82,72 @@ def load_system_device_map(path):
     }
 
 
-def mapping_confidence_counts(sdmap):
-    """Confidence tally of the realized mappings, across every site.
+def matrix_id_set(systems):
+    """The set the predicate below tests membership against."""
+    return {s["id"] for s in systems}
 
-    Realized means the same thing here as in lossiness._realization_gap and in
-    src/lib/coverage.ts: the mapping names hardware AND names a matrix system.
-    Two exclusions, and they are different facts:
+
+def names_matrix_system(sys_id, entry, matrix_ids=None):
+    """Does this mapping name something the matrix carries as a system?
+
+    The Python half of namesMatrixSystem in src/lib/coverage.ts, and the same
+    rule: two signals, and both must agree. `matrix_id_exists: false` is the
+    curator's explicit declaration that the id is deliberately absent;
+    membership in the matrix is the fact.
+
+    validate.validate() rejects a bundle where the two disagree in EITHER
+    direction - an id the matrix lacks carrying no flag, and the flag set on an
+    id the matrix does carry. Only the first was gated until
+    test_validate.test_matrix_id_exists_false_on_a_matrix_system_fails, and in
+    that gap a mapping could pass validation and then be counted as a realized
+    system by lossiness and excluded from the confidence tally here, in one
+    bundle, rendered side by side in one component.
+
+    matrix_ids is None for a caller handed the mapping file and nothing else.
+    The flag then carries the whole of the matrix-membership fact, which is
+    sound precisely because both directions are now gated. Pass the set
+    whenever you have it: it is what makes a bundle assembled some other way
+    fail closed rather than counting a non-system as coverage.
+    """
+    if entry.get("matrix_id_exists") is False:
+        return False
+    return matrix_ids is None or sys_id in matrix_ids
+
+
+def is_realized_mapping(sys_id, entry, matrix_ids=None):
+    """The single Python predicate. Every consumer calls this and nothing else.
+
+    Mirrors isRealizedMapping in src/lib/coverage.ts. Realized means the
+    mapping names hardware AND names a matrix system. The two exclusions are
+    different facts and neither is an error:
 
       - no devices (homing, kite are software-only curation records),
       - not a matrix system (atak documents hardware the matrix has no row
         for, so grading it as verified coverage overstates the architecture).
+    """
+    return bool(entry.get("devices")) and names_matrix_system(
+        sys_id, entry, matrix_ids
+    )
 
-    The matrix id is tested through the curator's matrix_id_exists flag rather
-    than a systems list, because validate.validate already refuses any bundle
-    where a mapping names an id the matrix lacks without that flag. The
-    two tests therefore cannot disagree on a bundle that builds, and the tally
-    stays computable from the mapping file alone.
+
+def mapping_confidence_counts(sdmap, matrix_ids=None):
+    """Confidence tally of the realized mappings, across every site.
+
+    Realized is is_realized_mapping above, the same predicate
+    lossiness._realization_gap counts with and the same one
+    realizedConfidenceCounts in src/lib/coverage.ts applies in the browser.
+    Grading a mapping the tabs do not count as coverage would overstate how
+    much of the architecture is verified.
+
+    matrix_ids is optional because the bundle writers hand this function the
+    mapping file alone; see names_matrix_system for why the flag is then the
+    whole of the fact, and test_curation for the mapping that proves the two
+    readings agree.
     """
     counts = {"high": 0, "medium": 0, "low": 0, "unspecified": 0, "total": 0}
     for site in sdmap.get("sites", {}).values():
-        for entry in site.get("mappings", {}).values():
-            if not entry.get("devices"):
-                continue
-            if entry.get("matrix_id_exists") is False:
+        for sys_id, entry in site.get("mappings", {}).items():
+            if not is_realized_mapping(sys_id, entry, matrix_ids):
                 continue
             grade = (entry.get("confidence") or "").lower()
             counts[grade if grade in counts else "unspecified"] += 1

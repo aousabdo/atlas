@@ -29,10 +29,24 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary):
             # matrix_id_exists: false is a documented negative fact, not a
             # loophole: it records that someone checked and the system is
             # deliberately absent from the matrix.
+            #
+            # Both directions are gated, because the flag and matrix
+            # membership are two readings of one fact and every consumer
+            # downstream picks one of them. Gating only the first direction
+            # let a mapping declare matrix_id_exists:false for an id the
+            # matrix DOES carry: validate passed it, the realization gap
+            # counted it (membership), the confidence tally dropped it (flag),
+            # and the Reference tab printed both figures in one card.
             if sys_id not in matrix_ids and entry.get("matrix_id_exists") is not False:
                 fails.append(
                     f"system_device_map.sites.{site_id}.mappings.{sys_id}: not a matrix "
                     f"system id; add it to the workbook or set matrix_id_exists:false"
+                )
+            if sys_id in matrix_ids and entry.get("matrix_id_exists") is False:
+                fails.append(
+                    f"system_device_map.sites.{site_id}.mappings.{sys_id}: "
+                    f"matrix_id_exists:false, but the matrix does carry that system "
+                    f"id; drop the flag or rename the mapping"
                 )
             if device_ids is not None:
                 for device in entry.get("devices") or []:
