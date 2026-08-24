@@ -6,6 +6,7 @@ import {
   classifyInput, inspectFile, isJsonName, isWorkbookName, SLOT_LABEL,
   type Classification, type FileShape, type SlotKind,
 } from '../lib/classifyInput'
+import { NOTICE_POINTS, NOTICE_SHORT } from '../lib/notice'
 import {
   declaredSiteIds, resolveSiteId, SITE_ID_SOURCE_LABEL, slugify,
   type ResolvedSiteId,
@@ -551,6 +552,23 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
           Files are parsed here, in this tab. Nothing is uploaded and nothing is
           stored, so closing or reloading this page returns to the sample.
         </p>
+
+        {/*
+          Above the file inputs, not below them. This is the moment somebody
+          decides whether to hand this tool their own matrix, and a notice they
+          meet after choosing the file has already missed.
+        */}
+        <details className="mt-3 rounded border border-risk-medium bg-surface-2 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium text-risk-medium-ink">
+            Before you load controlled information
+          </summary>
+          <p className="mt-2 text-xs text-ink">{NOTICE_SHORT}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted">
+            {NOTICE_POINTS.map((point) => (
+              <li key={point.slice(0, 32)}>{point}</li>
+            ))}
+          </ul>
+        </details>
 
         <div className="mt-4 space-y-3">
           <SortZone onFiles={sortFiles} />

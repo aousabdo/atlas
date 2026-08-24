@@ -1,5 +1,19 @@
 # The files ATLAS reads
 
+## Before you load controlled information
+
+<!-- notice:begin -->
+> **ATLAS is not accredited for controlled information. Files you load are parsed in this browser and are never uploaded, but whether your data may be handled this way is your determination, not this tool’s.**
+
+- ATLAS has no accreditation, authorisation to operate, or security assessment of any kind. Nobody has reviewed it for handling controlled information, and nothing in it should be read as approval to do so.
+- Files you load are read in this browser tab. Nothing is uploaded, nothing is written to storage, and closing the tab discards them. That is a property of the code, and you can verify it: the network panel stays empty while a file loads.
+- Exports leave the tab. A PNG, a PDF or a CSV is written to your disk and travels however you then send it. It carries a control marking only if one was stated, and ATLAS cannot know the right marking for your data.
+- Your browser is outside this tool’s control. Extensions, profile sync, screen sharing, developer tools and the operating system can all see a page that ATLAS never sends anywhere.
+- The hosted site is publicly readable by anyone with the link, even though the source repository is private. It serves a fabricated sample bundle and no real architecture.
+- The sample data is invented. Site names, addresses, device names and every figure derived from them describe no real deployment.
+- Whether your information may be handled this way is a determination for you and your data owner, under your own policy. This notice is not legal advice and ATLAS makes no warranty of any kind.
+<!-- notice:end -->
+
 ATLAS takes five inputs. One is required and four are optional, and every one of
 them is parsed in your browser: nothing is uploaded, nothing is stored, and
 closing the tab erases the lot.
