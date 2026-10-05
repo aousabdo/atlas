@@ -17,6 +17,7 @@ metrics shows up in the sample bundle the same way it would in a real one.
 import json
 from pathlib import Path
 
+from .bundle import snapshot_payload
 from .classify import classify_owner
 from .config import CATEGORY_MAP
 from .curation import mapping_confidence_counts
@@ -1347,28 +1348,13 @@ def _methodology():
 
 
 def _snapshot(report):
-    """The committed snapshot for this build.
+    """The committed snapshot for this build: this build's own figures.
 
-    Requirement attrition is recorded one requirement better than the live
-    figure so the trend view has a real delta to render as soon as a second
-    snapshot lands. A snapshot copied from the live report can only ever draw
-    a flat line.
+    One snapshot is not a trend, and the Trend view says so. A sample that
+    should show movement needs a second, genuinely different set of inputs,
+    never an edited figure.
     """
-    dimensions = []
-    for d in report["dimensions"]:
-        entry = {k: d[k] for k in ("key", "label", "numerator", "denominator",
-                                   "value_pct", "unit", "severity")}
-        if entry["key"] == "requirement_attrition":
-            entry["numerator"] = 10
-            entry["value_pct"] = 90.9
-            entry["severity"] = "ok"
-        dimensions.append(entry)
-    return {
-        "label": SNAPSHOT_LABEL,
-        "built_at": BUILT_AT,
-        "git_sha": GIT_SHA,
-        "dimensions": dimensions,
-    }
+    return snapshot_payload(report, BUILT_AT, GIT_SHA)
 
 
 def emit(out_dir):

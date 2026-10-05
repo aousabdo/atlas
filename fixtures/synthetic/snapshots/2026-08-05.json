@@ -5,10 +5,10 @@
       "denominator": 11,
       "key": "requirement_attrition",
       "label": "Requirement attrition",
-      "numerator": 10,
-      "severity": "ok",
+      "numerator": 9,
+      "severity": "watch",
       "unit": "pct",
-      "value_pct": 90.9
+      "value_pct": 81.8
     },
     {
       "denominator": 32,
