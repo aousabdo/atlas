@@ -3,7 +3,7 @@
  * Build the self-contained single-file HTML deliverable.
  *
  * ATLAS's actual users are DHS people who may be on networks that cannot reach
- * atlas.analyticadss.com. A URL they cannot open is worthless to them, so the
+ * atlas.oceansllc.com. A URL they cannot open is worthless to them, so the
  * hosted app is the editor and this file is the deliverable: one HTML file you
  * can email or hand over on a stick, with every asset and every data bundle
  * inlined.
