@@ -31,6 +31,32 @@
  * travels. Treating it as flow would answer "does a detection reach a decision
  * maker" with a confident no, on every site, for no reason at all.
  *
+ * PHYSICAL LINKS FOR REDUNDANCY, EVERY LINK FOR FLOW
+ *
+ * A VLAN is a logical link: it rides on cable that is drawn separately, so it
+ * can never be a second way round anything. Cut vertices, bridges, blast radius
+ * and components are therefore computed on the physical links only, and the
+ * logical ones are named under `anomalies.logicalEdges` rather than dropped.
+ * Counting them made VLANs read as redundancy: in the sample, the VLANs between
+ * the sensor, ops, cloud and management segments formed loops around Core
+ * Switch, so counting every link said losing it strands 8 devices. On cable
+ * and radio it strands 22.
+ *
+ * A device joined only by VLAN has no cable or radio link drawn to it, so the
+ * drawing does not say how it attaches. It is named, never counted as cut off,
+ * and never used as a starting point for reachability. The fix for such a
+ * device is in the data: draw the link it really hangs off.
+ *
+ * The list of logical types is a deny-list on purpose. A link type this module
+ * has never heard of, `fibre` or `copper` from someone else's drawing, still
+ * counts as physical, because silently dropping it would delete paths that are
+ * really there.
+ *
+ * Two things stay on the recorded drawing. Entry points are a drawing
+ * convention, so a device joined only by VLAN does not become an extra root.
+ * And `tracePaths` asks whether data can flow, which is exactly what a VLAN
+ * carries, so it follows every recorded link.
+ *
  * EVIDENCE
  *
  * No count is returned without the ids behind it. A severed count comes with
@@ -111,9 +137,26 @@ export interface GraphAnomalies {
   selfLoops: Array<{ edgeIndex: number; deviceId: DeviceId }>
   /** Links carrying more than one raw edge record. */
   duplicateLinks: Array<{ source: DeviceId; target: DeviceId; edgeIndexes: number[] }>
-  /** Devices no usable edge touches. */
+  /** Devices no usable edge touches, physical or logical. */
   isolatedDeviceIds: DeviceId[]
+  /** Edges whose link type is logical. Kept out of every redundancy count. */
+  logicalEdges: Array<{ edgeIndex: number; source: DeviceId; target: DeviceId; linkType: string }>
+  /** Devices whose every usable edge is logical: no physical link is drawn to them. */
+  logicalOnlyDeviceIds: DeviceId[]
 }
+
+/** Link types that ride on other links rather than being a path of their own. */
+export const LOGICAL_LINK_TYPES: ReadonlySet<string> = new Set(['vlan'])
+
+export function isLogicalLink(linkType: string | null | undefined): boolean {
+  return LOGICAL_LINK_TYPES.has(String(linkType ?? '').toLowerCase())
+}
+
+/**
+ * Which links carry connectivity. 'physical' leaves the logical ones out and is
+ * what every redundancy question uses; 'recorded' is the drawing as written.
+ */
+type Connectivity = 'physical' | 'recorded'
 
 export interface Graph {
   /** Every device id, sorted, duplicates folded. */
@@ -184,6 +227,15 @@ export interface BlastRadiusReport {
   removedWasReachable: boolean
   /** Already cut off before this removal, so not this device's doing. */
   alreadyUnreachableDeviceIds: DeviceId[]
+  /**
+   * Devices joined only by VLAN. The drawing does not show how they attach, so
+   * they are in neither list above. Excludes the removed device.
+   */
+  logicalOnlyDeviceIds: DeviceId[]
+  /** Roots joined only by VLAN. Nothing physical is reachable from them, so they seed nothing. */
+  logicalOnlyRootIds: DeviceId[]
+  /** The removed device is joined only by VLAN, so removing it cuts no physical path. */
+  removedIsLogicalOnly: boolean
 }
 
 /** Either way along a link, or only the way the edge was recorded. */
@@ -298,7 +350,7 @@ interface Indexed {
  * deterministic for free: sorting node indexes sorts device ids, and iterating
  * an adjacency list in index order iterates it in id order.
  */
-function index(input: GraphInput): Indexed {
+function index(input: GraphInput, connectivity: Connectivity): Indexed {
   const duplicateIndexes = new Map<DeviceId, number[]>()
   const firstDevice = new Map<DeviceId, Device>()
   input.devices.forEach((device, position) => {
@@ -322,7 +374,11 @@ function index(input: GraphInput): Indexed {
     selfLoops: [],
     duplicateLinks: [],
     isolatedDeviceIds: [],
+    logicalEdges: [],
+    logicalOnlyDeviceIds: [],
   }
+  const touchedPhysically = new Uint8Array(nodeIds.length)
+  const touchedLogically = new Uint8Array(nodeIds.length)
 
   interface Building {
     a: number
@@ -355,6 +411,20 @@ function index(input: GraphInput): Indexed {
       // cut off, so it is recorded and then kept out of the adjacency.
       anomalies.selfLoops.push({ edgeIndex, deviceId: edge.source })
       return
+    }
+    if (isLogicalLink(edge.link_type)) {
+      anomalies.logicalEdges.push({
+        edgeIndex,
+        source: edge.source,
+        target: edge.target,
+        linkType: edge.link_type,
+      })
+      touchedLogically[sourceIndex] = 1
+      touchedLogically[targetIndex] = 1
+      if (connectivity === 'physical') return
+    } else {
+      touchedPhysically[sourceIndex] = 1
+      touchedPhysically[targetIndex] = 1
     }
     const a = Math.min(sourceIndex, targetIndex)
     const b = Math.max(sourceIndex, targetIndex)
@@ -410,7 +480,12 @@ function index(input: GraphInput): Indexed {
       target: link.target,
       edgeIndexes: link.edgeIndexes,
     }))
-  anomalies.isolatedDeviceIds = nodeIds.filter((_, i) => adj[i].length === 0)
+  anomalies.isolatedDeviceIds = nodeIds.filter(
+    (_, i) => !touchedPhysically[i] && !touchedLogically[i],
+  )
+  anomalies.logicalOnlyDeviceIds = nodeIds.filter(
+    (_, i) => touchedLogically[i] && !touchedPhysically[i],
+  )
 
   const zones = input.zones ?? {}
   return {
@@ -597,7 +672,7 @@ function labelOf(g: Indexed, id: DeviceId): string {
 
 /** The normalized graph, its components, its roots and everything wrong with it. */
 export function buildGraph(input: GraphInput): Graph {
-  const g = index(input)
+  const g = index(input, 'physical')
   const dfs = runDfs(g)
   const components = orderFragments(
     dfs.componentRanges.map((range) => {
@@ -610,7 +685,7 @@ export function buildGraph(input: GraphInput): Graph {
     nodeIds: g.nodeIds,
     links: g.links,
     components,
-    rootIds: rootsOf(g, dfs),
+    rootIds: rootsOfDrawing(input),
     anomalies: g.anomalies,
   }
 }
@@ -645,9 +720,14 @@ function rootsOf(g: Indexed, dfs: Dfs): DeviceId[] {
   return roots.sort((a, b) => a - b).map((i) => g.nodeIds[i])
 }
 
-export function derivedRootIds(input: GraphInput): DeviceId[] {
-  const g = index(input)
+/** Roots of the drawing as recorded, whatever the connectivity being measured. */
+function rootsOfDrawing(input: GraphInput): DeviceId[] {
+  const g = index(input, 'recorded')
   return rootsOf(g, runDfs(g))
+}
+
+export function derivedRootIds(input: GraphInput): DeviceId[] {
+  return rootsOfDrawing(input)
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +752,7 @@ export function derivedRootIds(input: GraphInput): DeviceId[] {
  * with a count, and it is nothing at the site sizes here.
  */
 export function articulationPoints(input: GraphInput): ArticulationPoint[] {
-  const g = index(input)
+  const g = index(input, 'physical')
   const dfs = runDfs(g)
   const stamp = new Int32Array(g.nodeIds.length).fill(-1)
   let version = 0
@@ -750,7 +830,7 @@ export function articulationPoints(input: GraphInput): ArticulationPoint[] {
  * report. The duplicate is reported under `anomalies` instead.
  */
 export function bridges(input: GraphInput): Bridge[] {
-  const g = index(input)
+  const g = index(input, 'physical')
   const dfs = runDfs(g)
   const found: Bridge[] = []
 
@@ -830,8 +910,7 @@ export function blastRadius(
   deviceId: DeviceId,
   options: BlastRadiusOptions = {},
 ): BlastRadiusReport {
-  const g = index(input)
-  const dfs = runDfs(g)
+  const g = index(input, 'physical')
 
   const unknownRootIds: DeviceId[] = []
   let rootIds: DeviceId[]
@@ -846,9 +925,13 @@ export function blastRadius(
     rootIds = [...known].sort()
   } else {
     rootsFrom = 'derived'
-    rootIds = rootsOf(g, dfs)
+    rootIds = rootsOfDrawing(input)
   }
-  const rootIndexes = rootIds.map((id) => g.indexOf.get(id) as number)
+  const logicalOnly = new Set(g.anomalies.logicalOnlyDeviceIds)
+  const logicalOnlyRootIds = rootIds.filter((id) => logicalOnly.has(id))
+  const rootIndexes = rootIds
+    .filter((id) => !logicalOnly.has(id))
+    .map((id) => g.indexOf.get(id) as number)
   const unknownSorted = [...new Set(unknownRootIds)].sort()
 
   const target = g.indexOf.get(deviceId)
@@ -868,6 +951,9 @@ export function blastRadius(
       byZone: [],
       removedWasReachable: false,
       alreadyUnreachableDeviceIds: [],
+      logicalOnlyDeviceIds: [],
+      logicalOnlyRootIds: [],
+      removedIsLogicalOnly: false,
     }
   }
 
@@ -875,13 +961,15 @@ export function blastRadius(
   const after = reachableFrom(g, rootIndexes, target)
   const unreachableDeviceIds: DeviceId[] = []
   const alreadyUnreachableDeviceIds: DeviceId[] = []
+  const logicalOnlyDeviceIds: DeviceId[] = []
   let beforeCount = 0
   let afterCount = 0
   for (let i = 0; i < g.nodeIds.length; i += 1) {
     if (before[i]) beforeCount += 1
     if (after[i]) afterCount += 1
     if (i === target) continue
-    if (!before[i]) alreadyUnreachableDeviceIds.push(g.nodeIds[i])
+    if (logicalOnly.has(g.nodeIds[i])) logicalOnlyDeviceIds.push(g.nodeIds[i])
+    else if (!before[i]) alreadyUnreachableDeviceIds.push(g.nodeIds[i])
     else if (!after[i]) unreachableDeviceIds.push(g.nodeIds[i])
   }
 
@@ -899,6 +987,9 @@ export function blastRadius(
     ...tallies(g, unreachableDeviceIds),
     removedWasReachable: before[target] === 1,
     alreadyUnreachableDeviceIds,
+    logicalOnlyDeviceIds,
+    logicalOnlyRootIds,
+    removedIsLogicalOnly: logicalOnly.has(deviceId),
   }
 }
 
@@ -966,7 +1057,8 @@ export function tracePaths(
   toIds: readonly DeviceId[],
   options: TraceOptions = {},
 ): TraceReport {
-  const g = index(input)
+  // Every recorded link: this asks whether data can flow, and a VLAN carries it.
+  const g = index(input, 'recorded')
   const direction: TraceDirection = options.direction ?? 'either'
   const limits = {
     maxPaths: options.maxPaths ?? TRACE_DEFAULTS.maxPaths,

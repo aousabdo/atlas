@@ -82,17 +82,28 @@ describe('Single points of failure', () => {
 
     expect(
       await within(region).findByRole('button', { name: /Single points of failure/ }),
-    ).toHaveAccessibleName(/15/)
+    ).toHaveAccessibleName(/20/)
 
-    // Worst first, and Core Switch strands 8 of the 71 recorded devices.
+    // Counted on cable and radio: Core Switch strands 22 of the 71 devices.
+    // The VLANs between the sensor, ops and management segments used to read
+    // as a way round it, but every one of them rides through Core Switch.
     const row = await within(region).findByRole('button', { name: /^Core Switch/ })
-    expect(row).toHaveAccessibleName(/8 of 71 cut off/)
+    expect(row).toHaveAccessibleName(/22 of 71 cut off/)
+  })
+
+  it('names the devices joined only by logical links instead of counting pieces', async () => {
+    await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await within(region).findByRole('button', { name: /^Core Switch/ })
+
+    expect(within(region).getByText(/joined only by VLAN links/)).toHaveTextContent(/5 devices/)
+    expect(within(region).queryByText(/separate\s+pieces/)).not.toBeInTheDocument()
   })
 
   it('drills a chokepoint through to the devices it would isolate', async () => {
     const { user } = await renderWithProvider(<NetworkTab />)
     const region = await panel()
-    await user.click(await within(region).findByRole('button', { name: /Show all 15/ }))
+    await user.click(await within(region).findByRole('button', { name: /Show all 20/ }))
 
     const row = within(region).getByRole('button', { name: /^Field House Access Switch/ })
     expect(row).toHaveAttribute('aria-expanded', 'false')
@@ -176,6 +187,45 @@ describe('Single points of failure', () => {
     expect(within(next).queryByRole('button', { name: /^Core Switch/ })).not.toBeInTheDocument()
   })
 
+  it('counts a device with no links as a piece, and names one joined only by VLAN', async () => {
+    renderPanel({
+      ...SPLIT,
+      site_id: 'sample_split_extra',
+      devices: [
+        ...SPLIT.devices,
+        device('lonely_post', 'Lonely Post', 'sensor', 'yard'),
+        device('yard_tenant', 'Yard Tenant', 'application', 'yard'),
+      ],
+      edges: [
+        ...SPLIT.edges,
+        { source: 'yard_tenant', target: 'yard_switch', link_type: 'vlan', label: null },
+      ],
+    })
+    const region = await panel()
+    expect(await within(region).findByText(/3 separate pieces of 3, 2 and 1/)).toBeInTheDocument()
+    expect(within(region).getByText(/joined only by VLAN links/)).toHaveTextContent(
+      /1 device is joined only by VLAN links.*Yard Tenant/,
+    )
+  })
+
+  it('does not claim a second way round when no cable or radio link is drawn at all', async () => {
+    renderPanel({
+      ...SPLIT,
+      site_id: 'sample_all_vlan',
+      devices: SPLIT.devices.slice(0, 3),
+      edges: [
+        { source: 'gate_sensor', target: 'yard_switch', link_type: 'vlan', label: null },
+        { source: 'yard_switch', target: 'watch_desk', link_type: 'vlan', label: null },
+      ],
+    })
+    const region = await panel()
+    expect(
+      await within(region).findByText(/No cable or radio link is drawn at this site/),
+    ).toBeInTheDocument()
+    expect(within(region).queryByText(/has a second way round/)).not.toBeInTheDocument()
+    expect(within(region).queryByText(/No single point of failure/)).not.toBeInTheDocument()
+  })
+
   it('says so plainly when nothing in the topology is a single point of failure', async () => {
     renderPanel({
       ...SPLIT,
@@ -200,6 +250,32 @@ describe('Blast radius', () => {
     expect(within(region).getByText(/3 of 71/)).toBeInTheDocument()
     // A reachability count means nothing without the frame it was measured from.
     expect(within(region).getByText(/Internet/)).toBeInTheDocument()
+  })
+
+  it('never calls the devices joined only by VLAN cut off, and names them', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await user.click(
+      within(await devices()).getByRole('button', { name: /Field House Access Switch/ }),
+    )
+    expect(await within(region).findByText(/3 of 71/)).toBeInTheDocument()
+    expect(within(region).queryByText(/already cut off/)).not.toBeInTheDocument()
+    expect(within(region).getByText(/joined only by VLAN are left out/)).toHaveTextContent(/5/)
+
+    await user.click(within(region).getByRole('button', { name: /Name the 5/ }))
+    expect(within(region).getByRole('button', { name: 'Mission COP Application' })).toBeInTheDocument()
+  })
+
+  it('does not claim a route when every starting point is joined only by VLAN', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await user.click(within(await devices()).getByRole('button', { name: /^Core Switch/ }))
+    await user.selectOptions(within(region).getByLabelText('Reachable from'), 'application')
+
+    expect(
+      await within(region).findByText(/so on cable and radio nothing is reachable from/),
+    ).toBeInTheDocument()
+    expect(within(region).queryByText(/Nothing loses its path/)).not.toBeInTheDocument()
   })
 
   it('re-frames the question against the devices that matter, and says which', async () => {

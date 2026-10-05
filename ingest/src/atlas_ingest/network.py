@@ -1,5 +1,9 @@
 """Per-site physical topology, read from the NetworkX-style JSON exports.
 
+Edges with link_type "vlan" are logical overlays on that physical topology.
+They are kept as recorded; the app leaves them out of every redundancy count
+(see LOGICAL_LINK_TYPES in src/lib/graph.ts).
+
 Referential integrity is checked here rather than deferred: an edge pointing at
 a device that does not exist renders as a line to nowhere, and the old tool's
 warn-and-continue posture is what let that ship.

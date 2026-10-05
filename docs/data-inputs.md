@@ -346,6 +346,12 @@ A graph export, in the shape the network exporters produce:
 - `ip` and `subnet` are opaque text. The source mixes bare addresses and CIDR,
   and nothing parses them.
 - `edges` may also carry `vlan`, `port_source` and `port_target`.
+- `link_type` is free text, with one value that changes the analysis: an edge
+  whose `link_type` is `vlan` (any case) is a logical link. It rides on cable
+  drawn elsewhere, so single points of failure, bridges and blast radius leave
+  it out, and the Network tab names any device joined only by VLAN. Reach still
+  follows it, because a VLAN is how the data travels. Every other value,
+  including ones ATLAS has never seen, counts as a physical link.
 
 Two rules are enforced, and both fail the whole load rather than dropping a
 device:
