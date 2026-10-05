@@ -40,6 +40,15 @@ jobs:
   # switched on, and a stale claim that something is disabled is worse than no
   # claim at all. What keeps controlled content out of the build is
   # scripts/check-no-real-data.mjs and the pre-commit hook, not this step.
+  #
+  # It reads has_pages off the repository instead of calling GET .../pages,
+  # which needs a Pages-scoped token that only the deploy job holds. This job
+  # used to call it anyway and read any failure as "Pages is off", so when
+  # 70492f4 narrowed the workflow token to contents: read, every deploy after
+  # it skipped green under a notice saying Pages was disabled, while the site
+  # kept serving the build before it. The repository endpoint needs only the
+  # metadata scope every token carries, and an answer that is not exactly true
+  # or false now fails the job, so a skip always means Pages really is off.
   gate:
     runs-on: ubuntu-latest
     outputs:
@@ -49,12 +58,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Pages is not enabled for this repository, so there is nothing to deploy. Enable Pages in the repository settings to activate this workflow."
-          fi
+          enabled=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .has_pages) || {
+            echo "::error::Could not read has_pages for ${GITHUB_REPOSITORY}, so whether Pages is on is unknown. The gh error is above."
+            exit 1
+          }
+          case "$enabled" in
+            true) ;;
+            false) echo "::notice::Pages is not enabled for this repository, so there is nothing to deploy. Enable Pages in the repository settings to activate this workflow." ;;
+            *) echo "::error::Expected has_pages to be true or false, got '${enabled}'."; exit 1 ;;
+          esac
+          echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
 
   # This job runs code out of the checked-out commit, so it gets the smallest
   # token there is and every condition below has to hold before it starts.
