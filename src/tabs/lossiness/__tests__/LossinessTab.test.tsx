@@ -271,6 +271,21 @@ describe('TrendView', () => {
     expect(within(table).getByText('-15')).toBeInTheDocument()
   })
 
+  it('spells a tie the way the report and the scorecard spell it', () => {
+    // percentOf(10, 32) is 31.25 exactly. The canonical formatter breaks the
+    // tie to even and says 31.2, which is what the lossiness report and the
+    // scorecard card both print. A local toFixed(1) rounds half up and says
+    // 31.3, so the same fraction reads two ways on one tab.
+    render(
+      <TrendView
+        snapshots={[snapshot('2026-08-05', 31.25, 59), snapshot('2026-09-02', 40, 44)]}
+      />,
+    )
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('31.2%')).toBeInTheDocument()
+    expect(within(table).queryByText('31.3%')).not.toBeInTheDocument()
+  })
+
   it('does not pretend an empty history is a measurement', () => {
     render(<TrendView snapshots={[]} />)
     expect(screen.getByText(/no snapshots yet/i)).toBeInTheDocument()

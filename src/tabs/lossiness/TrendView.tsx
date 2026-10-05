@@ -1,4 +1,5 @@
 import { EmptyState } from '../../components/EmptyState'
+import { formatPercent } from '../../lib/coverage'
 import type { SnapshotMetrics } from '../../types/atlas'
 
 /**
@@ -150,7 +151,7 @@ function value(metric: Metric): number {
 function format(metric?: Metric): string {
   if (!metric) return 'not measured'
   if (metric.unit === 'pct' && metric.value_pct !== null) {
-    return `${Number.isInteger(metric.value_pct) ? metric.value_pct : metric.value_pct.toFixed(1)}%`
+    return formatPercent(metric.value_pct, 1)
   }
   return String(metric.numerator)
 }
