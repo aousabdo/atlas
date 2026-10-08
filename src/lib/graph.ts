@@ -38,9 +38,9 @@
  * and components are therefore computed on the physical links only, and the
  * logical ones are named under `anomalies.logicalEdges` rather than dropped.
  * Counting them made VLANs read as redundancy: in the sample, the VLANs between
- * the sensor, ops, cloud and management segments formed loops around Core
- * Switch, so counting every link said losing it strands 8 devices. On cable
- * and radio it strands 22.
+ * the sensor, ops and cloud segments formed loops around Core Switch, so
+ * counting every link said losing it strands 8 devices. On cable and radio it
+ * strands 23.
  *
  * A device joined only by VLAN has no cable or radio link drawn to it, so the
  * drawing does not say how it attaches. It is named, never counted as cut off,

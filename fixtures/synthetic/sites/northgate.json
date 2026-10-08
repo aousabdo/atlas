@@ -208,12 +208,12 @@
       "zone": "mgmt"
     },
     {
-      "description": "Guest VLAN carrying the on-campus service VMs",
+      "description": "Service VMs hosted on the management hypervisor pair",
       "id": "mgmt_vm_pool",
       "ip": null,
       "label": "Virtual Machine Pool",
       "subnet": "198.51.100.96/27",
-      "type": "vlan",
+      "type": "server",
       "zone": "mgmt"
     },
     {
