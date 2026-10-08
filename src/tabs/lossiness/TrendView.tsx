@@ -26,21 +26,56 @@ import type { SnapshotMetrics } from '../../types/atlas'
  * Nothing here re-checks that, because a component handed a list has no way
  * to. If the invariant is ever weakened, it has to be weakened at the provider
  * and this comment has to go with it.
+ *
+ * What this component does check is whose the snapshots are, because it can:
+ * each one names its project, and `project` is the bundle's own slug. A
+ * snapshot whose project is anything else, or nothing, is refused, and so is
+ * the comparison it would have been part of. The ingest applies the same rule
+ * when it writes the manifest, so a bundle it builds never reaches the refusal.
+ * One written before snapshots had an identity, or assembled by hand, can: the
+ * documented workflow seeds public/data with the sample and then ingests real
+ * data into the same directory, and the old ingest indexed both, so the
+ * first-to-last change below was the gap between two projects.
+ *
+ * The refusal stays inside this section rather than failing the tab. The
+ * scorecard above is the bundle's own report and is right either way; only the
+ * history is in question.
  */
-export function TrendView({ snapshots }: { snapshots: SnapshotMetrics[] }) {
+export function TrendView({
+  snapshots,
+  project,
+}: {
+  snapshots: SnapshotMetrics[]
+  project: string
+}) {
   return (
     <section aria-labelledby="trend-heading" className="mt-8">
       <h2 id="trend-heading" className="text-base font-semibold text-ink">
         Trend
       </h2>
       <div className="mt-3">
-        <TrendBody snapshots={snapshots} />
+        <TrendBody snapshots={snapshots} project={project} />
       </div>
     </section>
   )
 }
 
-function TrendBody({ snapshots }: { snapshots: SnapshotMetrics[] }) {
+function TrendBody({
+  snapshots,
+  project,
+}: {
+  snapshots: SnapshotMetrics[]
+  project: string
+}) {
+  // Absent, null and "" are all "no identity", as they are to the ingest, and
+  // no identity matches nothing: not even a bundle that names no project.
+  const foreign = snapshots.filter(
+    (snapshot) => !snapshot.project || snapshot.project !== project,
+  )
+  if (foreign.length > 0) {
+    return <NotCompared project={project} foreign={foreign} />
+  }
+
   if (snapshots.length === 0) {
     return (
       <EmptyState
@@ -112,6 +147,49 @@ function TrendBody({ snapshots }: { snapshots: SnapshotMetrics[] }) {
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/** Why the history is not drawn, and which snapshots are the reason. */
+function NotCompared({
+  project,
+  foreign,
+}: {
+  project: string
+  foreign: SnapshotMetrics[]
+}) {
+  return (
+    // Labels are dates that change on every ingest run; see BuildSection.
+    <div data-volatile className="rounded border border-line bg-surface p-6">
+      <p className="font-medium text-ink">
+        Not compared: these snapshots are not all from this project
+      </p>
+      <p className="mt-1 text-sm text-muted">
+        This bundle is <span className="font-mono">{project}</span>. Comparing
+        it with another project&rsquo;s snapshot, or with one that does not
+        say whose it is, would show the difference between two projects as
+        movement in this one.
+      </p>
+      <ul className="mt-3 list-disc pl-5 text-sm text-ink">
+        {foreign.map((snapshot) => (
+          <li key={labelOf(snapshot)}>
+            <span className="tabular">{labelOf(snapshot)}</span>
+            {': '}
+            {!snapshot.project ? (
+              'carries no project identity'
+            ) : (
+              <>
+                belongs to <span className="font-mono">{snapshot.project}</span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted-2">
+        Rebuild the bundle with the current ingest, which indexes only this
+        project&rsquo;s snapshots and names any other file it finds.
+      </p>
     </div>
   )
 }

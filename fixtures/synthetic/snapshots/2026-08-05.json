@@ -66,5 +66,6 @@
     }
   ],
   "git_sha": "sample",
-  "label": "2026-08-05"
+  "label": "2026-08-05",
+  "project": "reference-cuas"
 }

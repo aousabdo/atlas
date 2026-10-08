@@ -353,8 +353,9 @@ def reference_paths(reference_repo):
 def build_bundle_from(root, out_dir):
     """Run the whole ingest over a source repo. Returns the output directory.
 
-    Provenance is pinned to the synthetic generator's constants so the manifest
-    this produces can be compared against the committed one.
+    Provenance and project identity are pinned to the synthetic generator's
+    constants so the manifest and project.json this produces can be compared
+    against the committed ones.
     """
     from atlas_ingest import synthetic
     from atlas_ingest.bundle import emit_bundles
@@ -385,6 +386,8 @@ def build_bundle_from(root, out_dir):
         baseline_date=synthetic.BASELINE_DATE,
         built_at=synthetic.BUILT_AT,
         git_sha=synthetic.GIT_SHA,
+        project_slug=synthetic.PROJECT_SLUG,
+        project_name=synthetic.PROJECT_NAME,
     )
     return Path(out_dir)
 

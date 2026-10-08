@@ -17,14 +17,23 @@ import shutil
 
 import pytest
 
+from atlas_ingest import synthetic
 from conftest import SYNTHETIC_BUNDLE, build_bundle_from
 
-# Every bundle file the ingest must reproduce exactly. project.json is
-# excluded here and checked below, for a stated reason.
+# Every bundle file the ingest must reproduce exactly, with nothing excluded.
+#
+# project.json used to be excluded, pinned as a known disagreement:
+# bundle.emit_bundles hard-coded slug 'dhs-cuas' whatever its inputs were, so
+# the ingest and the generator named different projects. The slug is now
+# passed in, and it is the identity every snapshot carries. The snapshot used
+# to be excluded too, because the generator restated a figure in it; both
+# writers now go through bundle.snapshot_payload, so it agrees like every
+# other file.
 MUST_MATCH = [
     "systems.json", "links.json", "crosswalk.json", "glossary.json",
     "methodology.json", "lossiness.json", "coverage.json", "manifest.json",
-    "sites/northgate.json", "sites/westfield.json", "snapshots/2026-08-05.json",
+    "project.json", "sites/northgate.json", "sites/westfield.json",
+    "snapshots/2026-08-05.json",
 ]
 
 
@@ -49,7 +58,7 @@ def test_no_committed_bundle_file_is_left_unchecked():
         str(p.relative_to(SYNTHETIC_BUNDLE))
         for p in SYNTHETIC_BUNDLE.rglob("*.json")
     }
-    accounted = set(MUST_MATCH) | {"project.json"}
+    accounted = set(MUST_MATCH)
     assert committed == accounted
 
 
@@ -79,20 +88,13 @@ def test_a_later_build_of_the_same_inputs_shows_no_change(
     assert [a["key"] for a, b in zip(first, last) if a != b] == []
 
 
-def test_the_bundle_and_the_generator_disagree_only_about_the_project_name(rebuilt):
-    """A real finding, pinned rather than papered over.
+def test_both_writers_stamp_the_snapshot_with_the_same_project(rebuilt):
+    """The ingest and the generator write their snapshots separately, so each
+    has to stamp the identity, and it has to be the slug project.json carries:
+    that is the field the browser compares a snapshot against."""
+    live = _read(rebuilt, "snapshots/2026-08-05.json")
+    committed = _read(SYNTHETIC_BUNDLE, "snapshots/2026-08-05.json")
 
-    bundle.emit_bundles hard-codes slug 'dhs-cuas' and name 'DHS C-UAS
-    Architecture'; synthetic.py names the sample project 'reference-cuas' /
-    'Reference C-UAS Architecture'. So the shipped sample bundle and anything
-    the ingest emits carry different project identities, and the ingest's
-    identity is the pre-rename one. Every other field agrees.
-    """
-    live = _read(rebuilt, "project.json")
-    committed = _read(SYNTHETIC_BUNDLE, "project.json")
+    assert live["project"] == committed["project"] == synthetic.PROJECT_SLUG
+    assert _read(SYNTHETIC_BUNDLE, "project.json")["slug"] == synthetic.PROJECT_SLUG
 
-    assert {k for k in live if live[k] != committed[k]} == {"slug", "name"}
-    assert (live["slug"], live["name"]) == ("dhs-cuas", "DHS C-UAS Architecture")
-    assert (committed["slug"], committed["name"]) == (
-        "reference-cuas", "Reference C-UAS Architecture",
-    )

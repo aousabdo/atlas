@@ -124,7 +124,7 @@ export function LossinessTab() {
         dimensions={report.dimensions}
         systemName={(id) => names.get(id) ?? id}
       />
-      <TrendView snapshots={snapshots} />
+      <TrendView snapshots={snapshots} project={project.slug} />
       <TopGaps gaps={report.top_gaps} />
 
       {open && (
