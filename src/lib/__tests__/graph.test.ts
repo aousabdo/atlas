@@ -83,9 +83,6 @@ function lineOf(n: number): GraphInput {
   return chainOf(ids)
 }
 
-/** Sample devices whose every recorded link is a VLAN: no cable is drawn to them. */
-const LOGICAL_ONLY = ['cloud_identity', 'cloud_tak_server', 'cop_application', 'gov_cloud', 'mgmt_vm_pool']
-
 const SAMPLE: Topology = JSON.parse(
   readFileSync(join(process.cwd(), 'fixtures', 'synthetic', 'sites', 'northgate.json'), 'utf-8'),
 ) as Topology
@@ -472,10 +469,7 @@ describe('articulationPoints', () => {
         'sensor_net_rf_array',
       ],
     })
-    // Inside its own piece: the devices joined only by VLAN are not in it.
-    expect(found.severedCount + found.retainedCount).toBe(
-      SAMPLE.devices.length - 1 - LOGICAL_ONLY.length,
-    )
+    expect(found.severedCount + found.retainedCount).toBe(SAMPLE.devices.length - 1)
   })
 
   it('agrees with brute force on random small graphs', () => {
@@ -643,9 +637,7 @@ describe('bridges', () => {
     )!
     expect(found.severedCount).toBe(8)
     expect(found.severedDeviceIds).toContain('sensor_net_switch')
-    expect(found.severedCount + found.retainedCount).toBe(
-      SAMPLE.devices.length - LOGICAL_ONLY.length,
-    )
+    expect(found.severedCount + found.retainedCount).toBe(SAMPLE.devices.length)
   })
 
   it('agrees with brute force on random small graphs', () => {
@@ -1060,49 +1052,67 @@ describe('physical and logical links', () => {
     expect(g.anomalies.isolatedDeviceIds).toEqual([])
   })
 
-  it('finds the cuts the VLAN links were hiding in the sample', () => {
+  it('counts the sample on cable and radio, with its VLAN flows named apart', () => {
     const found = articulationPoints(SAMPLE)
-    expect(found).toHaveLength(20)
+    expect(found).toHaveLength(22)
     const core = found.find((p) => p.deviceId === 'core_switch')!
-    expect(core.severedCount).toBe(22)
-    expect(core.fragments.map((f) => f.count)).toEqual([43, 9, 7, 6])
+    expect(core.severedCount).toBe(23)
+    expect(core.fragments.map((f) => f.count)).toEqual([47, 9, 8, 6])
     expect(found.find((p) => p.deviceId === 'radio_net_switch')?.severedDeviceIds).toEqual([
       'adsb_receiver',
     ])
-    expect(buildGraph(SAMPLE).anomalies.logicalOnlyDeviceIds).toEqual(LOGICAL_ONLY)
+    // The VM pool is hosted on the management hosts, so their switch strands it.
+    expect(found.find((p) => p.deviceId === 'mgmt_switch')?.severedDeviceIds).toContain(
+      'mgmt_vm_pool',
+    )
+    const g = buildGraph(SAMPLE)
+    expect(g.anomalies.logicalEdges).toHaveLength(8)
+    expect(g.anomalies.logicalOnlyDeviceIds).toEqual([])
+    expect(g.rootIds).toEqual(['internet'])
   })
+
+  // internet - core - desk on cable; app1 joined to desk and app2 to app1 by
+  // VLAN only, so the drawing never says how either app attaches.
+  const NET: GraphInput = {
+    devices: ['internet', 'core', 'desk', 'app1', 'app2'].map((id) => device(id)),
+    edges: [
+      edge('internet', 'core'),
+      edge('core', 'desk'),
+      edge('desk', 'app1', { link_type: 'vlan' }),
+      edge('app1', 'app2', { link_type: 'vlan' }),
+    ],
+    zones: {},
+  }
 
   it('still measures from the entry point of the drawing', () => {
     // Roots are a drawing convention, so a device joined only by VLAN must
     // not become an extra place reachability is measured from.
-    expect(buildGraph(SAMPLE).rootIds).toEqual(['internet'])
-    const blast = blastRadius(SAMPLE, 'core_switch')
+    const blast = blastRadius(NET, 'core')
     expect(blast.rootIds).toEqual(['internet'])
-    expect(blast.unreachableCount).toBe(22)
-    // Joined only by VLAN is not the same as cut off: the drawing does not say
-    // how those five attach, so they are named apart and counted nowhere.
+    expect(blast.unreachableDeviceIds).toEqual(['desk'])
+    // Joined only by VLAN is not the same as cut off: they are named apart
+    // and counted nowhere.
     expect(blast.alreadyUnreachableDeviceIds).toEqual([])
-    expect(blast.logicalOnlyDeviceIds).toEqual(LOGICAL_ONLY)
+    expect(blast.logicalOnlyDeviceIds).toEqual(['app1', 'app2'])
   })
 
   it('measures nothing from a starting point joined only by VLAN', () => {
-    const roots = ['cop_application', 'cloud_identity']
-    const blast = blastRadius(SAMPLE, 'core_switch', { rootIds: roots })
-    expect(blast.logicalOnlyRootIds).toEqual(['cloud_identity', 'cop_application'])
+    const blast = blastRadius(NET, 'core', { rootIds: ['app2', 'app1'] })
+    expect(blast.logicalOnlyRootIds).toEqual(['app1', 'app2'])
     expect(blast.reachableBeforeCount).toBe(0)
     expect(blast.unreachableCount).toBe(0)
   })
 
   it('still measures from the physical roots when only some are joined by VLAN', () => {
-    const blast = blastRadius(SAMPLE, 'core_switch', { rootIds: ['internet', 'cop_application'] })
-    expect(blast.logicalOnlyRootIds).toEqual(['cop_application'])
-    expect(blast.unreachableCount).toBe(22)
+    const blast = blastRadius(NET, 'core', { rootIds: ['internet', 'app1'] })
+    expect(blast.logicalOnlyRootIds).toEqual(['app1'])
+    expect(blast.unreachableDeviceIds).toEqual(['desk'])
   })
 
   it('says removing a device joined only by VLAN cuts no physical path', () => {
-    const blast = blastRadius(SAMPLE, 'gov_cloud')
+    const blast = blastRadius(NET, 'app1')
     expect(blast.removedIsLogicalOnly).toBe(true)
     expect(blast.unreachableCount).toBe(0)
-    expect(blast.logicalOnlyDeviceIds).toEqual(LOGICAL_ONLY.filter((id) => id !== 'gov_cloud'))
+    expect(blast.logicalOnlyDeviceIds).toEqual(['app2'])
   })
 })

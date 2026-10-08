@@ -82,28 +82,27 @@ describe('Single points of failure', () => {
 
     expect(
       await within(region).findByRole('button', { name: /Single points of failure/ }),
-    ).toHaveAccessibleName(/20/)
+    ).toHaveAccessibleName(/22/)
 
-    // Counted on cable and radio: Core Switch strands 22 of the 71 devices.
-    // The VLANs between the sensor, ops and management segments used to read
-    // as a way round it, but every one of them rides through Core Switch.
+    // Counted on cable and radio: Core Switch strands 23 of the 71 devices.
+    // The VLAN data flows between its segments used to read as a way round
+    // it, but every one of them rides through Core Switch.
     const row = await within(region).findByRole('button', { name: /^Core Switch/ })
-    expect(row).toHaveAccessibleName(/22 of 71 cut off/)
+    expect(row).toHaveAccessibleName(/23 of 71 cut off/)
   })
 
-  it('names the devices joined only by logical links instead of counting pieces', async () => {
+  it('has nothing to say about VLAN-only devices when every device has a cable', async () => {
     await renderWithProvider(<NetworkTab />)
     const region = await panel()
     await within(region).findByRole('button', { name: /^Core Switch/ })
-
-    expect(within(region).getByText(/joined only by VLAN links/)).toHaveTextContent(/5 devices/)
+    expect(within(region).queryByText(/joined only by VLAN/)).not.toBeInTheDocument()
     expect(within(region).queryByText(/separate\s+pieces/)).not.toBeInTheDocument()
   })
 
   it('drills a chokepoint through to the devices it would isolate', async () => {
     const { user } = await renderWithProvider(<NetworkTab />)
     const region = await panel()
-    await user.click(await within(region).findByRole('button', { name: /Show all 20/ }))
+    await user.click(await within(region).findByRole('button', { name: /Show all 22/ }))
 
     const row = within(region).getByRole('button', { name: /^Field House Access Switch/ })
     expect(row).toHaveAttribute('aria-expanded', 'false')
@@ -247,29 +246,42 @@ describe('Blast radius', () => {
     )
 
     expect(await within(region).findByText(/If this device is removed/i)).toBeInTheDocument()
-    expect(within(region).getByText(/3 of 71/)).toBeInTheDocument()
+    expect(within(region).getByText(/\b3 of 71 lose their path/)).toBeInTheDocument()
     // A reachability count means nothing without the frame it was measured from.
     expect(within(region).getByText(/Internet/)).toBeInTheDocument()
   })
 
-  it('never calls the devices joined only by VLAN cut off, and names them', async () => {
-    const { user } = await renderWithProvider(<NetworkTab />)
-    const region = await panel()
-    await user.click(
-      within(await devices()).getByRole('button', { name: /Field House Access Switch/ }),
-    )
-    expect(await within(region).findByText(/3 of 71/)).toBeInTheDocument()
-    expect(within(region).queryByText(/already cut off/)).not.toBeInTheDocument()
-    expect(within(region).getByText(/joined only by VLAN are left out/)).toHaveTextContent(/5/)
+  // A yard on cable, with two applications joined to it by VLAN only.
+  const VLAN_YARD: Topology = {
+    ...SPLIT,
+    site_id: 'sample_vlan_yard',
+    devices: [
+      ...SPLIT.devices.slice(0, 3),
+      device('yard_tenant', 'Yard Tenant', 'application', 'yard'),
+      device('yard_feed', 'Yard Feed', 'application', 'yard'),
+    ],
+    edges: [
+      edge('gate_sensor', 'yard_switch'),
+      edge('yard_switch', 'watch_desk'),
+      { source: 'watch_desk', target: 'yard_tenant', link_type: 'vlan', label: null },
+      { source: 'yard_tenant', target: 'yard_feed', link_type: 'vlan', label: null },
+    ],
+  }
 
-    await user.click(within(region).getByRole('button', { name: /Name the 5/ }))
-    expect(within(region).getByRole('button', { name: 'Mission COP Application' })).toBeInTheDocument()
+  it('never calls the devices joined only by VLAN cut off, and names them', async () => {
+    const { user } = renderPanel(VLAN_YARD, 'yard_switch')
+    const region = await panel()
+    expect(await within(region).findByText(/1 of 5 lose their path/)).toBeInTheDocument()
+    expect(within(region).queryByText(/already cut off/)).not.toBeInTheDocument()
+    expect(within(region).getByText(/joined only by VLAN are left out/)).toHaveTextContent(/2/)
+
+    await user.click(within(region).getByRole('button', { name: /Name the 2/ }))
+    expect(within(region).getByRole('button', { name: 'Yard Tenant' })).toBeInTheDocument()
   })
 
   it('does not claim a route when every starting point is joined only by VLAN', async () => {
-    const { user } = await renderWithProvider(<NetworkTab />)
+    const { user } = renderPanel(VLAN_YARD, 'yard_switch')
     const region = await panel()
-    await user.click(within(await devices()).getByRole('button', { name: /^Core Switch/ }))
     await user.selectOptions(within(region).getByLabelText('Reachable from'), 'application')
 
     expect(

@@ -977,18 +977,21 @@ EDGES_A = [
     ("core_switch", "core_console", "ethernet", None),
     ("core_console", "mgmt_jump", "ethernet", "Console to jump host"),
     ("core_router", "secure_backbone", "wan", "Campus to backbone"),
-    ("secure_backbone", "gov_cloud", "vlan", "Backbone to cloud tenancy"),
-    ("gov_cloud", "cop_application", "vlan", None),
-    ("gov_cloud", "cloud_tak_server", "vlan", None),
-    ("gov_cloud", "cloud_identity", "vlan", None),
+    # The tenancy is reached over the backbone WAN and hosts the COP tiers on
+    # its own network. These are attachments, so they are physical links; the
+    # VLANs are the data flows drawn on top of them.
+    ("secure_backbone", "gov_cloud", "wan", "Backbone to cloud tenancy"),
+    ("gov_cloud", "cop_application", "ethernet", "Tenant network"),
+    ("gov_cloud", "cloud_tak_server", "ethernet", "Tenant network"),
+    ("gov_cloud", "cloud_identity", "ethernet", "Tenant network"),
     ("cop_application", "cloud_identity", "vlan", "Attribute release"),
 
     ("core_switch", "mgmt_switch", "ethernet", None),
     ("mgmt_switch", "mgmt_storage", "ethernet", None),
     ("mgmt_switch", "mgmt_host_a", "ethernet", None),
     ("mgmt_switch", "mgmt_host_b", "ethernet", None),
-    ("mgmt_host_a", "mgmt_vm_pool", "vlan", None),
-    ("mgmt_host_b", "mgmt_vm_pool", "vlan", None),
+    ("mgmt_host_a", "mgmt_vm_pool", "ethernet", "Hosted on"),
+    ("mgmt_host_b", "mgmt_vm_pool", "ethernet", "Hosted on"),
     ("mgmt_switch", "mgmt_ntp", "ethernet", None),
     ("mgmt_switch", "mgmt_jump", "ethernet", None),
 
