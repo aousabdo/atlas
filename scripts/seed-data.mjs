@@ -3,24 +3,33 @@
  * Copy the committed sample bundle into public/data.
  *
  * public/data is a build output and is gitignored, so a fresh clone has no
- * bundle at all: the dev server, the unit suite and the production build would
+ * bundle at all: the dev server, the e2e suites and the production build would
  * all read a directory that is not there. fixtures/synthetic is the committed
  * source of truth, and this is the one step that turns it into a servable
- * bundle. Run it after a clone, and again whenever the fixtures change.
+ * bundle. Run it after a clone, and again whenever the fixtures change. The
+ * unit suite does not need it; it reads fixtures/synthetic directly.
  *
  * The destination is emptied first. Leaving stale files behind is how a bundle
  * that no longer contains a site keeps serving the old one, which is exactly
  * the class of failure the sample data exists to avoid.
  *
- *   node scripts/seed-data.mjs
+ * But only when what is there is the sample. public/data is also where the
+ * README tells an analyst to build the real bundle, and being gitignored, that
+ * bundle exists nowhere else. Its snapshots/ cannot be rebuilt at all, since
+ * each one records a build that has already happened. So anything this cannot
+ * identify as the sample makes it refuse, name what it found, and change
+ * nothing. --force discards it anyway.
+ *
+ *   node scripts/seed-data.mjs [--force]
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const source = join(repo, 'fixtures', 'synthetic')
 const destination = join(repo, 'public', 'data')
+const force = process.argv.slice(2).includes('--force')
 
 if (!existsSync(source)) {
   console.error(
@@ -31,9 +40,85 @@ if (!existsSync(source)) {
   process.exit(1)
 }
 
+// .gitkeep is what keeps public/data present in a fresh clone, and the Finder
+// drops .DS_Store into any directory it opens. Neither is a bundle.
+const NOT_A_BUNDLE = new Set(['.gitkeep', '.DS_Store'])
+
+const sampleSlug = JSON.parse(readFileSync(join(source, 'project.json'), 'utf-8')).slug
+
+const snapshotsIn = (dir) =>
+  existsSync(join(dir, 'snapshots'))
+    ? readdirSync(join(dir, 'snapshots')).filter((name) => name.endsWith('.json')).sort()
+    : []
+
+/**
+ * Why `dir` does not hold the sample, or null if it does or holds nothing.
+ *
+ * The sample is identified by project.json's slug, which the synthetic
+ * generator writes and the real ingest never does. A snapshot naming another
+ * project is refused even beside the sample's project.json, because the
+ * snapshot is the part that matters. One that names no project defers to
+ * project.json: snapshots written before they carried one, the sample's
+ * included, have none.
+ */
+function notTheSample(dir) {
+  if (!existsSync(dir)) return null
+  if (readdirSync(dir).every((entry) => NOT_A_BUNDLE.has(entry))) return null
+
+  if (!existsSync(join(dir, 'project.json'))) {
+    return 'it has no project.json, so nothing says it is the sample'
+  }
+  let slug
+  try {
+    slug = JSON.parse(readFileSync(join(dir, 'project.json'), 'utf-8'))?.slug
+  } catch (error) {
+    return `its project.json does not parse (${error.message})`
+  }
+  if (slug !== sampleSlug) {
+    const whose = slug ? `project "${slug}"` : 'a project.json with no slug'
+    return `it holds a bundle for ${whose}, not the sample's "${sampleSlug}"`
+  }
+
+  const foreign = []
+  for (const name of snapshotsIn(dir)) {
+    let project
+    try {
+      project = JSON.parse(readFileSync(join(dir, 'snapshots', name), 'utf-8'))?.project
+    } catch {
+      foreign.push(`${name} (does not parse)`)
+      continue
+    }
+    if (project && project !== sampleSlug) foreign.push(`${name} (project "${project}")`)
+  }
+  if (foreign.length > 0) {
+    return `beside the sample, it holds snapshots that are not the sample's: ${foreign.join(', ')}`
+  }
+  return null
+}
+
+const reason = notTheSample(destination)
+if (reason) {
+  const snapshots = snapshotsIn(destination)
+  const atStake =
+    snapshots.length > 0
+      ? `It has ${snapshots.length} snapshot(s), which no rebuild can recreate:\n` +
+        snapshots.map((name) => `  snapshots/${name}\n`).join('')
+      : ''
+  if (!force) {
+    console.error(
+      `Refusing to empty public/data: ${reason}.\n` +
+        atStake +
+        `public/data is gitignored, so this may be the only copy. Move it out of ` +
+        `the repo first, or discard it with:\n` +
+        `  node scripts/seed-data.mjs --force`,
+    )
+    process.exit(1)
+  }
+  console.warn(`--force: discarding public/data, although ${reason}.\n${atStake}`.trimEnd())
+}
+
 if (existsSync(destination)) {
   for (const entry of readdirSync(destination)) {
-    // .gitkeep is what keeps public/data present in a fresh clone.
     if (entry === '.gitkeep') continue
     rmSync(join(destination, entry), { recursive: true, force: true })
   }

@@ -252,10 +252,19 @@ The classifier tables are also emitted as TypeScript (`npm run ingest:tables`) s
 in-browser parser uses the same tables rather than a hand-maintained copy. A test
 regenerates that file and fails if it has drifted.
 
+`public/data` is gitignored, so a bundle built there exists nowhere else, and its
+`snapshots/` cannot be rebuilt from any input, since each one records a build that has
+already happened. `npm test` does not touch it: the unit suite reads `fixtures/synthetic`
+directly. `node scripts/seed-data.mjs`, which copies the sample in, refuses to empty a
+`public/data` it cannot identify as the sample (by `project.json`'s slug, and by any
+snapshot that names its project), names what is there, and changes nothing. To go back to
+the sample, move the real bundle out of the repo first. `--force` discards it instead.
+
 ## Development
 
 ```bash
 npm install          # needs one-time network access to cdn.sheetjs.com
+node scripts/seed-data.mjs  # copy the sample bundle into public/data; refuses over a real one
 npm run dev
 npm test             # unit and component tests
 npm run e2e          # visual regression, needs Chromium

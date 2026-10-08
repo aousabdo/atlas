@@ -115,13 +115,18 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # public/data is generated and gitignored, so a fresh checkout has none
-      # and every tab test would render its load-failure state instead.
+      # Before anything seeds public/data, on purpose. The suite reads
+      # fixtures/synthetic, and a test that goes back to reading public/data
+      # fails here instead of passing on a seeded copy. That is what lets
+      # npm test leave public/data alone, which is where the real bundle lives.
+      - run: npm test
+      - run: npm run test:seed
+      # public/data is generated and gitignored, so a fresh checkout has none,
+      # and the build serves whatever is in it.
       - run: node scripts/seed-data.mjs
       # `npm run build` is `tsc --noEmit && vite build && check-offline`, so the
       # air-gap guarantee is enforced on every push rather than asserted in docs.
       - run: npm run build
-      - run: npm test
 
   visual:
     if: ${{ !inputs.refresh_baselines }}
