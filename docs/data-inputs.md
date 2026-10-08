@@ -118,7 +118,7 @@ and it renders emptier. That is the failure mode to watch for.
 | Header | Required | What it does | Without it |
 |---|---|---|---|
 | `Project/System` | yes | The system name. Also the source of its id and its display label. | The load fails. |
-| `Capability Gap/Requirement` | no | The category, looked up in the category table to place the system on a branch. | Every system falls back to the deployed-asset category. |
+| `Capability Gap/Requirement` | no | The category, looked up in the category table to place the system on a branch. A category on the gaps branch (`Workflow shortfall`, `Exchange shortfall`) marks a shortfall row: it records a gap in the architecture, not a system, so realization leaves it out of its denominator. | Every system falls back to the deployed-asset category. |
 | `Infrastructure/Technology` | no | Opens the detail sentence for the system. | The detail sentence loses its first clause. |
 | `Owner Organization` | no | Classified into an owner group by the owner rules. | Every system lands in the External owner group and counts as unconfirmed, unless the `Confirmed` column says otherwise. |
 | `Existing Interfaces` | no | The integrations prose, which is mined for links between systems. | Nothing is mined. The only links left are the ones stated by hand in the overrides file, and with no overrides file the map draws systems and nothing between them. |
@@ -273,7 +273,10 @@ Field by field:
   carries that system id. The two other cases are real facts with different
   meanings and are labelled as such: a mapping with an empty `devices` list is a
   survey gap, and a mapping the matrix does not carry documents hardware that no
-  matrix row explains.
+  matrix row explains. A shortfall row is never realized: it records that no
+  system exists, so it takes no mapping at all, not even an empty one, and the
+  load fails if it has one. Record a checked absence for it under
+  `not_deployed_at_site`.
 - **`matrix_id_exists: false`** is how you state that the second case is
   deliberate. Omit it and it defaults to true.
 - **`confidence`** is `high`, `medium` or `low`. Anything else is counted as
@@ -291,9 +294,11 @@ A legacy single-site file with `mappings`, `not_deployed_at_northgate` and
 `unclaimed_devices` at the top level and no `sites` object is still accepted,
 and is wrapped as one site keyed `northgate`.
 
-Note that the browser path does not reject a mapping naming a system the matrix
-has never heard of. It counts it as outside the matrix and says so. The Python
-ingest is stricter and fails closed.
+Both paths refuse the same mappings for the same reasons, listed under
+cross-file integrity failures below: a mapping naming a system the matrix has
+never heard of fails the load unless it sets `matrix_id_exists: false`, and so
+does a mapping for a shortfall row. A mapping with no `devices` key is read as
+naming no hardware.
 
 ---
 
@@ -346,6 +351,12 @@ A graph export, in the shape the network exporters produce:
 - `ip` and `subnet` are opaque text. The source mixes bare addresses and CIDR,
   and nothing parses them.
 - `edges` may also carry `vlan`, `port_source` and `port_target`.
+- `link_type` is free text, with one value that changes the analysis: an edge
+  whose `link_type` is `vlan` (any case) is a logical link. It rides on cable
+  drawn elsewhere, so single points of failure, bridges and blast radius leave
+  it out, and the Network tab names any device joined only by VLAN. Reach still
+  follows it, because a VLAN is how the data travels. Every other value,
+  including ones ATLAS has never seen, counts as a physical link.
 
 Two rules are enforced, and both fail the whole load rather than dropping a
 device:
@@ -467,6 +478,13 @@ Each line under that heading is one of:
 - `system_device_map.sites.<site>.mappings.<system>: matrix_id_exists:false, but
   the matrix does carry that system id; drop the flag or rename the mapping` -
   the same fact stated two ways, and different views read different ones.
+- `system_device_map.sites.<site>.mappings.<system>: the matrix files <system> as
+  a shortfall, not a system, so it takes no mapping; record a check under
+  not_deployed_at_site` - the row's category is on the gaps branch (`Workflow
+  shortfall`, `Exchange shortfall`), so it records that no system exists.
+  Realization leaves it out, so a mapping for it would either be counted by the
+  confidence tally against a figure that excludes it, or read as a system whose
+  hardware nobody has found yet.
 - `system_device_map.sites.<site>.mappings.<system>: device '<device>' is not in
   the <site> topology` - a mapping realizes a system with hardware the site does
   not have. Only checked when that site's topology was loaded.

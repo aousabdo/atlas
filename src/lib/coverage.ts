@@ -15,9 +15,41 @@
  * number of mapping rows, the number naming hardware, and the number that were
  * both. Only the last one is coverage; the other two now say what they are.
  */
+import { CATEGORY_MAP } from '../data/generated/classifierTables'
 import type {
   Confidence, CoverageMatrix, CoverageSite, Mapping, System, SystemId,
 } from '../types/atlas'
+
+/** The category-map branch the matrix files its gap rows under. */
+const SHORTFALL_BRANCH = 'gaps'
+
+/**
+ * A row the matrix files as a shortfall ('Workflow shortfall', 'Exchange
+ * shortfall'): it records that something is missing, not a system anyone could
+ * field. Realization leaves these out of its denominator; it can be neither
+ * realized nor unmapped. Mirrors curation.is_shortfall in the ingest, which
+ * lossiness and validate both use, and both read the same generated category
+ * map.
+ */
+export function isShortfall(system: Pick<System, 'category'>): boolean {
+  return CATEGORY_MAP[system.category]?.branch === SHORTFALL_BRANCH
+}
+
+/**
+ * The matrix ids realization counts over: every system except the shortfall
+ * rows. The realization gap, the per-site coverage panel and the Reference
+ * confidence section all divide by this set, and each counts ids rather than
+ * rows, so a count and a share printed side by side cannot disagree.
+ */
+export function fieldableSystemIds(systems: readonly System[]): ReadonlySet<SystemId> {
+  const shortfalls = new Set(shortfallSystemIds(systems))
+  return new Set(systems.map((s) => s.id).filter((id) => !shortfalls.has(id)))
+}
+
+/** The shortfall row ids, each once, sorted. Mirrors detail.shortfalls. */
+export function shortfallSystemIds(systems: readonly System[]): SystemId[] {
+  return [...new Set(systems.filter(isShortfall).map((s) => s.id))].sort()
+}
 
 /** The set the predicate tests membership against. */
 export function matrixIdSet(systems: readonly System[]): ReadonlySet<SystemId> {

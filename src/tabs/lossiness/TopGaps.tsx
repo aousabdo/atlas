@@ -8,15 +8,19 @@ import type { TopGap } from '../../types/atlas'
  * The score is risk plus one point for an unconfirmed owner and one for no
  * hardware mapping. Ties break on system id rather than on judgement, so the
  * order is reproducible and the table never implies a ranking it did not earn.
+ *
+ * A shortfall row records a gap, not a system, so it can take no hardware
+ * point and its Hardware cell says so instead of reading "mapped".
  */
 export function TopGaps({ gaps }: { gaps: TopGap[] }) {
   return (
     <section aria-label="Top gaps" className="mt-8">
       <h2 className="text-base font-semibold text-ink">Top gaps</h2>
       <p className="mt-1 text-sm text-muted">
-        High risk scores 3, an unconfirmed owner 1, no hardware mapping 1.
-        Systems scoring 0 are left out. Equal scores are listed by system id,
-        not by importance.
+        High risk scores 3, an unconfirmed owner 1, no hardware mapping 1. A
+        shortfall row records a gap rather than a system, so it has no hardware
+        to score. Systems scoring 0 are left out. Equal scores are listed by
+        system id, not by importance.
       </p>
       {gaps.length === 0 ? (
         <div className="mt-3">
@@ -65,7 +69,7 @@ export function TopGaps({ gaps }: { gaps: TopGap[] }) {
                     {gap.unconfirmed ? 'unconfirmed' : 'confirmed'}
                   </td>
                   <td className="px-3 py-2 text-muted">
-                    {gap.unmapped ? 'unmapped' : 'mapped'}
+                    {gap.shortfall ? 'shortfall row' : gap.unmapped ? 'unmapped' : 'mapped'}
                   </td>
                   <td className="tabular px-3 py-2 text-ink">{gap.score}</td>
                 </tr>

@@ -111,6 +111,36 @@ function realization(report: LossinessReport) {
   return report.dimensions.find((d) => d.key === 'realization_gap')!
 }
 
+describe('the realization gap leaves shortfall rows out', () => {
+  it('counts neither realized nor unmapped a row that records a gap', () => {
+    // Mirrors test_realization_gap_leaves_shortfall_rows_out in the ingest.
+    const base = inputs({ alpha: mapping() })
+    const report = computeLossiness({
+      ...base,
+      systems: [system('alpha'), system('gap', { category: 'Workflow shortfall', risk: 'high' })],
+    })
+    const gap = realization(report)
+    expect([gap.numerator, gap.denominator]).toEqual([1, 1])
+    expect(gap.detail.shortfalls).toEqual(['gap'])
+    expect(gap.detail.unmapped).toEqual([])
+    expect((gap.detail.per_site as Record<string, { total: number }>).harbor.total).toBe(1)
+  })
+
+  it('names a shortfall row in Top Gaps instead of calling it mapped', () => {
+    // Mirrors test_top_gaps_names_a_shortfall_row_instead_of_calling_it_mapped.
+    const report = computeLossiness({
+      ...inputs({}),
+      systems: [
+        system('alpha', { confirmed: false }),
+        system('gap', { category: 'Workflow shortfall', risk: 'high' }),
+      ],
+    })
+    const byId = Object.fromEntries(report.top_gaps.map((g) => [g.id, g]))
+    expect(byId.gap).toMatchObject({ shortfall: true, unmapped: false, score: 3 })
+    expect(byId.alpha).toMatchObject({ shortfall: false, unmapped: true })
+  })
+})
+
 /**
  * The bundle that used to be counted two ways at once.
  *

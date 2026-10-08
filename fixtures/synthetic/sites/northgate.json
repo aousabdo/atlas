@@ -208,12 +208,12 @@
       "zone": "mgmt"
     },
     {
-      "description": "Guest VLAN carrying the on-campus service VMs",
+      "description": "Service VMs hosted on the management hypervisor pair",
       "id": "mgmt_vm_pool",
       "ip": null,
       "label": "Virtual Machine Pool",
       "subnet": "198.51.100.96/27",
-      "type": "vlan",
+      "type": "server",
       "zone": "mgmt"
     },
     {
@@ -751,25 +751,25 @@
     },
     {
       "label": "Backbone to cloud tenancy",
-      "link_type": "vlan",
+      "link_type": "wan",
       "source": "secure_backbone",
       "target": "gov_cloud"
     },
     {
-      "label": null,
-      "link_type": "vlan",
+      "label": "Tenant network",
+      "link_type": "ethernet",
       "source": "gov_cloud",
       "target": "cop_application"
     },
     {
-      "label": null,
-      "link_type": "vlan",
+      "label": "Tenant network",
+      "link_type": "ethernet",
       "source": "gov_cloud",
       "target": "cloud_tak_server"
     },
     {
-      "label": null,
-      "link_type": "vlan",
+      "label": "Tenant network",
+      "link_type": "ethernet",
       "source": "gov_cloud",
       "target": "cloud_identity"
     },
@@ -804,14 +804,14 @@
       "target": "mgmt_host_b"
     },
     {
-      "label": null,
-      "link_type": "vlan",
+      "label": "Hosted on",
+      "link_type": "ethernet",
       "source": "mgmt_host_a",
       "target": "mgmt_vm_pool"
     },
     {
-      "label": null,
-      "link_type": "vlan",
+      "label": "Hosted on",
+      "link_type": "ethernet",
       "source": "mgmt_host_b",
       "target": "mgmt_vm_pool"
     },

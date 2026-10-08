@@ -367,6 +367,38 @@ describe('crossFileFailures', () => {
     expect(fails.some((f) => f.includes('matrix_id_exists:false'))).toBe(true)
   })
 
+  it('fails hardware mapped to a shortfall row, as the ingest does', () => {
+    const gapRow = { ...SYSTEM, id: 'gap', name: 'Gap', category: 'Workflow shortfall' }
+    const coverage = site({ mappings: { gap: mapping({ devices: ['d1'] }) } })
+    const fails = crossFileFailures(
+      inputs({ systems: [SYSTEM, gapRow], coverage, topologies: topology } as never) as never,
+    )
+    expect(fails).toHaveLength(1)
+    expect(fails[0]).toMatch(/gap.*shortfall/)
+  })
+
+  it('fails a shortfall row mapped with no devices, as the ingest does', () => {
+    // Mirrors test_a_shortfall_row_mapped_with_no_devices_fails_too.
+    const gapRow = { ...SYSTEM, id: 'gap', name: 'Gap', category: 'Workflow shortfall' }
+    const coverage = site({ mappings: { gap: mapping({ devices: [] }) } })
+    const fails = crossFileFailures(
+      inputs({ systems: [SYSTEM, gapRow], coverage, topologies: topology } as never) as never,
+    )
+    expect(fails).toHaveLength(1)
+    expect(fails[0]).toMatch(/not_deployed_at_site/)
+  })
+
+  it('passes a shortfall row checked absent, as the ingest does', () => {
+    // Mirrors test_a_shortfall_row_checked_absent_is_fine.
+    const gapRow = { ...SYSTEM, id: 'gap', name: 'Gap', category: 'Workflow shortfall' }
+    const coverage = site({ not_deployed_at_site: { gap: 'checked, absent' } })
+    expect(
+      crossFileFailures(
+        inputs({ systems: [SYSTEM, gapRow], coverage, topologies: topology } as never) as never,
+      ),
+    ).toEqual([])
+  })
+
   it('fails a not_deployed_at_site entry for an unknown system', () => {
     const coverage = site({ not_deployed_at_site: { ghost: 'checked' } })
     const fails = crossFileFailures(inputs({ coverage } as never) as never)
@@ -466,6 +498,20 @@ describe('a load refuses files that disagree with each other', () => {
         systemDeviceMap: jsonFile('system_device_map.json', sdmap),
       }),
     ).rejects.toThrow(/ghost_system: not a matrix system id/)
+  })
+
+  it('reads a mapping with no devices key as naming no hardware, as the ingest does', async () => {
+    // The ingest reads entry.get("devices"). The browser used to read
+    // mapping.devices.length and crash before any gate could name the row.
+    const sdmap = readInput('system_device_map.json')
+    delete sdmap.sites.northgate.mappings.homing.devices
+    const p = new LocalFileProvider()
+    await p.load({
+      matrix: file('matrix.xlsx'),
+      systemDeviceMap: jsonFile('system_device_map.json', sdmap),
+    })
+    const coverage = await p.getCoverage()
+    expect(coverage.sites.northgate.mappings.homing.devices).toEqual([])
   })
 
   it('refuses a mapping naming a device the topology does not have', async () => {
