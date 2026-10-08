@@ -219,6 +219,10 @@ describe('Analytics', () => {
     // ingest uses for the realization gap.
     expect(within(region).getByText('10 / 30')).toBeInTheDocument()
     expect(within(region).getByText('33%')).toBeInTheDocument()
+    // The 30 is never a bare number: the two rows left out are named.
+    expect(within(region).getByText(/Not counted: 2 shortfall rows/)).toHaveTextContent(
+      /Dispatch Management System.*Partner Agency Data Sharing/,
+    )
   })
 
   it('says Westfield has no mappings instead of rendering 0%', async () => {

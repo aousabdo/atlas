@@ -10,14 +10,15 @@ import { ReferenceTab } from '../../tabs/reference/ReferenceTab'
 import type { Mapping } from '../../types/atlas'
 import {
   countMappings,
+  fieldableSystemIds,
   formatPercent,
   isRealizedMapping,
-  isShortfall,
   matrixIdSet,
   percentOf,
   realizedAnywhere,
   realizedConfidenceCounts,
   realizedSystemIds,
+  shortfallSystemIds,
 } from '../coverage'
 import { computeLossiness, pct } from '../lossiness'
 
@@ -76,6 +77,24 @@ describe('countMappings', () => {
   it('never loses or double counts a mapping', () => {
     const c = countMappings(site, MATRIX)
     expect(c.realized + c.softwareOnly + c.outsideMatrix).toBe(c.recorded)
+  })
+})
+
+describe('fieldableSystemIds and shortfallSystemIds', () => {
+  const row = (id: string, category = 'Deployed asset record') =>
+    ({ id, category }) as never
+
+  it('splits the matrix into rows that could be fielded and shortfall rows', () => {
+    const systems = [row('alpha'), row('gap', 'Workflow shortfall'), row('beta')]
+    expect([...fieldableSystemIds(systems)].sort()).toEqual(['alpha', 'beta'])
+    expect(shortfallSystemIds(systems)).toEqual(['gap'])
+  })
+
+  it('counts an id listed twice once, so a count and a share never disagree', () => {
+    const systems = [row('alpha'), row('alpha'), row('gap', 'Workflow shortfall'),
+      row('gap', 'Workflow shortfall')]
+    expect(fieldableSystemIds(systems).size).toBe(1)
+    expect(shortfallSystemIds(systems)).toEqual(['gap'])
   })
 })
 
@@ -186,7 +205,7 @@ describe('every consumer agrees on what mapped means', () => {
     expect(coverage.confidence_counts.total).toBe(buckets.total)
 
     // The share is of the systems that could be fielded: shortfall rows are out.
-    const fieldable = systems.filter((s) => !isShortfall(s)).length
+    const fieldable = fieldableSystemIds(systems).size
     const share = formatPercent(percentOf(realized.length, fieldable))
 
     // 5. The Network tab, which labels both the realized systems and the

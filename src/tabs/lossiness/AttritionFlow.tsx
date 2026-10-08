@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import { EmptyState } from '../../components/EmptyState'
+import { ShortfallNote } from '../../components/ShortfallNote'
 import type { LossinessDimension, Severity } from '../../types/atlas'
 import {
   ATTRITION_DEFAULT_HEIGHT,
@@ -8,6 +9,7 @@ import {
   buildAttritionStages,
   layoutAttrition,
 } from '../../viz/attrition'
+import { shortfalls } from './DimensionDrawer'
 
 const SEVERITY_COLOR: Record<Severity, string> = {
   ok: 'var(--color-sev-ok)',
@@ -26,13 +28,21 @@ const SEVERITY_COLOR: Record<Severity, string> = {
  */
 export function AttritionFlow({
   dimensions,
+  systemName = (id) => id,
   width = ATTRITION_DEFAULT_WIDTH,
   height = ATTRITION_DEFAULT_HEIGHT,
 }: {
   dimensions: LossinessDimension[]
+  /** Names the shortfall rows the realization stage leaves out. */
+  systemName?: (id: string) => string
   width?: number
   height?: number
 }) {
+  // Ownership counts every matrix row and realization does not, so the two
+  // system bands carry different totals. The rows that explain the
+  // difference are named rather than left for the reader to find.
+  const realization = dimensions.find((d) => d.key === 'realization_gap')
+  const leftOut = realization ? shortfalls(realization).map(systemName) : []
   const geometry = useMemo(
     () => layoutAttrition(buildAttritionStages(dimensions), { width, height }),
     [dimensions, width, height],
@@ -169,6 +179,12 @@ export function AttritionFlow({
             The upper band is what survives the stage. The wedge below it is what
             the stage loses, funnelled into the named box underneath.
           </figcaption>
+          <ShortfallNote
+            names={leftOut}
+            lead="Systems: realization leaves out"
+            after="Systems: ownership still counts them."
+            className="mt-1"
+          />
         </figure>
       )}
     </section>

@@ -324,3 +324,35 @@ def test_realization_gap_ignores_a_flag_that_contradicts_the_matrix():
     assert gap["detail"]["per_site"]["harbor"]["mapped_ids"] == ["bravo"]
     assert mapping_confidence_counts(sdmap)["total"] == gap["numerator"]
     assert mapping_confidence_counts(sdmap, matrix_id_set(systems))["total"] == 1
+
+
+def test_top_gaps_names_a_shortfall_row_instead_of_calling_it_mapped():
+    """A shortfall row keeps its place for risk and ownership, but it has no
+    hardware to be mapped or unmapped, so it says what it is."""
+    from atlas_ingest.lossiness import top_gaps
+    systems = [
+        {"id": "alpha", "name": "Alpha", "cat": "Deployed asset record",
+         "soft": True, "risk": "low", "risk_source": "explicit"},
+        {"id": "gap", "name": "Gap", "cat": "Workflow shortfall",
+         "soft": False, "risk": "high", "risk_source": "explicit"},
+    ]
+    sdmap = {"sites": {"harbor": {
+        "label": "Harbor Yard", "mappings": {},
+        "not_deployed_at_site": {}, "unclaimed_devices": {"infrastructure": []},
+    }}, "pending_review": {}}
+    report = compute_lossiness(systems=systems, links=[], desired=[],
+                               crosswalk=[], sdmap=sdmap, networks={})
+    gaps = {g["id"]: g for g in top_gaps(report, systems)}
+    assert gaps["gap"]["shortfall"] is True
+    assert gaps["gap"]["unmapped"] is False
+    assert gaps["gap"]["score"] == 3
+    assert gaps["alpha"]["shortfall"] is False
+    assert gaps["alpha"]["unmapped"] is True
+
+
+def test_a_shortfall_row_listed_twice_is_named_once():
+    rows = [{"id": "gap", "name": "Gap", "cat": "Workflow shortfall", "soft": False,
+             "risk": "high", "risk_source": "explicit"}] * 2
+    report = compute_lossiness(systems=rows, links=[], desired=[], crosswalk=[],
+                               sdmap={"sites": {}, "pending_review": {}}, networks={})
+    assert _dim(report, "realization_gap")["detail"]["shortfalls"] == ["gap"]

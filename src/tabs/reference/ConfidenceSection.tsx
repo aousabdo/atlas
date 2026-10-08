@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { EmptyState } from '../../components/EmptyState'
 import { ProvenanceChip } from '../../components/ProvenanceChip'
+import { ShortfallNote } from '../../components/ShortfallNote'
 import {
   countMappings,
   formatPercent,
@@ -18,6 +19,7 @@ import type {
   Project,
   System,
 } from '../../types/atlas'
+import { shortfalls } from '../lossiness/DimensionDrawer'
 
 interface SiteRealization {
   id: string
@@ -135,6 +137,12 @@ export function ConfidenceSection({
   systems: System[]
 }) {
   const realization = perSiteRealization(lossiness)
+  // From the same report as the per-site figures, so the note cannot name a
+  // different set of rows from the ones those figures left out.
+  const realizationGap = lossiness.dimensions.find((d) => d.key === 'realization_gap')
+  const leftOut = (realizationGap ? shortfalls(realizationGap) : []).map(
+    (id) => systems.find((s) => s.id === id)?.name ?? id,
+  )
   const matrixIds = matrixIdSet(systems)
   const counts = coverage.confidence_counts
   const highMappings = realizedMappingsAt(coverage, matrixIds, 'high')
@@ -231,6 +239,11 @@ export function ConfidenceSection({
             {site.label} (<Num>{formatPercent(site.pct)}</Num>).
           </li>
         ))}
+        {leftOut.length > 0 && (
+          <li>
+            <ShortfallNote names={leftOut} className="" />
+          </li>
+        )}
       </Card>
 
       <Card title="Low confidence and pending: known unknowns" tone="low">

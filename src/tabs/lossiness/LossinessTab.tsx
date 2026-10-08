@@ -120,7 +120,10 @@ export function LossinessTab() {
         )}
       </section>
 
-      <AttritionFlow dimensions={report.dimensions} />
+      <AttritionFlow
+        dimensions={report.dimensions}
+        systemName={(id) => names.get(id) ?? id}
+      />
       <TrendView snapshots={snapshots} />
       <TopGaps gaps={report.top_gaps} />
 

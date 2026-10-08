@@ -1,13 +1,15 @@
 import { useId } from 'react'
 
+import { ShortfallNote } from '../../components/ShortfallNote'
 import {
   countMappings,
+  fieldableSystemIds,
   formatPercent,
   isRealizedMapping,
-  isShortfall,
   matrixIdSet,
   percentOf,
   realizedSystemIds,
+  shortfallSystemIds,
 } from '../../lib/coverage'
 import type {
   Confidence,
@@ -89,7 +91,7 @@ function readSites(
   const matrixIds = matrixIdSet(systems)
   // Shortfall rows record a gap, not a system that could be fielded, so they
   // are outside the share, exactly as in the realization gap.
-  const fieldable = new Set(systems.filter((s) => !isShortfall(s)).map((s) => s.id))
+  const fieldable = fieldableSystemIds(systems)
   return Object.entries(coverage.sites).map(([id, site]) => {
     const mapped = realizedSystemIds(site, matrixIds).filter((sid) => fieldable.has(sid))
     const counts = countMappings(site, matrixIds)
@@ -137,10 +139,11 @@ export function CoveragePanel({
 }: CoveragePanelProps) {
   const headingId = useId()
   const tooltip = useCursorTooltip()
-  const fieldableCount = systems.filter((s) => !isShortfall(s)).length
+  const nameOf = (id: string) => systems.find((s) => s.id === id)?.name ?? id
+  // The same id set readSites divides by, so the count and the share agree.
+  const fieldableCount = fieldableSystemIds(systems).size
   const rows = readSites(coverage, systems, sites)
   const pending = Object.entries(coverage.pending_review)
-  const nameOf = (id: string) => systems.find((s) => s.id === id)?.name ?? id
 
   const siteDimmed = (row: SiteCoverage) =>
     filterActive &&
@@ -235,6 +238,7 @@ export function CoveragePanel({
             </li>
           ))}
         </ul>
+        <ShortfallNote names={shortfallSystemIds(systems).map(nameOf)} className="mt-1" />
 
         <div className="mt-4 border-t border-line pt-4">
           <h3 className="text-xs font-medium tracking-wide text-muted">

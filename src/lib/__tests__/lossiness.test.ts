@@ -125,6 +125,20 @@ describe('the realization gap leaves shortfall rows out', () => {
     expect(gap.detail.unmapped).toEqual([])
     expect((gap.detail.per_site as Record<string, { total: number }>).harbor.total).toBe(1)
   })
+
+  it('names a shortfall row in Top Gaps instead of calling it mapped', () => {
+    // Mirrors test_top_gaps_names_a_shortfall_row_instead_of_calling_it_mapped.
+    const report = computeLossiness({
+      ...inputs({}),
+      systems: [
+        system('alpha', { confirmed: false }),
+        system('gap', { category: 'Workflow shortfall', risk: 'high' }),
+      ],
+    })
+    const byId = Object.fromEntries(report.top_gaps.map((g) => [g.id, g]))
+    expect(byId.gap).toMatchObject({ shortfall: true, unmapped: false, score: 3 })
+    expect(byId.alpha).toMatchObject({ shortfall: false, unmapped: true })
+  })
 })
 
 /**

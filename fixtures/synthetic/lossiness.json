@@ -462,6 +462,7 @@
       "name": "Beacon",
       "risk": "high",
       "score": 5,
+      "shortfall": false,
       "unconfirmed": true,
       "unmapped": true
     },
@@ -470,6 +471,7 @@
       "name": "Cirrus",
       "risk": "high",
       "score": 5,
+      "shortfall": false,
       "unconfirmed": true,
       "unmapped": true
     },
@@ -478,6 +480,7 @@
       "name": "Dwell",
       "risk": "high",
       "score": 5,
+      "shortfall": false,
       "unconfirmed": true,
       "unmapped": true
     },
@@ -486,6 +489,7 @@
       "name": "Halyard",
       "risk": "high",
       "score": 5,
+      "shortfall": false,
       "unconfirmed": true,
       "unmapped": true
     },
@@ -494,6 +498,7 @@
       "name": "Ingot Sensor Suite (INGOT) / DATA VIEW",
       "risk": "high",
       "score": 5,
+      "shortfall": false,
       "unconfirmed": true,
       "unmapped": true
     },
@@ -502,6 +507,7 @@
       "name": "ORBIT",
       "risk": "high",
       "score": 4,
+      "shortfall": false,
       "unconfirmed": false,
       "unmapped": true
     },
@@ -510,6 +516,7 @@
       "name": "SCAN (Screening and Alerting Node)",
       "risk": "high",
       "score": 4,
+      "shortfall": false,
       "unconfirmed": false,
       "unmapped": true
     },
@@ -518,6 +525,7 @@
       "name": "Bastion Effector",
       "risk": "high",
       "score": 3,
+      "shortfall": false,
       "unconfirmed": false,
       "unmapped": false
     },
@@ -526,6 +534,7 @@
       "name": "Dispatch Management System (DMS/CAD)",
       "risk": "high",
       "score": 3,
+      "shortfall": true,
       "unconfirmed": false,
       "unmapped": false
     },
@@ -534,6 +543,7 @@
       "name": "FPS Relay",
       "risk": "high",
       "score": 3,
+      "shortfall": false,
       "unconfirmed": false,
       "unmapped": false
     }

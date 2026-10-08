@@ -10,20 +10,7 @@ that were wanted and still do not exist; 6 is its inverse, hardware in the rack
 that no architecture document explains.
 """
 
-from .config import CATEGORY_MAP
-from .curation import is_realized_mapping, matrix_id_set
-
-# The category-map branch the matrix files its gap rows under.
-SHORTFALL_BRANCH = "gaps"
-
-
-def is_shortfall(system):
-    """A row the matrix files as a shortfall ('Workflow shortfall', 'Exchange
-    shortfall'): it records that something is missing, not a system anyone
-    could field. Read from the shared category map, which the browser's
-    isShortfall reads too, so both engines answer the same."""
-    category = system.get("cat", system.get("category"))
-    return CATEGORY_MAP.get(category, {}).get("branch") == SHORTFALL_BRANCH
+from .curation import is_realized_mapping, is_shortfall, matrix_id_set
 
 DIMENSION_ORDER = [
     "requirement_attrition", "ownership_ambiguity", "realization_gap",
@@ -162,7 +149,7 @@ def _realization_gap(systems, sdmap):
     denominator can still be checked against the matrix by hand.
     """
     matrix_ids = matrix_id_set(systems)
-    shortfalls = sorted(s["id"] for s in systems if is_shortfall(s))
+    shortfalls = sorted({s["id"] for s in systems if is_shortfall(s)})
     fieldable = matrix_ids - set(shortfalls)
     total = len(fieldable)
     per_site, mapped_anywhere = {}, set()
@@ -280,9 +267,16 @@ def _find(report, key):
 
 
 def top_gaps(report, systems, limit=10):
-    """High-risk, unconfirmed and unmapped, ranked. Spec section 5's Top Gaps."""
+    """High-risk, unconfirmed and unmapped, ranked. Spec section 5's Top Gaps.
+
+    A shortfall row keeps its points for risk and ownership but has no
+    hardware to be mapped or unmapped, so it is flagged as a shortfall rather
+    than reported as mapped.
+    """
+    realization = _find(report, "realization_gap")["detail"]
     unconfirmed = set(_find(report, "ownership_ambiguity")["detail"]["unconfirmed"])
-    unmapped = set(_find(report, "realization_gap")["detail"]["unmapped"])
+    unmapped = set(realization["unmapped"])
+    shortfalls = set(realization.get("shortfalls", []))
     scored = []
     for s in systems:
         score = ((s["risk"] == "high") * 3) + (s["id"] in unconfirmed) + (s["id"] in unmapped)
@@ -291,6 +285,7 @@ def top_gaps(report, systems, limit=10):
                 "id": s["id"], "name": s["name"], "risk": s["risk"],
                 "unconfirmed": s["id"] in unconfirmed,
                 "unmapped": s["id"] in unmapped,
+                "shortfall": s["id"] in shortfalls,
                 "score": score,
             })
     scored.sort(key=lambda r: (-r["score"], r["id"]))

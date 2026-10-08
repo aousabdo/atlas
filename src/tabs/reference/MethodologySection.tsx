@@ -92,7 +92,8 @@ export function MethodologySection({
           A matrix system counts as mapped at a site when the curated system to device map
           gives it at least one device id at that site. A mapping that names devices but
           no matrix system, or a matrix system with an empty device list, is not a
-          mapping.
+          mapping. A shortfall row is never mapped: it records that no system exists,
+          so it takes no mapping at all and the load fails if it has one.
         </p>
         <Caveat text={extras.mapping_confidence_scale} />
       </Block>

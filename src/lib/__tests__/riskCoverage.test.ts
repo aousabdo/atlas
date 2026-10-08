@@ -8,7 +8,7 @@ import type {
   RiskLevel,
   System,
 } from '../../types/atlas'
-import { isShortfall, matrixIdSet, realizedAnywhere } from '../coverage'
+import { fieldableSystemIds, isShortfall, matrixIdSet, realizedAnywhere } from '../coverage'
 import {
   bandSentence,
   realizationSitesBySystem,
@@ -59,6 +59,21 @@ describe('shortfall rows', () => {
     )
     const high = bands.find((b) => b.risk === 'high')!
     expect(high.total).toBe(1)
+  })
+
+  it('count ids by the realization rule, so the bands add up to the coverage panel', () => {
+    // alpha has a shortfall row, so it is out everywhere; bravo is listed twice.
+    const systems = [
+      system('alpha', 'high'),
+      system('alpha', 'high', { category: 'Workflow shortfall' }),
+      system('bravo', 'high'),
+      system('bravo', 'high'),
+    ]
+    const bands = riskBandCoverage(systems, coverage({ yard: site({}) }))
+    const high = bands.find((b) => b.risk === 'high')!
+    expect(high.total).toBe(1)
+    expect(high.unrealized.map((s) => s.id)).toEqual(['bravo'])
+    expect(bands.reduce((sum, b) => sum + b.total, 0)).toBe(fieldableSystemIds(systems).size)
   })
 })
 

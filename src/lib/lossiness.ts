@@ -20,7 +20,9 @@ import type {
   CoverageMatrix, LinkSet, LossinessDimension, LossinessReport, Requirement,
   Severity, System, Topology, TopGap,
 } from '../types/atlas'
-import { isShortfall, matrixIdSet, realizedSystemIds } from './coverage'
+import {
+  fieldableSystemIds, matrixIdSet, realizedSystemIds, shortfallSystemIds,
+} from './coverage'
 
 export const DIMENSION_LABELS: Record<string, string> = {
   requirement_attrition: 'Requirement attrition',
@@ -143,8 +145,8 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
   // Shortfall rows record a gap, not a system that could be fielded, so they
   // are out of the denominator and named under detail.shortfalls instead.
   const matrixIds = matrixIdSet(systems)
-  const shortfalls = [...new Set(systems.filter(isShortfall).map((s) => s.id))].sort()
-  const fieldable = new Set([...matrixIds].filter((id) => !shortfalls.includes(id)))
+  const shortfalls = shortfallSystemIds(systems)
+  const fieldable = fieldableSystemIds(systems)
   const total = fieldable.size
   const perSite: Record<string, unknown> = {}
   const mappedAnywhere = new Set<string>()
@@ -248,7 +250,12 @@ function topGaps(dimensions: LossinessDimension[], systems: System[], limit = 10
   const unconfirmed = new Set(
     (find('ownership_ambiguity').detail.unconfirmed as string[]) ?? [],
   )
-  const unmapped = new Set((find('realization_gap').detail.unmapped as string[]) ?? [])
+  const realization = find('realization_gap').detail
+  const unmapped = new Set((realization.unmapped as string[]) ?? [])
+  // A shortfall row keeps its points for risk and ownership but has no
+  // hardware to be mapped or unmapped, so it is flagged rather than shown as
+  // mapped. Mirrors lossiness.top_gaps.
+  const shortfalls = new Set((realization.shortfalls as string[]) ?? [])
 
   return systems
     .map((s) => ({
@@ -257,6 +264,7 @@ function topGaps(dimensions: LossinessDimension[], systems: System[], limit = 10
       risk: s.risk,
       unconfirmed: unconfirmed.has(s.id),
       unmapped: unmapped.has(s.id),
+      shortfall: shortfalls.has(s.id),
       score:
         (s.risk === 'high' ? 3 : 0) +
         (unconfirmed.has(s.id) ? 1 : 0) +
