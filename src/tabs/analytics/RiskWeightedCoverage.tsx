@@ -1,6 +1,6 @@
 import { useId } from 'react'
 
-import { formatPercent } from '../../lib/coverage'
+import { formatPercent, isShortfall } from '../../lib/coverage'
 import {
   bandSentence,
   riskBandCoverage,
@@ -48,6 +48,9 @@ export function RiskWeightedCoverage({
   const headingId = useId()
   const tooltip = useCursorTooltip()
   const bands = riskBandCoverage(systems, coverage)
+  // Out of every band, as out of the realization gap, and named so the band
+  // totals still add up to the matrix by hand.
+  const shortfalls = systems.filter(isShortfall)
 
   const bandDimmed = (band: RiskBandCoverage) =>
     filterActive &&
@@ -127,6 +130,14 @@ export function RiskWeightedCoverage({
           )
         })}
       </ul>
+
+      {shortfalls.length > 0 && (
+        <p className="mt-3 text-xs text-muted-3">
+          Not counted: {shortfalls.length} shortfall{' '}
+          {shortfalls.length === 1 ? 'row, which records' : 'rows, which record'} a gap in the
+          architecture rather than a system: {shortfalls.map((s) => s.name).join(', ')}.
+        </p>
+      )}
 
       <CursorTooltip {...tooltip} />
     </section>

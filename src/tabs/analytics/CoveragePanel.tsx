@@ -4,6 +4,7 @@ import {
   countMappings,
   formatPercent,
   isRealizedMapping,
+  isShortfall,
   matrixIdSet,
   percentOf,
   realizedSystemIds,
@@ -86,8 +87,11 @@ function readSites(
   sites: SiteSummary[],
 ): SiteCoverage[] {
   const matrixIds = matrixIdSet(systems)
+  // Shortfall rows record a gap, not a system that could be fielded, so they
+  // are outside the share, exactly as in the realization gap.
+  const fieldable = new Set(systems.filter((s) => !isShortfall(s)).map((s) => s.id))
   return Object.entries(coverage.sites).map(([id, site]) => {
-    const mapped = realizedSystemIds(site, matrixIds)
+    const mapped = realizedSystemIds(site, matrixIds).filter((sid) => fieldable.has(sid))
     const counts = countMappings(site, matrixIds)
     const confidence: Record<Confidence, number> = { high: 0, medium: 0, low: 0 }
     for (const [sid, m] of Object.entries(site.mappings)) {
@@ -98,7 +102,7 @@ function readSites(
       label: site.label,
       summary: sites.find((s) => s.id === id),
       mapped,
-      pct: percentOf(mapped.length, systems.length),
+      pct: percentOf(mapped.length, fieldable.size),
       recorded: counts.recorded,
       softwareOnly: counts.softwareOnly,
       outsideMatrix: counts.outsideMatrix,
@@ -133,6 +137,7 @@ export function CoveragePanel({
 }: CoveragePanelProps) {
   const headingId = useId()
   const tooltip = useCursorTooltip()
+  const fieldableCount = systems.filter((s) => !isShortfall(s)).length
   const rows = readSites(coverage, systems, sites)
   const pending = Object.entries(coverage.pending_review)
   const nameOf = (id: string) => systems.find((s) => s.id === id)?.name ?? id
@@ -189,7 +194,7 @@ export function CoveragePanel({
                   <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-2 text-xs lg:grid-cols-4">
                     <div>
                       <dd className="tabular text-sm text-ink">
-                        {row.mapped.length} / {systems.length}
+                        {row.mapped.length} / {fieldableCount}
                       </dd>
                       <dt className="text-muted-3">Systems mapped</dt>
                     </div>

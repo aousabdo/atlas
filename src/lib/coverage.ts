@@ -15,9 +15,24 @@
  * number of mapping rows, the number naming hardware, and the number that were
  * both. Only the last one is coverage; the other two now say what they are.
  */
+import { CATEGORY_MAP } from '../data/generated/classifierTables'
 import type {
   Confidence, CoverageMatrix, CoverageSite, Mapping, System, SystemId,
 } from '../types/atlas'
+
+/** The category-map branch the matrix files its gap rows under. */
+const SHORTFALL_BRANCH = 'gaps'
+
+/**
+ * A row the matrix files as a shortfall ('Workflow shortfall', 'Exchange
+ * shortfall'): it records that something is missing, not a system anyone could
+ * field. Realization leaves these out of its denominator; it can be neither
+ * realized nor unmapped. Mirrors lossiness.is_shortfall in the ingest, and both
+ * read the same generated category map.
+ */
+export function isShortfall(system: Pick<System, 'category'>): boolean {
+  return CATEGORY_MAP[system.category]?.branch === SHORTFALL_BRANCH
+}
 
 /** The set the predicate tests membership against. */
 export function matrixIdSet(systems: readonly System[]): ReadonlySet<SystemId> {

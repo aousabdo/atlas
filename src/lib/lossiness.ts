@@ -20,7 +20,7 @@ import type {
   CoverageMatrix, LinkSet, LossinessDimension, LossinessReport, Requirement,
   Severity, System, Topology, TopGap,
 } from '../types/atlas'
-import { matrixIdSet, realizedSystemIds } from './coverage'
+import { isShortfall, matrixIdSet, realizedSystemIds } from './coverage'
 
 export const DIMENSION_LABELS: Record<string, string> = {
   requirement_attrition: 'Requirement attrition',
@@ -140,26 +140,31 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
 
   // isRealizedMapping is the shared definition; see src/lib/coverage.ts for
   // why a device-less or non-matrix mapping is a different fact from coverage.
+  // Shortfall rows record a gap, not a system that could be fielded, so they
+  // are out of the denominator and named under detail.shortfalls instead.
   const matrixIds = matrixIdSet(systems)
+  const shortfalls = [...new Set(systems.filter(isShortfall).map((s) => s.id))].sort()
+  const fieldable = new Set([...matrixIds].filter((id) => !shortfalls.includes(id)))
+  const total = fieldable.size
   const perSite: Record<string, unknown> = {}
   const mappedAnywhere = new Set<string>()
   for (const [siteId, site] of Object.entries(coverage.sites)) {
-    const mapped = realizedSystemIds(site, matrixIds)
+    const mapped = realizedSystemIds(site, matrixIds).filter((id) => fieldable.has(id))
     mapped.forEach((m) => mappedAnywhere.add(m))
     perSite[siteId] = {
       label: site.label,
       mapped: mapped.length,
-      total: systems.length,
-      pct: pct(mapped.length, systems.length),
+      total,
+      pct: pct(mapped.length, total),
       mapped_ids: mapped,
       checked_absent: Object.keys(site.not_deployed_at_site).sort(),
     }
   }
-  const unmapped = [...matrixIds].filter((id) => !mappedAnywhere.has(id)).sort()
+  const unmapped = [...fieldable].filter((id) => !mappedAnywhere.has(id)).sort()
   const realizationGap = dimension(
-    'realization_gap', mappedAnywhere.size, systems.length,
-    severityFor(pct(mappedAnywhere.size, systems.length)),
-    { per_site: perSite, unmapped },
+    'realization_gap', mappedAnywhere.size, total,
+    severityFor(pct(mappedAnywhere.size, total)),
+    { per_site: perSite, unmapped, shortfalls },
   )
 
   const currentPairs = new Set(links.current.map((l) => pairKey(l.from, l.to)))

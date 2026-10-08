@@ -12,6 +12,7 @@ import {
   countMappings,
   formatPercent,
   isRealizedMapping,
+  isShortfall,
   matrixIdSet,
   percentOf,
   realizedAnywhere,
@@ -184,7 +185,9 @@ describe('every consumer agrees on what mapped means', () => {
     expect(buckets.total).toBe(realizedAnywhere(coverage, matrixIds).length)
     expect(coverage.confidence_counts.total).toBe(buckets.total)
 
-    const share = formatPercent(percentOf(realized.length, systems.length))
+    // The share is of the systems that could be fielded: shortfall rows are out.
+    const fieldable = systems.filter((s) => !isShortfall(s)).length
+    const share = formatPercent(percentOf(realized.length, fieldable))
 
     // 5. The Network tab, which labels both the realized systems and the
     //    mapping rows rather than printing one under the other's name.
@@ -205,7 +208,7 @@ describe('every consumer agrees on what mapped means', () => {
     // 6. The Analytics coverage panel.
     const analytics = await renderWithProvider(createElement(AnalyticsTab))
     expect(
-      await screen.findByText(`${realized.length} / ${systems.length}`),
+      await screen.findByText(`${realized.length} / ${fieldable}`),
     ).toBeInTheDocument()
     expect(screen.getAllByText(share).length).toBeGreaterThan(0)
     analytics.unmount()
@@ -214,7 +217,7 @@ describe('every consumer agrees on what mapped means', () => {
     // 7. The Reference confidence section.
     await renderWithProvider(createElement(ReferenceTab))
     expect(
-      await screen.findByText(`${realized.length} of ${systems.length}`),
+      await screen.findByText(`${realized.length} of ${fieldable}`),
     ).toBeInTheDocument()
     // One bullet per confidence grade, each a share of the same denominator.
     const graded = screen.getAllByText(

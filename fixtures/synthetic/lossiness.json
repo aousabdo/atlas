@@ -45,7 +45,7 @@
       "value_pct": 71.9
     },
     {
-      "denominator": 32,
+      "denominator": 30,
       "detail": {
         "per_site": {
           "northgate": {
@@ -85,8 +85,8 @@
               "ucop",
               "winrel"
             ],
-            "pct": 31.2,
-            "total": 32
+            "pct": 33.3,
+            "total": 30
           },
           "westfield": {
             "checked_absent": [],
@@ -94,15 +94,18 @@
             "mapped": 0,
             "mapped_ids": [],
             "pct": 0.0,
-            "total": 32
+            "total": 30
           }
         },
+        "shortfalls": [
+          "dispatch",
+          "partner"
+        ],
         "unmapped": [
           "beacon",
           "cbprel",
           "cbpsen",
           "cirrus",
-          "dispatch",
           "dwell",
           "ember",
           "enterprise",
@@ -114,7 +117,6 @@
           "ingot",
           "kite",
           "orbit",
-          "partner",
           "scan",
           "skyward",
           "trackwell",
@@ -127,7 +129,7 @@
       "numerator": 10,
       "severity": "critical",
       "unit": "pct",
-      "value_pct": 31.2
+      "value_pct": 33.3
     },
     {
       "denominator": 13,
@@ -496,24 +498,8 @@
       "unmapped": true
     },
     {
-      "id": "dispatch",
-      "name": "Dispatch Management System (DMS/CAD)",
-      "risk": "high",
-      "score": 4,
-      "unconfirmed": false,
-      "unmapped": true
-    },
-    {
       "id": "orbit",
       "name": "ORBIT",
-      "risk": "high",
-      "score": 4,
-      "unconfirmed": false,
-      "unmapped": true
-    },
-    {
-      "id": "partner",
-      "name": "Partner Agency Data Sharing",
       "risk": "high",
       "score": 4,
       "unconfirmed": false,
@@ -530,6 +516,22 @@
     {
       "id": "bastion",
       "name": "Bastion Effector",
+      "risk": "high",
+      "score": 3,
+      "unconfirmed": false,
+      "unmapped": false
+    },
+    {
+      "id": "dispatch",
+      "name": "Dispatch Management System (DMS/CAD)",
+      "risk": "high",
+      "score": 3,
+      "unconfirmed": false,
+      "unmapped": false
+    },
+    {
+      "id": "fpsrel",
+      "name": "FPS Relay",
       "risk": "high",
       "score": 3,
       "unconfirmed": false,

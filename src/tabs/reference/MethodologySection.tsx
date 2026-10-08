@@ -100,7 +100,10 @@ export function MethodologySection({
       <Block title="Coverage % calculation">
         <p>
           Per site, coverage is the count of matrix systems with at least one device
-          mapped at that site divided by the total number of matrix systems. The
+          mapped at that site, divided by the number of matrix systems that could be
+          fielded: every row except the shortfall rows, which record a gap in the
+          architecture rather than a system. The realization gap and the risk bands use
+          the same denominator and name the shortfall rows they leave out. The
           cross-site difference is a set difference of mapping keys, not a subtraction of
           percentages.
         </p>

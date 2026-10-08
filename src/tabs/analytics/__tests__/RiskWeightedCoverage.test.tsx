@@ -53,19 +53,19 @@ describe('RiskWeightedCoverage', () => {
     // Verified 2026-08-07 against public/data.
     expect(
       within(region).getByText(
-        'Of 11 high-risk systems, 2 are confirmed deployed at any site.',
+        'Of 9 high-risk systems, 2 are confirmed deployed at any site.',
       ),
     ).toBeInTheDocument()
   })
 
   it('shows the share of each band, not of the whole estate', async () => {
     const { region } = await panel()
-    // 2/11, 8/19 and 0/2. The flat headline for this same bundle is 31%, which
+    // 2/9, 8/19 and 0/2. The flat headline for this same bundle is 33%, which
     // is the figure this panel exists to break apart.
-    expect(band(region, 'high')).toHaveTextContent('18%')
+    expect(band(region, 'high')).toHaveTextContent('22%')
     expect(band(region, 'medium')).toHaveTextContent('42%')
     expect(band(region, 'low')).toHaveTextContent('0%')
-    expect(within(region).queryByText('31%')).not.toBeInTheDocument()
+    expect(within(region).queryByText('33%')).not.toBeInTheDocument()
   })
 
   it('shows the entities behind both numbers in every band', async () => {
@@ -77,10 +77,15 @@ describe('RiskWeightedCoverage', () => {
         .map((c) => c.dataset.system),
     ).toEqual(['bastion', 'fpsrel'])
 
-    // Nothing is silently dropped: every system appears exactly once.
+    // Nothing is silently dropped: every system that could be fielded appears
+    // exactly once, and the two shortfall rows are named as not counted.
     const listed = chips(region).map((c) => c.dataset.system as string)
-    expect(listed).toHaveLength(systems.length)
-    expect(new Set(listed).size).toBe(systems.length)
+    expect(listed).toHaveLength(systems.length - 2)
+    expect(new Set(listed).size).toBe(systems.length - 2)
+    expect(listed).not.toContain('dispatch')
+    expect(within(region).getByText(/Not counted: 2 shortfall/)).toHaveTextContent(
+      /Dispatch Management System.*Partner Agency Data Sharing/,
+    )
   })
 
   it('names the sites behind a realized system on hover', async () => {
@@ -108,7 +113,7 @@ describe('RiskWeightedCoverage', () => {
   it('reaches every system chip by keyboard and labels it for a screen reader', async () => {
     const { region } = await panel()
     const all = chips(region)
-    expect(all).toHaveLength(32)
+    expect(all).toHaveLength(30)
     for (const chip of all) {
       expect(chip).toHaveAttribute('tabindex', '0')
       expect(chip.getAttribute('aria-label')).toMatch(/^\S+, .+/)
@@ -153,7 +158,7 @@ describe('RiskWeightedCoverage', () => {
     const region = await screen.findByRole('region', { name: /realization by risk band/i })
     expect(
       within(region).getByText(
-        'Of 11 high-risk systems, 0 are confirmed deployed at any site.',
+        'Of 9 high-risk systems, 0 are confirmed deployed at any site.',
       ),
     ).toBeInTheDocument()
     expect(within(region).getAllByText('0%')).toHaveLength(3)

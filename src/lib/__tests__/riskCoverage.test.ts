@@ -8,7 +8,7 @@ import type {
   RiskLevel,
   System,
 } from '../../types/atlas'
-import { matrixIdSet, realizedAnywhere } from '../coverage'
+import { isShortfall, matrixIdSet, realizedAnywhere } from '../coverage'
 import {
   bandSentence,
   realizationSitesBySystem,
@@ -50,6 +50,17 @@ function site(mappings: Record<string, Mapping>): CoverageSite {
 function coverage(sites: Record<string, CoverageSite>): CoverageMatrix {
   return { default_site: null, sites, pending_review: {}, confidence_counts: {} }
 }
+
+describe('shortfall rows', () => {
+  it('are not systems, so no risk band counts them', () => {
+    const bands = riskBandCoverage(
+      [system('alpha', 'high'), system('gap', 'high', { category: 'Exchange shortfall' })],
+      coverage({ yard: site({ alpha: mapping() }) }),
+    )
+    const high = bands.find((b) => b.risk === 'high')!
+    expect(high.total).toBe(1)
+  })
+})
 
 describe('realizationSitesBySystem', () => {
   it('names every site a system is realized at, sorted', () => {
@@ -187,19 +198,22 @@ describe('the sample bundle', () => {
     const cov = await provider.getCoverage()
     const bands = riskBandCoverage(systems, cov)
 
-    // Verified 2026-08-07 against public/data: the flat headline is 10 of 32,
-    // and it hides that the high band is the worst covered of the three.
+    // The flat headline is 10 of 30, and it hides that the high band is the
+    // worst covered of the three. The two shortfall rows are both high risk
+    // and are in no band, as they are in no realization figure.
     expect(
       bands.map((b) => [b.risk, b.total, b.realized.length]),
     ).toEqual([
-      ['high', 11, 2],
+      ['high', 9, 2],
       ['medium', 19, 8],
       ['low', 2, 0],
     ])
 
-    // Every band's total sums to the estate, and every band's realized systems
-    // sum to the same set the shared realization gap counts.
-    expect(bands.reduce((n, b) => n + b.total, 0)).toBe(systems.length)
+    // Every band's total sums to the systems that could be fielded, and every
+    // band's realized systems sum to the same set the realization gap counts.
+    expect(bands.reduce((n, b) => n + b.total, 0)).toBe(
+      systems.filter((s) => !isShortfall(s)).length,
+    )
     expect(
       bands.flatMap((b) => b.realized.map((r) => r.system.id)).sort(),
     ).toEqual(realizedAnywhere(cov, matrixIdSet(systems)))

@@ -214,10 +214,11 @@ describe('Analytics', () => {
     const region = await screen.findByRole('region', { name: /coverage/i })
     expect(within(region).getByText(/Northgate Sports Campus/)).toBeInTheDocument()
     expect(within(region).getByText(/Westfield Proving Ground/)).toBeInTheDocument()
-    // Verified: 10 of 32 systems name hardware at Northgate and exist in the
-    // matrix, which is the same rule the ingest uses for the realization gap.
-    expect(within(region).getByText('10 / 32')).toBeInTheDocument()
-    expect(within(region).getByText('31%')).toBeInTheDocument()
+    // 10 systems name hardware at Northgate and exist in the matrix, out of the
+    // 30 that could be fielded: the same rule and the same denominator the
+    // ingest uses for the realization gap.
+    expect(within(region).getByText('10 / 30')).toBeInTheDocument()
+    expect(within(region).getByText('33%')).toBeInTheDocument()
   })
 
   it('says Westfield has no mappings instead of rendering 0%', async () => {

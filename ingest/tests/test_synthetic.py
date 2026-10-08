@@ -249,7 +249,7 @@ def test_every_dimension_carries_evidence_and_a_severity():
 @pytest.mark.parametrize("key,numerator,denominator", [
     ("requirement_attrition", 9, 11),
     ("ownership_ambiguity", 23, 32),
-    ("realization_gap", 10, 32),
+    ("realization_gap", 10, 30),
     ("orphaned_hardware", 59, 79),
 ])
 def test_headline_lossiness_figures(key, numerator, denominator):

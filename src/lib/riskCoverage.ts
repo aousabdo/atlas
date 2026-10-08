@@ -19,7 +19,7 @@
 import type {
   CoverageMatrix, SiteId, System, SystemId,
 } from '../types/atlas'
-import { isRealizedMapping, matrixIdSet, percentOf } from './coverage'
+import { isRealizedMapping, isShortfall, matrixIdSet, percentOf } from './coverage'
 
 /**
  * Reading order, not membership. Severity is not alphabetical and not the
@@ -91,6 +91,8 @@ export function riskBandCoverage(
 
   const members = new Map<string, System[]>()
   for (const system of systems) {
+    // A shortfall is a gap, not a system that could be deployed anywhere.
+    if (isShortfall(system)) continue
     const band = String(system.risk)
     members.set(band, [...(members.get(band) ?? []), system])
   }

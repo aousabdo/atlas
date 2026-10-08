@@ -65,7 +65,7 @@ describe('Lossiness', () => {
   it('marks how the data under each figure was arrived at', async () => {
     await renderWithProvider(<LossinessTab />)
     const realization = await screen.findByRole('article', { name: /Realization gap/i })
-    expect(within(realization).getByText('31.2%')).toBeInTheDocument()
+    expect(within(realization).getByText('33.3%')).toBeInTheDocument()
     expect(within(realization).getByText('manual')).toBeInTheDocument()
 
     const integration = await screen.findByRole('article', { name: /Integration gap/i })
@@ -97,16 +97,19 @@ describe('Lossiness', () => {
     expect(within(drawer).getAllByRole('listitem')).toHaveLength(2)
   })
 
-  it('lists the 22 unmapped systems and the per-site realization', async () => {
+  it('lists the 20 unmapped systems and the per-site realization', async () => {
     const { user } = await renderWithProvider(<LossinessTab />)
     const drawer = await drillInto(user, /Realization gap/i)
+    // 20 unmapped, then the 2 shortfall rows named under Not counted.
     expect(within(drawer).getAllByRole('listitem')).toHaveLength(22)
+    expect(within(drawer).getByText('Not counted')).toBeInTheDocument()
+    expect(within(drawer).getByText('Partner Agency Data Sharing')).toBeInTheDocument()
     expect(within(drawer).getByText('Dwell')).toBeInTheDocument()
     expect(
       within(drawer).getByText('Northgate Sports Campus'),
     ).toBeInTheDocument()
-    expect(within(drawer).getByText('10 of 32')).toBeInTheDocument()
-    expect(within(drawer).getByText('0 of 32')).toBeInTheDocument()
+    expect(within(drawer).getByText('10 of 30')).toBeInTheDocument()
+    expect(within(drawer).getByText('0 of 30')).toBeInTheDocument()
   })
 
   it('lists all 13 planned interfaces that nothing satisfies', async () => {
@@ -196,9 +199,9 @@ describe('Lossiness', () => {
     expect(
       screen.getByText(/management indicator, not a formal metric/i),
     ).toBeInTheDocument()
-    // The mean of 81.8, 71.9, 31.2 and 100, and of nothing else: the three
+    // The mean of 81.8, 71.9, 33.3 and 100, and of nothing else: the three
     // count dimensions are deliberately not folded in.
-    expect(screen.getByText('71.2')).toBeInTheDocument()
+    expect(screen.getByText('71.8')).toBeInTheDocument()
   })
 
   it('renders a load failure instead of a page of zeroes', async () => {
