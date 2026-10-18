@@ -81,6 +81,8 @@ export function describeWired(verdict: Extract<WiringVerdict, { kind: 'wired' }>
 }
 
 export interface LinkWiring {
+  /** Position in the links given: the row's identity, since a pair may be recorded twice. */
+  index: number
   link: Link
   verdict: WiringVerdict
 }
@@ -212,7 +214,8 @@ export function wiringAtSite(
   const physical = adjacency(topology, true)
   const recorded = adjacency(topology, false)
   const inDrawing = new Set(topology.devices.map((d) => d.id))
-  return links.map((link) => ({
+  return links.map((link, index) => ({
+    index,
     link,
     verdict: verdictFor(link, site, physical, recorded, inDrawing, matrixIds),
   }))

@@ -123,6 +123,46 @@ describe('Documented integrations', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps a documented link recorded twice as two rows that open on their own', async () => {
+    const user = userEvent.setup()
+    const system = (id: string) => ({ id, name: id.toUpperCase() }) as System
+    const topology = {
+      site_id: 'yard',
+      meta: { label: 'Yard' },
+      zones: {},
+      devices: ['x1', 'y1'].map((id) => ({ id, label: id, zone: 'z', type: 'switch' })),
+      edges: [{ source: 'x1', target: 'y1', link_type: 'ethernet', label: null }],
+    } as unknown as Topology
+    const coverage = {
+      sites: {
+        yard: {
+          label: 'Yard', scope: '', not_deployed_at_site: {}, unclaimed_devices: { infrastructure: [] },
+          mappings: {
+            x: { devices: ['x1'], note: '', confidence: 'high' },
+            y: { devices: ['y1'], note: '', confidence: 'high' },
+          },
+        },
+      },
+    } as unknown as CoverageMatrix
+    const twice = { from: 'x', to: 'y', label: '', extraction_method: 'override' as const }
+    render(
+      <WiringPanel
+        topology={topology}
+        coverage={coverage}
+        systems={[system('x'), system('y')]}
+        links={[twice, { ...twice, label: 'again' }]}
+        onSelect={() => {}}
+        overlay={null}
+        onOverlay={() => {}}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /Documented integrations/ }))
+    const [first, second] = screen.getAllByRole('button', { name: /^X – Y/ })
+    await user.click(first!)
+    expect(first).toHaveAttribute('aria-expanded', 'true')
+    expect(second).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('says a site nobody has reviewed is unreviewed, not that nothing is wired', async () => {
     const { region } = await openPanel('/network?site=westfield')
     expect(within(region).getByText(/Nobody has recorded which systems run at/)).toBeInTheDocument()

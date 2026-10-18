@@ -56,7 +56,8 @@ export function WiringPanel({
   )
   const labelOf = (id: DeviceId) => labels.get(id) ?? id
   const pair = (row: LinkWiring) => `${nameOf(row.link.from)} – ${nameOf(row.link.to)}`
-  const keyOf = (row: LinkWiring) => `${row.link.from}|${row.link.to}`
+  // Its place in the list, since the same pair may be recorded twice.
+  const keyOf = (row: LinkWiring) => String(row.index)
 
   const of = (kind: LinkWiring['verdict']['kind']) => rows.filter((r) => r.verdict.kind === kind)
   const wired = of('wired')
