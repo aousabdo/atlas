@@ -110,6 +110,18 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="Network resilience">
+        <p>
+          Single points of failure and single links are counted on the physical links
+          only, cable and radio. A VLAN rides on those same links, so it is never a
+          second way round. A single point of failure is a device whose loss leaves part
+          of the site with no path to the rest. A single link is a link whose loss leaves
+          two or more devices with no path to the rest. A link that is the only
+          attachment of a device cuts off that one device and nothing else, so those
+          devices are counted and named once rather than listed as single links.
+        </p>
+      </Block>
+
       <Block title="Risk overlay aggregation">
         <p>
           A device takes the highest risk of any system that lists it, in the order high,

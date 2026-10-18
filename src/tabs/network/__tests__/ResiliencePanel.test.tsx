@@ -237,6 +237,100 @@ describe('Single points of failure', () => {
   })
 })
 
+describe('Single links', () => {
+  /**
+   * A ring of three switches, so none of its links is single, with a hub hung
+   * off one of them by one cable. That cable holds the hub and its two
+   * cameras to the rest. Each camera, and the access point, hangs off a
+   * single link of its own. A VLAN from the core to the hub rides on the
+   * same cables, so it is never a second way round.
+   */
+  const RING: Topology = {
+    ...SPLIT,
+    site_id: 'sample_ring',
+    meta: { ...SPLIT.meta, label: 'Sample Ring Site', name: 'sample_ring', device_count: 7, edge_count: 8 },
+    zones: { yard: { label: 'Yard' } },
+    devices: [
+      device('core', 'Core', 'switch', 'yard'),
+      device('east', 'East Switch', 'switch', 'yard'),
+      device('west', 'West Switch', 'switch', 'yard'),
+      device('hub', 'Camera Hub', 'switch', 'yard'),
+      device('cam_a', 'Camera A', 'sensor', 'yard'),
+      device('cam_b', 'Camera B', 'sensor', 'yard'),
+      device('ap', 'Access Point', 'access_point', 'yard'),
+    ],
+    edges: [
+      edge('core', 'east'),
+      edge('east', 'west'),
+      edge('west', 'core'),
+      edge('west', 'hub'),
+      edge('hub', 'cam_a'),
+      edge('hub', 'cam_b'),
+      edge('core', 'ap'),
+      { source: 'core', target: 'hub', link_type: 'vlan', label: null },
+    ],
+  }
+
+  async function openSection(user: ReturnType<typeof userEvent.setup>) {
+    const region = await panel()
+    const toggle = await within(region).findByRole('button', { name: /^\W*Single links/ })
+    await user.click(toggle)
+    return { region, toggle }
+  }
+
+  it('counts the links that hold two or more devices to the rest', async () => {
+    const { user } = renderPanel(RING)
+    const { region, toggle } = await openSection(user)
+    expect(toggle).toHaveAccessibleName(/1$/)
+    const row = within(region).getByRole('button', { name: /^West Switch – Camera Hub/ })
+    expect(row).toHaveAccessibleName(/3 of 7 cut off/)
+  })
+
+  it('names what a single link cuts off', async () => {
+    const { user } = renderPanel(RING)
+    const { region } = await openSection(user)
+    const row = within(region).getByRole('button', { name: /^West Switch – Camera Hub/ })
+    await user.click(row)
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    // The link type in the legend's own words.
+    expect(within(region).getByText(/^Ethernet link\./)).toBeInTheDocument()
+    for (const name of ['Camera Hub', 'Camera A', 'Camera B']) {
+      expect(within(region).getAllByRole('button', { name }).length).toBeGreaterThan(0)
+    }
+  })
+
+  it('names the devices that hang off a link of their own rather than listing each link', async () => {
+    const { user } = renderPanel(RING)
+    const { region } = await openSection(user)
+    const note = within(region).getByText(/hang off a single link of their own/)
+    expect(note).toHaveTextContent(/^3 devices/)
+    await user.click(within(note).getByRole('button', { name: 'Name the 3' }))
+    for (const name of ['Access Point', 'Camera A', 'Camera B']) {
+      expect(within(region).getAllByRole('button', { name }).length).toBeGreaterThan(0)
+    }
+  })
+
+  it('says so when no link holds more than one device', async () => {
+    const { user } = renderPanel({
+      ...RING,
+      edges: [...RING.edges, edge('east', 'hub')],
+    })
+    const { region, toggle } = await openSection(user)
+    expect(toggle).toHaveAccessibleName(/0$/)
+    expect(within(region).getByText(/No single link holds two or more devices/)).toBeInTheDocument()
+  })
+
+  it('finds the sample site\'s single links on cable and radio, worst first', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const { region, toggle } = await openSection(user)
+    expect(toggle).toHaveAccessibleName(/13$/)
+    const rows = within(region).getAllByRole('button', { name: /cut off/ })
+    const first = rows.find((row) => /–/.test(row.textContent ?? ''))!
+    expect(first).toHaveAccessibleName(/^Core Switch – Sensor Net Firewall/)
+    expect(first).toHaveAccessibleName(/9 of 71 cut off/)
+  })
+})
+
 describe('Blast radius', () => {
   it('answers the selection with what stops being reachable', async () => {
     const { user } = await renderWithProvider(<NetworkTab />)

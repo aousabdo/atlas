@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   articulationPoints,
   blastRadius,
+  bridges,
   buildGraph,
   tracePaths,
   type ArticulationPoint,
   type BlastRadiusReport,
+  type Bridge,
   type Graph,
   type SourceReach,
   type Tally,
@@ -14,7 +16,7 @@ import {
 } from '../../lib/graph'
 import { useWork } from '../../lib/ready'
 import type { DeviceId, Topology } from '../../types/atlas'
-import { nodeStyle } from './NetworkLegend'
+import { linkStyle, nodeStyle } from './NetworkLegend'
 
 /**
  * What the graph is being asked to draw instead of the current state.
@@ -73,12 +75,15 @@ export interface Resilience {
   graph: Graph | null
   spofs: ArticulationPoint[]
   spofIds: ReadonlySet<DeviceId>
+  /** Every link whose loss splits the physical graph, worst first. */
+  bridges: Bridge[]
 }
 
 interface Structure {
   graph: Graph
   spofs: ArticulationPoint[]
   spofIds: Set<DeviceId>
+  bridges: Bridge[]
 }
 
 /**
@@ -96,6 +101,7 @@ const NO_RESILIENCE: Resilience = {
   graph: null,
   spofs: [],
   spofIds: new Set<DeviceId>(),
+  bridges: [],
 }
 
 function structureOf(topology: Topology): Structure {
@@ -106,6 +112,7 @@ function structureOf(topology: Topology): Structure {
     graph: buildGraph(topology),
     spofs,
     spofIds: new Set(spofs.map((spof) => spof.deviceId)),
+    bridges: bridges(topology),
   }
   STRUCTURES.set(topology, value)
   return value
@@ -369,6 +376,9 @@ export function ResiliencePanel({
 }: ResiliencePanelProps) {
   const resilience = useResilience(topology)
   const [openSpof, setOpenSpof] = useState(true)
+  const [openLinks, setOpenLinks] = useState(false)
+  const [allLinks, setAllLinks] = useState(false)
+  const [openLinkKey, setOpenLinkKey] = useState<string | null>(null)
   const [openReach, setOpenReach] = useState(false)
   const [allSpof, setAllSpof] = useState(false)
   const [openSpofId, setOpenSpofId] = useState<string | null>(null)
@@ -422,6 +432,16 @@ export function ResiliencePanel({
       )
     : []
   const shownSpofs = allSpof ? spofs : spofs.slice(0, PREVIEW)
+
+  // A link that is a device's only attachment strands that one device and
+  // nothing else. Listing each of those as a finding would bury the links
+  // that hold whole groups together, so they are counted and named once.
+  const groupLinks = resilience.bridges.filter((link) => link.severedCount > 1)
+  const leafIds = resilience.bridges
+    .filter((link) => link.severedCount === 1)
+    .map((link) => link.severedDeviceIds[0]!)
+    .sort((a, b) => labelOf(a).localeCompare(labelOf(b)))
+  const shownLinks = allLinks ? groupLinks : groupLinks.slice(0, PREVIEW)
 
   return (
     <section aria-label="Resilience" className="px-3 py-2">
@@ -528,6 +548,106 @@ export function ResiliencePanel({
                 </button>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* 1b. The cables and radio hops that hold groups of devices on. */}
+      <Disclosure
+        open={openLinks}
+        onToggle={() => setOpenLinks((on) => !on)}
+        title="Single links"
+        badge={resilience.ready ? String(groupLinks.length) : undefined}
+      />
+
+      {openLinks && resilience.ready && (
+        <div className="mb-2 pl-5">
+          <p className="text-xs text-muted">
+            Cutting any one of these links leaves two or more devices with no path
+            to the rest. Counted on cable and radio, like the list above.
+          </p>
+
+          {graph && graph.links.length === 0 ? (
+            <p className="mt-1 text-xs text-muted">
+              No cable or radio link is drawn at this site, so there is nothing to
+              count.
+            </p>
+          ) : groupLinks.length === 0 ? (
+            <p className="mt-1 text-xs text-muted">
+              No single link holds two or more devices to the rest. Every link
+              between groups of devices has a second way round.
+            </p>
+          ) : (
+            <ul className="mt-1 flex flex-col gap-px">
+              {shownLinks.map((link) => {
+                const key = `${link.source}|${link.target}`
+                const open = openLinkKey === key
+                // Always the end that stays on first, then the end cut off,
+                // so the row reads from the site out to what it loses.
+                const severedEnd = link.severedDeviceIds.includes(link.target)
+                  ? link.target
+                  : link.source
+                const keptEnd = severedEnd === link.target ? link.source : link.target
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() => {
+                        setOpenLinkKey(open ? null : key)
+                        onSelect(severedEnd)
+                      }}
+                      className={[
+                        'w-full rounded px-1 py-1 text-left',
+                        open ? 'bg-surface-2 text-ink' : 'text-muted hover:bg-surface-2',
+                      ].join(' ')}
+                    >
+                      <span className="block truncate text-sm text-ink">
+                        {labelOf(keptEnd)} – {labelOf(severedEnd)}
+                      </span>
+                      <span className="tabular block text-xs text-risk-high-ink">
+                        {link.severedCount} of {total} cut off
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="mb-1 border-l border-line pl-2">
+                        <p className="mt-1 text-xs text-muted-3">
+                          {listOf(link.linkTypes.map((type) => linkStyle(type).label))} link.{' '}
+                          {tallyText(link.severedByType, byTypeName)}
+                        </p>
+                        <p className="tabular mt-0.5 text-xs text-muted-3">
+                          Largest remaining piece keeps {link.retainedCount}.
+                        </p>
+                        <DeviceLinks
+                          ids={link.severedDeviceIds}
+                          labelOf={labelOf}
+                          onSelect={onSelect}
+                        />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {groupLinks.length > PREVIEW && (
+            <button
+              type="button"
+              onClick={() => setAllLinks((on) => !on)}
+              className="mt-1 rounded px-1 py-0.5 text-xs text-accent-ink hover:bg-surface-2"
+            >
+              {allLinks ? `Show the worst ${PREVIEW}` : `Show all ${groupLinks.length}`}
+            </button>
+          )}
+
+          {leafIds.length > 0 && (
+            <NamedCount
+              ids={leafIds}
+              text={`${leafIds.length} ${leafIds.length === 1 ? 'device hangs' : 'devices hang'} off a single link of ${leafIds.length === 1 ? 'its' : 'their'} own, so losing that link cuts off only that device.`}
+              labelOf={labelOf}
+              onSelect={onSelect}
+            />
           )}
         </div>
       )}
