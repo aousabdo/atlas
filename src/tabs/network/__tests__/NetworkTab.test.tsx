@@ -562,11 +562,13 @@ describe('Network label size', () => {
   })
 
   it('never scales past its bounds, however hard you press', async () => {
-    const { user } = await renderWithProvider(<NetworkTab />)
+    await renderWithProvider(<NetworkTab />)
     await screen.findByRole('img', { name: /network topology/i })
-    for (let i = 0; i < 30; i += 1) {
-      await user.click(screen.getByRole('button', { name: 'Larger labels' }))
-    }
+    // The clamp is the claim, not the click mechanics, so plain clicks: thirty
+    // simulated user clicks each re-render the whole graph, and on a loaded
+    // CI runner that ran past the test timeout.
+    const larger = screen.getByRole('button', { name: 'Larger labels' })
+    for (let i = 0; i < 30; i += 1) fireEvent.click(larger)
     expect(screen.getByRole('group', { name: 'Labels' })).toHaveTextContent('260%')
   })
 })
