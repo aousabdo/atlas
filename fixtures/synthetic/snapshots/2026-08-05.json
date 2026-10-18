@@ -5,10 +5,10 @@
       "denominator": 11,
       "key": "requirement_attrition",
       "label": "Requirement attrition",
-      "numerator": 10,
-      "severity": "ok",
+      "numerator": 9,
+      "severity": "watch",
       "unit": "pct",
-      "value_pct": 90.9
+      "value_pct": 81.8
     },
     {
       "denominator": 32,
@@ -20,13 +20,13 @@
       "value_pct": 71.9
     },
     {
-      "denominator": 32,
+      "denominator": 30,
       "key": "realization_gap",
       "label": "Realization gap",
       "numerator": 10,
       "severity": "critical",
       "unit": "pct",
-      "value_pct": 31.2
+      "value_pct": 33.3
     },
     {
       "denominator": 13,

@@ -20,7 +20,9 @@ import type {
   CoverageMatrix, LinkSet, LossinessDimension, LossinessReport, Requirement,
   Severity, System, Topology, TopGap,
 } from '../types/atlas'
-import { matrixIdSet, realizedSystemIds } from './coverage'
+import {
+  fieldableSystemIds, matrixIdSet, realizedSystemIds, shortfallSystemIds,
+} from './coverage'
 
 export const DIMENSION_LABELS: Record<string, string> = {
   requirement_attrition: 'Requirement attrition',
@@ -140,26 +142,31 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
 
   // isRealizedMapping is the shared definition; see src/lib/coverage.ts for
   // why a device-less or non-matrix mapping is a different fact from coverage.
+  // Shortfall rows record a gap, not a system that could be fielded, so they
+  // are out of the denominator and named under detail.shortfalls instead.
   const matrixIds = matrixIdSet(systems)
+  const shortfalls = shortfallSystemIds(systems)
+  const fieldable = fieldableSystemIds(systems)
+  const total = fieldable.size
   const perSite: Record<string, unknown> = {}
   const mappedAnywhere = new Set<string>()
   for (const [siteId, site] of Object.entries(coverage.sites)) {
-    const mapped = realizedSystemIds(site, matrixIds)
+    const mapped = realizedSystemIds(site, matrixIds).filter((id) => fieldable.has(id))
     mapped.forEach((m) => mappedAnywhere.add(m))
     perSite[siteId] = {
       label: site.label,
       mapped: mapped.length,
-      total: systems.length,
-      pct: pct(mapped.length, systems.length),
+      total,
+      pct: pct(mapped.length, total),
       mapped_ids: mapped,
       checked_absent: Object.keys(site.not_deployed_at_site).sort(),
     }
   }
-  const unmapped = [...matrixIds].filter((id) => !mappedAnywhere.has(id)).sort()
+  const unmapped = [...fieldable].filter((id) => !mappedAnywhere.has(id)).sort()
   const realizationGap = dimension(
-    'realization_gap', mappedAnywhere.size, systems.length,
-    severityFor(pct(mappedAnywhere.size, systems.length)),
-    { per_site: perSite, unmapped },
+    'realization_gap', mappedAnywhere.size, total,
+    severityFor(pct(mappedAnywhere.size, total)),
+    { per_site: perSite, unmapped, shortfalls },
   )
 
   const currentPairs = new Set(links.current.map((l) => pairKey(l.from, l.to)))
@@ -243,7 +250,12 @@ function topGaps(dimensions: LossinessDimension[], systems: System[], limit = 10
   const unconfirmed = new Set(
     (find('ownership_ambiguity').detail.unconfirmed as string[]) ?? [],
   )
-  const unmapped = new Set((find('realization_gap').detail.unmapped as string[]) ?? [])
+  const realization = find('realization_gap').detail
+  const unmapped = new Set((realization.unmapped as string[]) ?? [])
+  // A shortfall row keeps its points for risk and ownership but has no
+  // hardware to be mapped or unmapped, so it is flagged rather than shown as
+  // mapped. Mirrors lossiness.top_gaps.
+  const shortfalls = new Set((realization.shortfalls as string[]) ?? [])
 
   return systems
     .map((s) => ({
@@ -252,6 +264,7 @@ function topGaps(dimensions: LossinessDimension[], systems: System[], limit = 10
       risk: s.risk,
       unconfirmed: unconfirmed.has(s.id),
       unmapped: unmapped.has(s.id),
+      shortfall: shortfalls.has(s.id),
       score:
         (s.risk === 'high' ? 3 : 0) +
         (unconfirmed.has(s.id) ? 1 : 0) +

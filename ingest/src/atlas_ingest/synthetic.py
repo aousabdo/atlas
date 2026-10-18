@@ -17,6 +17,7 @@ metrics shows up in the sample bundle the same way it would in a real one.
 import json
 from pathlib import Path
 
+from .bundle import snapshot_payload
 from .classify import classify_owner
 from .config import CATEGORY_MAP
 from .curation import mapping_confidence_counts
@@ -824,8 +825,8 @@ DEVICES_A = [
      "198.51.100.64/27", "First hypervisor in the on-campus virtualization pair"),
     ("mgmt_host_b", "mgmt", "server", "Hypervisor Host B", "198.51.100.68",
      "198.51.100.64/27", "Second hypervisor in the on-campus virtualization pair"),
-    ("mgmt_vm_pool", "mgmt", "vlan", "Virtual Machine Pool", None,
-     "198.51.100.96/27", "Guest VLAN carrying the on-campus service VMs"),
+    ("mgmt_vm_pool", "mgmt", "server", "Virtual Machine Pool", None,
+     "198.51.100.96/27", "Service VMs hosted on the management hypervisor pair"),
     ("mgmt_ntp", "mgmt", "server", "Time Server", "198.51.100.69",
      "198.51.100.64/27", "Stratum-2 NTP source for the campus"),
     ("mgmt_jump", "mgmt", "endpoint", "Administration Jump Host", "198.51.100.70",
@@ -976,18 +977,21 @@ EDGES_A = [
     ("core_switch", "core_console", "ethernet", None),
     ("core_console", "mgmt_jump", "ethernet", "Console to jump host"),
     ("core_router", "secure_backbone", "wan", "Campus to backbone"),
-    ("secure_backbone", "gov_cloud", "vlan", "Backbone to cloud tenancy"),
-    ("gov_cloud", "cop_application", "vlan", None),
-    ("gov_cloud", "cloud_tak_server", "vlan", None),
-    ("gov_cloud", "cloud_identity", "vlan", None),
+    # The tenancy is reached over the backbone WAN and hosts the COP tiers on
+    # its own network. These are attachments, so they are physical links; the
+    # VLANs are the data flows drawn on top of them.
+    ("secure_backbone", "gov_cloud", "wan", "Backbone to cloud tenancy"),
+    ("gov_cloud", "cop_application", "ethernet", "Tenant network"),
+    ("gov_cloud", "cloud_tak_server", "ethernet", "Tenant network"),
+    ("gov_cloud", "cloud_identity", "ethernet", "Tenant network"),
     ("cop_application", "cloud_identity", "vlan", "Attribute release"),
 
     ("core_switch", "mgmt_switch", "ethernet", None),
     ("mgmt_switch", "mgmt_storage", "ethernet", None),
     ("mgmt_switch", "mgmt_host_a", "ethernet", None),
     ("mgmt_switch", "mgmt_host_b", "ethernet", None),
-    ("mgmt_host_a", "mgmt_vm_pool", "vlan", None),
-    ("mgmt_host_b", "mgmt_vm_pool", "vlan", None),
+    ("mgmt_host_a", "mgmt_vm_pool", "ethernet", "Hosted on"),
+    ("mgmt_host_b", "mgmt_vm_pool", "ethernet", "Hosted on"),
     ("mgmt_switch", "mgmt_ntp", "ethernet", None),
     ("mgmt_switch", "mgmt_jump", "ethernet", None),
 
@@ -1347,28 +1351,13 @@ def _methodology():
 
 
 def _snapshot(report):
-    """The committed snapshot for this build.
+    """The committed snapshot for this build: this build's own figures.
 
-    Requirement attrition is recorded one requirement better than the live
-    figure so the trend view has a real delta to render as soon as a second
-    snapshot lands. A snapshot copied from the live report can only ever draw
-    a flat line.
+    One snapshot is not a trend, and the Trend view says so. A sample that
+    should show movement needs a second, genuinely different set of inputs,
+    never an edited figure.
     """
-    dimensions = []
-    for d in report["dimensions"]:
-        entry = {k: d[k] for k in ("key", "label", "numerator", "denominator",
-                                   "value_pct", "unit", "severity")}
-        if entry["key"] == "requirement_attrition":
-            entry["numerator"] = 10
-            entry["value_pct"] = 90.9
-            entry["severity"] = "ok"
-        dimensions.append(entry)
-    return {
-        "label": SNAPSHOT_LABEL,
-        "built_at": BUILT_AT,
-        "git_sha": GIT_SHA,
-        "dimensions": dimensions,
-    }
+    return snapshot_payload(report, BUILT_AT, GIT_SHA)
 
 
 def emit(out_dir):

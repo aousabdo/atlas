@@ -65,7 +65,7 @@ describe('Lossiness', () => {
   it('marks how the data under each figure was arrived at', async () => {
     await renderWithProvider(<LossinessTab />)
     const realization = await screen.findByRole('article', { name: /Realization gap/i })
-    expect(within(realization).getByText('31.2%')).toBeInTheDocument()
+    expect(within(realization).getByText('33.3%')).toBeInTheDocument()
     expect(within(realization).getByText('manual')).toBeInTheDocument()
 
     const integration = await screen.findByRole('article', { name: /Integration gap/i })
@@ -97,16 +97,19 @@ describe('Lossiness', () => {
     expect(within(drawer).getAllByRole('listitem')).toHaveLength(2)
   })
 
-  it('lists the 22 unmapped systems and the per-site realization', async () => {
+  it('lists the 20 unmapped systems and the per-site realization', async () => {
     const { user } = await renderWithProvider(<LossinessTab />)
     const drawer = await drillInto(user, /Realization gap/i)
+    // 20 unmapped, then the 2 shortfall rows named under Not counted.
     expect(within(drawer).getAllByRole('listitem')).toHaveLength(22)
+    expect(within(drawer).getByText('Not counted')).toBeInTheDocument()
+    expect(within(drawer).getByText('Partner Agency Data Sharing')).toBeInTheDocument()
     expect(within(drawer).getByText('Dwell')).toBeInTheDocument()
     expect(
       within(drawer).getByText('Northgate Sports Campus'),
     ).toBeInTheDocument()
-    expect(within(drawer).getByText('10 of 32')).toBeInTheDocument()
-    expect(within(drawer).getByText('0 of 32')).toBeInTheDocument()
+    expect(within(drawer).getByText('10 of 30')).toBeInTheDocument()
+    expect(within(drawer).getByText('0 of 30')).toBeInTheDocument()
   })
 
   it('lists all 13 planned interfaces that nothing satisfies', async () => {
@@ -163,11 +166,30 @@ describe('Lossiness', () => {
     expect(within(flow).getByText('79 devices')).toBeInTheDocument()
   })
 
+  it('names the shortfall rows that make realization 30 systems where ownership is 32', async () => {
+    await renderWithProvider(<LossinessTab />)
+    const section = await screen.findByRole('region', { name: /attrition flow/i })
+    const note = within(section).getByText(/realization leaves out 2 shortfall rows/i)
+    expect(note).toHaveTextContent(/Dispatch Management System.*Partner Agency Data Sharing/)
+    // Ownership, the other system band, does count them; the note says so.
+    expect(note).toHaveTextContent(/ownership still counts them/i)
+  })
+
   it('says there is only one snapshot rather than drawing a flat line', async () => {
     await renderWithProvider(<LossinessTab />)
     // Named, so a reader can tell which build the figures above came from.
     expect(await screen.findByText(/one snapshot so far \(2026-08-05\)/i)).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: /snapshot/i })).not.toBeInTheDocument()
+  })
+
+  it('says a shortfall row in Top Gaps is a shortfall, never that it is mapped', async () => {
+    await renderWithProvider(<LossinessTab />)
+    const region = await screen.findByRole('region', { name: /top gaps/i })
+    const dispatch = within(region)
+      .getAllByRole('row')
+      .find((row) => row.textContent?.includes('dispatch'))!
+    expect(dispatch).toHaveTextContent('shortfall row')
+    expect(dispatch).not.toHaveTextContent(/\bmapped\b/)
   })
 
   it('ranks top gaps by risk, confirmation and mapping', async () => {
@@ -196,9 +218,9 @@ describe('Lossiness', () => {
     expect(
       screen.getByText(/management indicator, not a formal metric/i),
     ).toBeInTheDocument()
-    // The mean of 81.8, 71.9, 31.2 and 100, and of nothing else: the three
+    // The mean of 81.8, 71.9, 33.3 and 100, and of nothing else: the three
     // count dimensions are deliberately not folded in.
-    expect(screen.getByText('71.2')).toBeInTheDocument()
+    expect(screen.getByText('71.8')).toBeInTheDocument()
   })
 
   it('renders a load failure instead of a page of zeroes', async () => {
@@ -269,6 +291,21 @@ describe('TrendView', () => {
     // what is wrong. Both of these are improvements.
     expect(within(table).getByText(/\+9\.1 pts/)).toBeInTheDocument()
     expect(within(table).getByText('-15')).toBeInTheDocument()
+  })
+
+  it('spells a tie the way the report and the scorecard spell it', () => {
+    // percentOf(10, 32) is 31.25 exactly. The canonical formatter breaks the
+    // tie to even and says 31.2, which is what the lossiness report and the
+    // scorecard card both print. A local toFixed(1) rounds half up and says
+    // 31.3, so the same fraction reads two ways on one tab.
+    render(
+      <TrendView
+        snapshots={[snapshot('2026-08-05', 31.25, 59), snapshot('2026-09-02', 40, 44)]}
+      />,
+    )
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('31.2%')).toBeInTheDocument()
+    expect(within(table).queryByText('31.3%')).not.toBeInTheDocument()
   })
 
   it('does not pretend an empty history is a measurement', () => {

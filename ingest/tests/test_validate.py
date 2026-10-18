@@ -160,3 +160,36 @@ def test_this_run_s_dataset_passes_every_gate(
         glossary=glossary,
     )
     assert fails == []
+
+
+GAP_ROW = {"id": "gap", "name": "Gap", "cat": "Workflow shortfall", "risk": "high",
+           "risk_source": "explicit", "soft": False}
+
+
+def test_hardware_mapped_to_a_shortfall_row_fails():
+    """A shortfall row records that no system exists, so naming devices for it
+    contradicts the row. Left through, the realization gap would leave it out
+    while the confidence tally and the Network tab counted it as realized."""
+    systems = _inputs()["systems"] + [GAP_ROW]
+    sdmap = _site(mappings={"gap": {"devices": ["d1"]}})
+    fails = validate(**_inputs(systems=systems, sdmap=sdmap))
+    assert len(fails) == 1
+    assert "gap" in fails[0]
+    assert "shortfall" in fails[0]
+
+
+def test_a_shortfall_row_mapped_with_no_devices_fails_too():
+    """An empty mapping reads as a survey gap: a system someone recorded with no
+    hardware found yet. A shortfall row can never have hardware, so that label
+    would be false. A checked absence goes under not_deployed_at_site."""
+    systems = _inputs()["systems"] + [GAP_ROW]
+    sdmap = _site(mappings={"gap": {"devices": []}})
+    fails = validate(**_inputs(systems=systems, sdmap=sdmap))
+    assert len(fails) == 1
+    assert "not_deployed_at_site" in fails[0]
+
+
+def test_a_shortfall_row_checked_absent_is_fine():
+    systems = _inputs()["systems"] + [GAP_ROW]
+    sdmap = _site(not_deployed_at_site={"gap": "checked, absent"})
+    assert validate(**_inputs(systems=systems, sdmap=sdmap)) == []

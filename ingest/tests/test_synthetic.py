@@ -249,7 +249,7 @@ def test_every_dimension_carries_evidence_and_a_severity():
 @pytest.mark.parametrize("key,numerator,denominator", [
     ("requirement_attrition", 9, 11),
     ("ownership_ambiguity", 23, 32),
-    ("realization_gap", 10, 32),
+    ("realization_gap", 10, 30),
     ("orphaned_hardware", 59, 79),
 ])
 def test_headline_lossiness_figures(key, numerator, denominator):
@@ -324,17 +324,16 @@ def test_manifest_provenance_is_fabricated_and_well_formed():
     }
 
 
-def test_the_snapshot_is_not_a_copy_of_the_live_report():
-    """One snapshot is not a trend, but it is the baseline the next build is
-    compared against, so it has to be a distinct measurement."""
+def test_the_snapshot_records_this_builds_own_figures():
+    """The snapshot carries this build's label, date and commit, so it is a
+    record of this build's lossiness report and nothing else. A baseline that
+    differs from the report it claims to record is a trend nobody measured."""
+    fields = ("key", "label", "numerator", "denominator",
+              "value_pct", "unit", "severity")
     snapshot = read(COMMITTED, f"snapshots/{synthetic.SNAPSHOT_LABEL}.json")
+    live = read(COMMITTED, "lossiness.json")["dimensions"]
     assert len(snapshot["dimensions"]) == 7
-    recorded = next(d for d in snapshot["dimensions"]
-                    if d["key"] == "requirement_attrition")
-    assert (recorded["numerator"], recorded["denominator"]) == (10, 11)
-    live = next(d for d in read(COMMITTED, "lossiness.json")["dimensions"]
-                if d["key"] == "requirement_attrition")
-    assert recorded["numerator"] != live["numerator"]
+    assert snapshot["dimensions"] == [{k: d[k] for k in fields} for d in live]
 
 
 def test_the_snapshot_is_indexed_by_the_manifest():

@@ -211,6 +211,15 @@ function RealizationBody({
   return (
     <>
       <SystemList ids={unmapped(dimension)} systemName={systemName} />
+      {shortfalls(dimension).length > 0 && (
+        <Group title="Not counted">
+          <p className="mb-1 text-xs text-muted-2">
+            Shortfall rows record a gap in the architecture, not a system that
+            could be fielded, so they are neither realized nor unmapped.
+          </p>
+          <SystemList ids={shortfalls(dimension)} systemName={systemName} />
+        </Group>
+      )}
       {sites.length > 0 && (
         <Group title="Mapped per site">
           <div className="space-y-1 text-sm">
@@ -373,6 +382,12 @@ export interface OpenQuestion {
 
 export function unconfirmed(dimension: LossinessDimension): string[] {
   return strings(dimension.detail.unconfirmed)
+}
+
+/** Rows left out of the realization denominator because they are shortfalls. */
+export function shortfalls(dimension: LossinessDimension): string[] {
+  const value = dimension.detail.shortfalls
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : []
 }
 
 export function unmapped(dimension: LossinessDimension): string[] {

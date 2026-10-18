@@ -82,13 +82,19 @@ focus it" caveat has not come back, since one document is what removed the need 
 ## A number that deliberately changed
 
 The old tool reported Northgate coverage as **13 of 32 systems (41%)**. It now reports
-**10 of 32 (31%)**, and names the difference.
+**10 of 30 (33%)**, and names both differences.
 
-Northgate has 13 mapping entries, but three of them do not describe a matrix system
-realized in hardware: `homing` and `kite` are ATAK plugins with an empty device list, and
-`atak` carries `matrix_id_exists: false` because it is deliberately not a matrix system.
-Counting them inflated the figure. The panel now shows 31% and states the three uncounted
-mappings underneath.
+The numerator: Northgate has 13 mapping entries, but three of them do not describe a
+matrix system realized in hardware: `homing` and `kite` are ATAK plugins with an empty
+device list, and `atak` carries `matrix_id_exists: false` because it is deliberately not a
+matrix system. Counting them inflated the figure.
+
+The denominator: two of the 32 matrix rows, `dispatch` and `partner`, are filed as
+shortfalls (`Workflow shortfall`, `Exchange shortfall`). They record a gap in the
+architecture, not a system anyone could field, so they can be neither realized nor
+unmapped, and the load fails if a mapping gives one hardware. The panel now shows 33%,
+states the three uncounted mappings underneath, and names the two shortfall rows it
+leaves out.
 
 This is the tool doing its job. Anyone who quoted 41% should be told.
 

@@ -159,6 +159,8 @@ export interface TopGap {
   risk: RiskLevel
   unconfirmed: boolean
   unmapped: boolean
+  /** A shortfall row: it has no hardware to be mapped or unmapped. */
+  shortfall: boolean
   score: number
 }
 

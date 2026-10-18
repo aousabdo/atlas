@@ -1,6 +1,7 @@
 import { useId } from 'react'
 
-import { formatPercent } from '../../lib/coverage'
+import { ShortfallNote } from '../../components/ShortfallNote'
+import { formatPercent, shortfallSystemIds } from '../../lib/coverage'
 import {
   bandSentence,
   riskBandCoverage,
@@ -33,7 +34,7 @@ export interface RiskWeightedCoverageProps {
 /**
  * Coverage broken out by the risk of what is covered.
  *
- * The flat headline, 10 of 32 realized, is the average of three very different
+ * The flat headline, 10 of 30 realized, is the average of three very different
  * answers, and averaging is exactly what loses the finding: the band carrying
  * the most risk is the band with the least confirmation. Both lists are on the
  * page rather than behind a control, because the reader who doubts the number
@@ -48,6 +49,11 @@ export function RiskWeightedCoverage({
   const headingId = useId()
   const tooltip = useCursorTooltip()
   const bands = riskBandCoverage(systems, coverage)
+  // Out of every band, as out of the realization gap, and named so the band
+  // totals plus these rows add up to the matrix's systems by hand.
+  const shortfalls = shortfallSystemIds(systems).map(
+    (id) => systems.find((s) => s.id === id)?.name ?? id,
+  )
 
   const bandDimmed = (band: RiskBandCoverage) =>
     filterActive &&
@@ -127,6 +133,8 @@ export function RiskWeightedCoverage({
           )
         })}
       </ul>
+
+      <ShortfallNote names={shortfalls} />
 
       <CursorTooltip {...tooltip} />
     </section>

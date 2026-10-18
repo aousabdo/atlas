@@ -1,4 +1,4 @@
-import { matrixIdSet, realizedConfidenceCounts } from '../lib/coverage'
+import { matrixIdSet, realizedConfidenceCounts, shortfallSystemIds } from '../lib/coverage'
 import { computeLossiness } from '../lib/lossiness'
 import type {
   CoverageMatrix, CoverageSite, Glossary, Link, LinkSet, LossinessReport,
@@ -168,10 +168,19 @@ function normaliseSystemDeviceMap(
 
   const sites: Record<string, CoverageSite> = {}
   for (const [id, block] of Object.entries(blocks)) {
+    // A mapping with no devices key names no hardware, which is how the
+    // ingest reads it (entry.get("devices")). Filled in here so no consumer
+    // has to guard it and none can crash on it before a gate names the row.
+    const mappings = Object.fromEntries(
+      Object.entries(block.mappings ?? {}).map(([sid, m]) => [
+        sid,
+        { ...m, devices: m.devices ?? [] },
+      ]),
+    )
     sites[id] = {
       label: block.label ?? id,
       scope: block.scope ?? '',
-      mappings: block.mappings ?? {},
+      mappings,
       not_deployed_at_site:
         block.not_deployed_at_site ?? block.not_deployed_at_northgate ?? {},
       unclaimed_devices: block.unclaimed_devices ?? { infrastructure: [] },
@@ -282,6 +291,7 @@ export function crossFileFailures(parsed: {
   const fails: string[] = []
   const matrixIds = matrixIdSet(parsed.systems)
   const systemNames = new Set(parsed.systems.map((s) => s.name))
+  const shortfallIds = new Set(shortfallSystemIds(parsed.systems))
 
   for (const [siteId, site] of Object.entries(parsed.coverage.sites)) {
     // No topology for this site means nothing to check the devices against.
@@ -309,6 +319,18 @@ export function crossFileFailures(parsed: {
           `system_device_map.sites.${siteId}.mappings.${systemId}: ` +
             `matrix_id_exists:false, but the matrix does carry that system ` +
             `id; drop the flag or rename the mapping`,
+        )
+      }
+      // A shortfall row records that no system exists, so it takes no
+      // mapping. With devices, realization leaves it out while the confidence
+      // tally counts it. With none, it reads as a survey gap, a system whose
+      // hardware nobody has found yet, which is just as false. A checked
+      // absence belongs under not_deployed_at_site. Same gate as validate().
+      if (shortfallIds.has(systemId)) {
+        fails.push(
+          `system_device_map.sites.${siteId}.mappings.${systemId}: the ` +
+            `matrix files ${systemId} as a shortfall, not a system, so it ` +
+            `takes no mapping; record a check under not_deployed_at_site`,
         )
       }
       if (deviceIds) {

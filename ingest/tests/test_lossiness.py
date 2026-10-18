@@ -52,12 +52,16 @@ def test_ownership_ambiguity(report):
 
 
 def test_realization_gap_counts_only_matrix_systems_with_hardware(report):
-    """10 of 32, not 11. Northgate has 11 device-bearing mappings, but one of
-    them ('atak') carries matrix_id_exists: false and is deliberately not a
-    matrix system, so it describes hardware rather than a realized system.
-    Westfield Proving Ground has no mappings at all yet."""
+    """10 of 30, not 11 of 32. Northgate has 11 device-bearing mappings, but one
+    of them ('atak') carries matrix_id_exists: false and is deliberately not a
+    matrix system, so it describes hardware rather than a realized system. The
+    denominator leaves out the two shortfall rows, which record a gap in the
+    architecture rather than a system anyone could field. Westfield Proving
+    Ground has no mappings at all yet."""
     d = _dim(report, "realization_gap")
-    assert (d["numerator"], d["denominator"]) == (10, 32)
+    assert (d["numerator"], d["denominator"]) == (10, 30)
+    assert d["detail"]["shortfalls"] == ["dispatch", "partner"]
+    assert d["detail"]["per_site"]["northgate"]["total"] == 30
     # Sorted, because lossiness._realization_gap sorts mapped_ids. This list was
     # written in curation order, which no input could ever have matched.
     assert d["detail"]["per_site"]["northgate"]["mapped_ids"] == [
@@ -65,7 +69,34 @@ def test_realization_gap_counts_only_matrix_systems_with_hardware(report):
         "recon", "tagpoint", "ucop", "winrel",
     ]
     assert d["detail"]["per_site"]["westfield"]["mapped"] == 0
-    assert len(d["detail"]["unmapped"]) == 22
+    assert len(d["detail"]["unmapped"]) == 20
+    assert not {"dispatch", "partner"} & set(d["detail"]["unmapped"])
+
+
+def test_realization_gap_leaves_shortfall_rows_out():
+    """A shortfall row says something is missing; it is not a system that could
+    be fielded, so it is neither realized nor unmapped. It is named under
+    detail.shortfalls so the denominator can be checked by hand."""
+    systems = [
+        {"id": "alpha", "name": "Alpha", "cat": "Deployed asset record",
+         "soft": False, "risk": "low", "risk_source": "explicit"},
+        {"id": "gap", "name": "Gap", "cat": "Workflow shortfall",
+         "soft": False, "risk": "high", "risk_source": "explicit"},
+    ]
+    sdmap = {"sites": {"harbor": {
+        "label": "Harbor Yard",
+        "mappings": {"alpha": {"devices": ["dev-1"], "confidence": "high"}},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {"infrastructure": []},
+    }}, "pending_review": {}}
+
+    report = compute_lossiness(systems=systems, links=[], desired=[],
+                               crosswalk=[], sdmap=sdmap, networks={})
+    gap = _dim(report, "realization_gap")
+    assert (gap["numerator"], gap["denominator"]) == (1, 1)
+    assert gap["detail"]["shortfalls"] == ["gap"]
+    assert gap["detail"]["unmapped"] == []
+    assert gap["detail"]["per_site"]["harbor"]["total"] == 1
 
 
 def test_realization_gap_keeps_the_checked_and_absent_facts(report):
@@ -141,7 +172,9 @@ def test_composite_index_available_on_request(report):
     """Averages only the percentage dimensions. Folding in the counts would
     manufacture precision they do not have."""
     value = composite_index(report)
-    assert value == pytest.approx(71.2, abs=0.1)
+    # The mean of 81.8, 71.9, 33.3 and 100: realization is 10 of the 30
+    # systems that could be fielded, the two shortfall rows left out.
+    assert value == pytest.approx(71.8, abs=0.1)
     assert 0.0 <= value <= 100.0
 
 
@@ -291,3 +324,35 @@ def test_realization_gap_ignores_a_flag_that_contradicts_the_matrix():
     assert gap["detail"]["per_site"]["harbor"]["mapped_ids"] == ["bravo"]
     assert mapping_confidence_counts(sdmap)["total"] == gap["numerator"]
     assert mapping_confidence_counts(sdmap, matrix_id_set(systems))["total"] == 1
+
+
+def test_top_gaps_names_a_shortfall_row_instead_of_calling_it_mapped():
+    """A shortfall row keeps its place for risk and ownership, but it has no
+    hardware to be mapped or unmapped, so it says what it is."""
+    from atlas_ingest.lossiness import top_gaps
+    systems = [
+        {"id": "alpha", "name": "Alpha", "cat": "Deployed asset record",
+         "soft": True, "risk": "low", "risk_source": "explicit"},
+        {"id": "gap", "name": "Gap", "cat": "Workflow shortfall",
+         "soft": False, "risk": "high", "risk_source": "explicit"},
+    ]
+    sdmap = {"sites": {"harbor": {
+        "label": "Harbor Yard", "mappings": {},
+        "not_deployed_at_site": {}, "unclaimed_devices": {"infrastructure": []},
+    }}, "pending_review": {}}
+    report = compute_lossiness(systems=systems, links=[], desired=[],
+                               crosswalk=[], sdmap=sdmap, networks={})
+    gaps = {g["id"]: g for g in top_gaps(report, systems)}
+    assert gaps["gap"]["shortfall"] is True
+    assert gaps["gap"]["unmapped"] is False
+    assert gaps["gap"]["score"] == 3
+    assert gaps["alpha"]["shortfall"] is False
+    assert gaps["alpha"]["unmapped"] is True
+
+
+def test_a_shortfall_row_listed_twice_is_named_once():
+    rows = [{"id": "gap", "name": "Gap", "cat": "Workflow shortfall", "soft": False,
+             "risk": "high", "risk_source": "explicit"}] * 2
+    report = compute_lossiness(systems=rows, links=[], desired=[], crosswalk=[],
+                               sdmap={"sites": {}, "pending_review": {}}, networks={})
+    assert _dim(report, "realization_gap")["detail"]["shortfalls"] == ["gap"]

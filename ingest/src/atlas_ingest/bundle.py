@@ -12,6 +12,28 @@ from .curation import mapping_confidence_counts
 from .lossiness import compute_lossiness, top_gaps
 from .methodology import extract_methodology
 
+SNAPSHOT_FIELDS = ("key", "label", "numerator", "denominator",
+                   "value_pct", "unit", "severity")
+
+
+def snapshot_payload(report, built_at, git_sha):
+    """One build's snapshot: its date and commit, and the seven lossiness
+    figures exactly as the report states them.
+
+    The sample generator writes its committed snapshot through this too, so
+    neither writer can restate a figure. It once recorded requirement
+    attrition one requirement better than the report it claimed to record,
+    so the trend view would have a delta to draw, and a rebuild of unchanged
+    inputs then showed a loss that never happened.
+    """
+    return {
+        "label": built_at.split("T")[0],
+        "built_at": built_at,
+        "git_sha": git_sha,
+        "dimensions": [{k: d[k] for k in SNAPSHOT_FIELDS}
+                       for d in report["dimensions"]],
+    }
+
 BUNDLE_VERSION = 1
 
 
@@ -106,17 +128,8 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
     # Snapshots are written before the manifest so the index below sees this
     # run's file. A static host cannot be globbed, so the manifest is the only
     # way the app can discover which snapshots exist.
-    snapshot_date = built_at.split("T")[0]
-    _write(out_dir / "snapshots" / f"{snapshot_date}.json", {
-        "label": snapshot_date,
-        "built_at": built_at,
-        "git_sha": git_sha,
-        "dimensions": [
-            {k: d[k] for k in ("key", "label", "numerator", "denominator",
-                               "value_pct", "unit", "severity")}
-            for d in report["dimensions"]
-        ],
-    })
+    snapshot = snapshot_payload(report, built_at, git_sha)
+    _write(out_dir / "snapshots" / f"{snapshot['label']}.json", snapshot)
 
     manifest = {
         "bundle_version": BUNDLE_VERSION,

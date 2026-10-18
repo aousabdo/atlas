@@ -8,6 +8,8 @@ an empty Reference tab ship unnoticed.
 import json
 from pathlib import Path
 
+from .config import CATEGORY_MAP
+
 EMPTY_OVERRIDES = {
     "cross_links": [], "suppress_links": [], "desired_links": [],
     "risk_overrides": {}, "soft_overrides": {}, "node_order": {},
@@ -128,6 +130,26 @@ def is_realized_mapping(sys_id, entry, matrix_ids=None):
     return bool(entry.get("devices")) and names_matrix_system(
         sys_id, entry, matrix_ids
     )
+
+
+# The category-map branch the matrix files its gap rows under.
+SHORTFALL_BRANCH = "gaps"
+
+
+def is_shortfall(system):
+    """A row the matrix files as a shortfall ('Workflow shortfall', 'Exchange
+    shortfall'): it records that something is missing, not a system anyone
+    could field.
+
+    Mirrors isShortfall in src/lib/coverage.ts, and both read the same
+    generated category map. Lives here beside is_realized_mapping because the
+    two are read together: lossiness leaves shortfall rows out of realization,
+    and validate refuses a mapping that gives one hardware, which is what keeps
+    the confidence tally from counting a row realization has left out.
+    Parsed rows carry the category as `cat`, bundled rows as `category`.
+    """
+    category = system.get("cat", system.get("category"))
+    return CATEGORY_MAP.get(category, {}).get("branch") == SHORTFALL_BRANCH
 
 
 def mapping_confidence_counts(sdmap, matrix_ids=None):

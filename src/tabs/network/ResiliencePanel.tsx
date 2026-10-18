@@ -287,6 +287,37 @@ function Disclosure({
 }
 
 /** Named devices, each one a way into its own record. This is the drill through. */
+/** A count with its devices one click away, so the number is never bare. */
+function NamedCount({
+  ids,
+  text,
+  labelOf,
+  onSelect,
+}: {
+  ids: readonly DeviceId[]
+  text: string
+  labelOf: (id: DeviceId) => string
+  onSelect: (id: DeviceId) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <p className="mt-1 text-xs text-muted-3">
+        {text}{' '}
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((on) => !on)}
+          className="rounded px-1 text-accent-ink hover:bg-surface-2"
+        >
+          {open ? 'Hide them' : `Name the ${ids.length}`}
+        </button>
+      </p>
+      {open && <DeviceLinks ids={ids} labelOf={labelOf} onSelect={onSelect} />}
+    </>
+  )
+}
+
 function DeviceLinks({
   ids,
   labelOf,
@@ -382,6 +413,14 @@ export function ResiliencePanel({
 
   const total = topology.devices.length
   const { spofs, graph } = resilience
+  // A device joined only by VLAN is a piece of its own on the physical links.
+  // It is named once below rather than counted as a piece.
+  const logicalOnly = graph?.anomalies.logicalOnlyDeviceIds ?? []
+  const pieces = graph
+    ? graph.components.filter(
+        (piece) => !(piece.count === 1 && logicalOnly.includes(piece.deviceIds[0]!)),
+      )
+    : []
   const shownSpofs = allSpof ? spofs : spofs.slice(0, PREVIEW)
 
   return (
@@ -404,21 +443,36 @@ export function ResiliencePanel({
             <>
               <p className="text-xs text-muted">
                 Removing any one of these leaves part of the site with no path to
-                the rest. Counted on the recorded links, and on nothing else.
+                the rest. Counted on the physical links, cable and radio, as
+                recorded. A VLAN rides on those same links, so it is never a second
+                way round.
               </p>
 
-              {graph && graph.components.length > 1 && (
+              {pieces.length > 1 && (
                 <p className="mt-1 text-xs text-risk-medium-ink">
-                  The recorded topology is already in {graph.components.length} separate
-                  pieces of {listOf(graph.components.map((piece) => String(piece.count)))}.
-                  Each cut below is measured inside its own piece.
+                  The physical links are already in {pieces.length} separate pieces
+                  of {listOf(pieces.map((piece) => String(piece.count)))}. Each cut
+                  below is measured inside its own piece.
+                </p>
+              )}
+
+              {logicalOnly.length > 0 && (
+                <p className="mt-1 text-xs text-muted-3">
+                  {logicalOnly.length} {logicalOnly.length === 1 ? 'device is' : 'devices are'}{' '}
+                  joined only by VLAN links, with no cable or radio link drawn to{' '}
+                  {logicalOnly.length === 1 ? 'it' : 'them'}: {listOf(logicalOnly.map(labelOf))}.
+                  The drawing does not show how they attach, so they are never
+                  counted as cut off.
                 </p>
               )}
 
               {spofs.length === 0 ? (
                 <p className="mt-1 text-xs text-muted">
-                  No single point of failure. Every device has a second way round
-                  in the links as recorded.
+                  {graph && graph.links.length === 0
+                    ? 'No cable or radio link is drawn at this site, so there is nothing to count.'
+                    : logicalOnly.length > 0
+                      ? 'No single point of failure among the devices with a cable or radio link. Each has a second way round in the physical links as recorded.'
+                      : 'No single point of failure. Every device has a second way round in the physical links as recorded.'}
                 </p>
               ) : (
                 <ul className="mt-1 flex flex-col gap-px">
@@ -523,15 +577,28 @@ export function ResiliencePanel({
 
               <p className="mt-1 text-xs text-muted-3">Measured from {rootPhrase}.</p>
 
-              {blast.reachableBeforeCount === 0 ? (
+              {blast.removedIsLogicalOnly ? (
+                <p className="mt-1 text-xs text-muted">
+                  This device is joined only by VLAN links, so removing it cuts no
+                  cable or radio path.
+                </p>
+              ) : blast.rootIds.length > 0 &&
+                blast.logicalOnlyRootIds.length === blast.rootIds.length ? (
+                <p className="mt-1 text-xs text-muted">
+                  Every starting point here is joined only by VLAN links, so on
+                  cable and radio nothing is reachable from them. Pick another
+                  starting point.
+                </p>
+              ) : blast.reachableBeforeCount === 0 ? (
                 <p className="mt-1 text-xs text-muted">
                   Nothing was reachable from that starting point to begin with,
                   so this removal has nothing to cut.
                 </p>
               ) : blast.unreachableCount === 0 ? (
                 <p className="mt-1 text-xs text-muted">
-                  Nothing loses its path. Every other device still has a route
-                  that does not run through this one.
+                  {blast.removedWasReachable && blast.alreadyUnreachableDeviceIds.length === 0
+                    ? 'Nothing loses its path. Every other device still has a route that does not run through this one.'
+                    : 'Nothing loses its path because of this removal.'}
                 </p>
               ) : (
                 <>
@@ -588,10 +655,20 @@ export function ResiliencePanel({
               )}
 
               {blast.alreadyUnreachableDeviceIds.length > 0 && (
-                <p className="mt-1 text-xs text-muted-3">
-                  {blast.alreadyUnreachableDeviceIds.length} were already cut off
-                  before this removal, so they are not counted above.
-                </p>
+                <NamedCount
+                  ids={blast.alreadyUnreachableDeviceIds}
+                  text={`${blast.alreadyUnreachableDeviceIds.length} were already cut off before this removal, so they are not counted above.`}
+                  labelOf={labelOf}
+                  onSelect={onSelect}
+                />
+              )}
+              {blast.logicalOnlyDeviceIds.length > 0 && !blast.removedIsLogicalOnly && (
+                <NamedCount
+                  ids={blast.logicalOnlyDeviceIds}
+                  text={`The ${blast.logicalOnlyDeviceIds.length} joined only by VLAN are left out, because the drawing does not show how they attach.`}
+                  labelOf={labelOf}
+                  onSelect={onSelect}
+                />
               )}
               {!blast.removedWasReachable && (
                 <p className="mt-1 text-xs text-muted-3">
@@ -663,7 +740,9 @@ export function ResiliencePanel({
               <p className="mt-1 text-xs text-muted">
                 Pick a source kind and a sink kind. Reach is read either way along
                 a link, because the recorded source and target order is a drawing
-                convention and not the direction a detection travels.
+                convention and not the direction a detection travels. It follows
+                every recorded link, VLANs included, because a VLAN is how the data
+                travels.
               </p>
             ) : !trace ? (
               <p role="status" className="mt-1 text-xs text-muted">

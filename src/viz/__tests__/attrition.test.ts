@@ -32,7 +32,7 @@ function dimension(
 const DIMENSIONS: LossinessDimension[] = [
   dimension('requirement_attrition', 9, 11, 'watch'),
   dimension('ownership_ambiguity', 23, 32, 'watch'),
-  dimension('realization_gap', 10, 32, 'critical'),
+  dimension('realization_gap', 10, 30, 'critical'),
   dimension('integration_gap', 13, 13, 'critical', 'count'),
   dimension('evidence_gap', 32, 32, 'ok'),
   dimension('orphaned_hardware', 59, 79, 'critical', 'count'),
@@ -72,7 +72,7 @@ describe('buildAttritionStages', () => {
     const [requirements, ownership, realization] = buildAttritionStages(DIMENSIONS)
     expect(requirements).toMatchObject({ total: 11, kept: 9, lost: 2 })
     expect(ownership).toMatchObject({ total: 32, kept: 23, lost: 9 })
-    expect(realization).toMatchObject({ total: 32, kept: 10, lost: 22 })
+    expect(realization).toMatchObject({ total: 30, kept: 10, lost: 20 })
   })
 
   it('reads the orphaned hardware numerator as the loss, not the survivor', () => {
@@ -150,7 +150,7 @@ describe('layoutAttrition', () => {
 
   it('taller survivor means a taller kept band', () => {
     const [requirements, , realization] = layoutAttrition(stages, SIZE).bands
-    // 81.8% carried forward against 31.2% mapped.
+    // 81.8% carried forward against 33.3% mapped.
     expect(requirements.keptHeight).toBeGreaterThan(realization.keptHeight)
     // Both bands span the same trunk: only the split moves.
     expect(requirements.keptHeight + requirements.lossHeight).toBeCloseTo(

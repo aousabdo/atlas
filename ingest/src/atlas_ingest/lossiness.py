@@ -10,7 +10,7 @@ that were wanted and still do not exist; 6 is its inverse, hardware in the rack
 that no architecture document explains.
 """
 
-from .curation import is_realized_mapping, matrix_id_set
+from .curation import is_realized_mapping, is_shortfall, matrix_id_set
 
 DIMENSION_ORDER = [
     "requirement_attrition", "ownership_ambiguity", "realization_gap",
@@ -142,28 +142,36 @@ def _realization_gap(systems, sdmap):
     tally excluded it on the flag alone, so a mapping carrying
     matrix_id_exists: false for an id the matrix DOES hold was counted here and
     excluded there, in the same bundle.
+
+    Shortfall rows are left out of the denominator. They record a gap in the
+    architecture, not a system that could be fielded, so they can be neither
+    realized nor unmapped. They are named under detail.shortfalls, so the
+    denominator can still be checked against the matrix by hand.
     """
     matrix_ids = matrix_id_set(systems)
+    shortfalls = sorted({s["id"] for s in systems if is_shortfall(s)})
+    fieldable = matrix_ids - set(shortfalls)
+    total = len(fieldable)
     per_site, mapped_anywhere = {}, set()
     for site_id, site in sdmap.get("sites", {}).items():
         mapped = sorted(
             sid for sid, entry in site.get("mappings", {}).items()
-            if is_realized_mapping(sid, entry, matrix_ids)
+            if sid in fieldable and is_realized_mapping(sid, entry, matrix_ids)
         )
         mapped_anywhere.update(mapped)
         per_site[site_id] = {
             "label": site.get("label", site_id),
             "mapped": len(mapped),
-            "total": len(systems),
-            "pct": _pct(len(mapped), len(systems)),
+            "total": total,
+            "pct": _pct(len(mapped), total),
             "mapped_ids": mapped,
             "checked_absent": sorted(site.get("not_deployed_at_site", {})),
         }
-    unmapped = sorted(matrix_ids - mapped_anywhere)
+    unmapped = sorted(fieldable - mapped_anywhere)
     return _dimension(
-        "realization_gap", len(mapped_anywhere), len(systems),
-        severity_for(_pct(len(mapped_anywhere), len(systems))),
-        {"per_site": per_site, "unmapped": unmapped},
+        "realization_gap", len(mapped_anywhere), total,
+        severity_for(_pct(len(mapped_anywhere), total)),
+        {"per_site": per_site, "unmapped": unmapped, "shortfalls": shortfalls},
     )
 
 
@@ -259,9 +267,16 @@ def _find(report, key):
 
 
 def top_gaps(report, systems, limit=10):
-    """High-risk, unconfirmed and unmapped, ranked. Spec section 5's Top Gaps."""
+    """High-risk, unconfirmed and unmapped, ranked. Spec section 5's Top Gaps.
+
+    A shortfall row keeps its points for risk and ownership but has no
+    hardware to be mapped or unmapped, so it is flagged as a shortfall rather
+    than reported as mapped.
+    """
+    realization = _find(report, "realization_gap")["detail"]
     unconfirmed = set(_find(report, "ownership_ambiguity")["detail"]["unconfirmed"])
-    unmapped = set(_find(report, "realization_gap")["detail"]["unmapped"])
+    unmapped = set(realization["unmapped"])
+    shortfalls = set(realization.get("shortfalls", []))
     scored = []
     for s in systems:
         score = ((s["risk"] == "high") * 3) + (s["id"] in unconfirmed) + (s["id"] in unmapped)
@@ -270,6 +285,7 @@ def top_gaps(report, systems, limit=10):
                 "id": s["id"], "name": s["name"], "risk": s["risk"],
                 "unconfirmed": s["id"] in unconfirmed,
                 "unmapped": s["id"] in unmapped,
+                "shortfall": s["id"] in shortfalls,
                 "score": score,
             })
     scored.sort(key=lambda r: (-r["score"], r["id"]))

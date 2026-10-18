@@ -1,9 +1,9 @@
 /**
  * Coverage, split by the risk band of the system it covers.
  *
- * "10 of 32 systems realized (31%)" prices a high-risk system and a low-risk
+ * "10 of 30 systems realized (33%)" prices a high-risk system and a low-risk
  * one identically, and that distinction is the whole reason a reviewer opens
- * this tab. The flat figure can sit at 31% while every system carrying real
+ * this tab. The flat figure can sit at 33% while every system carrying real
  * risk is unconfirmed, and nothing on the page would say so.
  *
  * Nothing here re-decides what "realized" means. The predicate lives in
@@ -19,7 +19,7 @@
 import type {
   CoverageMatrix, SiteId, System, SystemId,
 } from '../types/atlas'
-import { isRealizedMapping, matrixIdSet, percentOf } from './coverage'
+import { fieldableSystemIds, isRealizedMapping, matrixIdSet, percentOf } from './coverage'
 
 /**
  * Reading order, not membership. Severity is not alphabetical and not the
@@ -89,8 +89,15 @@ export function riskBandCoverage(
 ): RiskBandCoverage[] {
   const sites = realizationSitesBySystem(coverage, matrixIdSet(systems))
 
+  // The realization gap's rule, so the bands add up to its denominator: an id
+  // with any shortfall row is out, and an id listed twice is one system,
+  // banded by its first row.
+  const fieldable = fieldableSystemIds(systems)
+  const seen = new Set<string>()
   const members = new Map<string, System[]>()
   for (const system of systems) {
+    if (!fieldable.has(system.id) || seen.has(system.id)) continue
+    seen.add(system.id)
     const band = String(system.risk)
     members.set(band, [...(members.get(band) ?? []), system])
   }

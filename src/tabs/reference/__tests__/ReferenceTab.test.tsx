@@ -36,6 +36,14 @@ describe('Reference & Methodology', () => {
     expect(within(table).getAllByText('soft')).toHaveLength(9)
   })
 
+  it('names the shortfall rows beside the per-site 10 of 30', async () => {
+    await renderWithProvider(<ReferenceTab />)
+    await screen.findByText('10 of 30')
+    const notes = screen.getAllByText(/Not counted: 2 shortfall rows/)
+    expect(notes.length).toBeGreaterThan(0)
+    expect(notes[0]).toHaveTextContent(/Dispatch Management System.*Partner Agency Data Sharing/)
+  })
+
   it('distinguishes mapped, checked-absent and never-looked-at systems', async () => {
     await renderWithProvider(<ReferenceTab />)
     const rows = within(await systemsTable()).getAllByRole('row')

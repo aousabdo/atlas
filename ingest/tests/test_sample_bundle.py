@@ -13,17 +13,18 @@ two agree, every fixture that used to need the reference workbook can be fed
 the generated one instead and still be asserting about real ingest output.
 """
 import json
+import shutil
 
 import pytest
 
 from conftest import SYNTHETIC_BUNDLE, build_bundle_from
 
-# Every bundle file the ingest must reproduce exactly. project.json and the
-# snapshot are excluded here and checked below, each for a stated reason.
+# Every bundle file the ingest must reproduce exactly. project.json is
+# excluded here and checked below, for a stated reason.
 MUST_MATCH = [
     "systems.json", "links.json", "crosswalk.json", "glossary.json",
     "methodology.json", "lossiness.json", "coverage.json", "manifest.json",
-    "sites/northgate.json", "sites/westfield.json",
+    "sites/northgate.json", "sites/westfield.json", "snapshots/2026-08-05.json",
 ]
 
 
@@ -48,25 +49,34 @@ def test_no_committed_bundle_file_is_left_unchecked():
         str(p.relative_to(SYNTHETIC_BUNDLE))
         for p in SYNTHETIC_BUNDLE.rglob("*.json")
     }
-    accounted = set(MUST_MATCH) | {"project.json", "snapshots/2026-08-05.json"}
+    accounted = set(MUST_MATCH) | {"project.json"}
     assert committed == accounted
 
 
-def test_the_committed_snapshot_is_deliberately_one_requirement_ahead(rebuilt):
-    """synthetic._snapshot records requirement attrition one requirement better
-    than the live figure so the trend view has a delta to draw. That is the
-    ONLY dimension allowed to differ; anything else is drift."""
-    live = _read(rebuilt, "snapshots/2026-08-05.json")
-    committed = _read(SYNTHETIC_BUNDLE, "snapshots/2026-08-05.json")
+def test_a_later_build_of_the_same_inputs_shows_no_change(
+    tmp_path, sample_source_repo, monkeypatch,
+):
+    """What README's `-o public/data` does to a seeded checkout: the committed
+    snapshot stays, the ingest adds today's, and the Trend view compares the
+    first with the last. Unchanged inputs must read as unchanged.
 
-    differing = [
-        a["key"] for a, b in zip(live["dimensions"], committed["dimensions"])
-        if a != b
-    ]
-    assert differing == ["requirement_attrition"]
-    assert [d["key"] for d in live["dimensions"]] == [
-        d["key"] for d in committed["dimensions"]
-    ]
+    The committed snapshot used to record requirement attrition one
+    requirement better than the live figure, so the trend would have a delta
+    to draw. A second build of the very same inputs then showed a 9.1 point
+    loss that never happened.
+    """
+    from atlas_ingest import synthetic
+
+    out = tmp_path / "data"
+    shutil.copytree(SYNTHETIC_BUNDLE, out)  # what scripts/seed-data.mjs does
+    monkeypatch.setattr(synthetic, "BUILT_AT", "2026-09-02T00:00:00")
+    build_bundle_from(sample_source_repo, out)
+
+    labels = _read(out, "manifest.json")["snapshots"]
+    assert labels == ["2026-08-05", "2026-09-02"]
+    first, last = (_read(out, f"snapshots/{label}.json")["dimensions"]
+                   for label in labels)
+    assert [a["key"] for a, b in zip(first, last) if a != b] == []
 
 
 def test_the_bundle_and_the_generator_disagree_only_about_the_project_name(rebuilt):

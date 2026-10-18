@@ -8,6 +8,8 @@ continuing is how stale data shipped, so every check here is an error.
 """
 import sys
 
+from .curation import is_shortfall
+
 
 def validate(systems, links, sdmap, networks, crosswalk, glossary):
     """-> list of failure strings. Empty means every gate passed.
@@ -18,6 +20,7 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary):
     fails = []
     matrix_ids = {s["id"] for s in systems}
     system_names = {s["name"] for s in systems}
+    shortfall_ids = {s["id"] for s in systems if is_shortfall(s)}
 
     for site_id, site in (sdmap.get("sites") or {}).items():
         device_ids = None
@@ -47,6 +50,17 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary):
                     f"system_device_map.sites.{site_id}.mappings.{sys_id}: "
                     f"matrix_id_exists:false, but the matrix does carry that system "
                     f"id; drop the flag or rename the mapping"
+                )
+            # A shortfall row records that no system exists, so it takes no
+            # mapping. With devices, realization leaves it out while the
+            # confidence tally counts it. With none, it reads as a survey gap,
+            # a system whose hardware nobody has found yet, which is just as
+            # false. A checked absence belongs under not_deployed_at_site.
+            if sys_id in shortfall_ids:
+                fails.append(
+                    f"system_device_map.sites.{site_id}.mappings.{sys_id}: the "
+                    f"matrix files {sys_id} as a shortfall, not a system, so it "
+                    f"takes no mapping; record a check under not_deployed_at_site"
                 )
             if device_ids is not None:
                 for device in entry.get("devices") or []:
