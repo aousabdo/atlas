@@ -66,6 +66,20 @@ export type WiringVerdict =
   | { kind: 'no-path' }
   | { kind: 'unchecked'; reasons: Array<{ systemId: SystemId; reason: UncheckedReason }> }
 
+/**
+ * A wired verdict in words, one way everywhere it is printed: the hop count in
+ * agreement with its number, then the weak point. "A second way round" is said
+ * only when the path has a device in between and none of them is a cut.
+ */
+export function describeWired(verdict: Extract<WiringVerdict, { kind: 'wired' }>): string {
+  const { hops, cutDeviceIds, singleCable } = verdict
+  const span = `${hops} ${hops === 1 ? 'hop' : 'hops'}`
+  const cuts = cutDeviceIds.length
+  if (cuts > 0) return `${span}, breaks if any one of ${cuts} ${cuts === 1 ? 'device fails' : 'devices fails'}`
+  if (singleCable) return `${span}, a single cable with no second way round`
+  return `${span}, with a second way round`
+}
+
 export interface LinkWiring {
   link: Link
   verdict: WiringVerdict

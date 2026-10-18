@@ -193,3 +193,18 @@ def test_a_shortfall_row_checked_absent_is_fine():
     systems = _inputs()["systems"] + [GAP_ROW]
     sdmap = _site(not_deployed_at_site={"gap": "checked, absent"})
     assert validate(**_inputs(systems=systems, sdmap=sdmap)) == []
+
+
+def test_a_planned_link_to_an_unknown_system_fails():
+    """Planned links are curation, and a typo in one used to reach the planning
+    view as a link to nothing, with its facts made up. Same gate as current links."""
+    desired = [{"from": "ucop", "to": "ghost", "label": "x", "extraction_method": "override"}]
+    fails = validate(**_inputs(), desired=desired)
+    assert fails == ["desired link ucop->ghost: 'ghost' is not a matrix system id"]
+
+
+def test_a_planned_link_between_known_systems_is_fine():
+    desired = [{"from": "ucop", "to": "ucop2", "label": "x", "extraction_method": "override"}]
+    systems = _inputs()["systems"] + [{"id": "ucop2", "name": "Second", "risk": "low",
+                                       "risk_source": "explicit", "soft": False}]
+    assert validate(**_inputs(systems=systems), desired=desired) == []

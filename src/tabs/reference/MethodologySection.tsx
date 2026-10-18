@@ -157,10 +157,15 @@ export function MethodologySection({
           many of its two systems have a confirmed owner. Owner groups says whether it
           crosses from one group to another. Risk is the higher of its two ends. A
           planned integration joins a requirement when both of its ends carry that
-          requirement in the crosswalk, and touches one when either end does. Today is
-          the shortest path between the two through the integrations recorded now, or
-          none. Sites applies the documented vs wired check to each site. An end filed as
-          a shortfall row is named as one. There is no total and no build order, because
+          requirement in the crosswalk, and touches one when either end does; a
+          requirement that was not kept is carried by nothing. Today is the shortest
+          chain of integrations recorded now that joins the two, or none; a chain is a
+          path on paper and says nothing about whether data passes along it. Sites
+          applies the documented vs wired check to each site, and names a site with a
+          drawing but no device map as not reviewed. An end filed as a shortfall row is
+          named as one. A planned link already recorded as current is built, and one
+          from a system to itself is not an integration, so both are set aside and
+          named. There is no total and no build order, because
           any weighting of these facts would be a judgement presented as a finding; the
           table sorts by one fact at a time and keeps the listed order for ties.
         </p>

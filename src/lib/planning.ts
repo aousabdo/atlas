@@ -14,12 +14,18 @@
  *   - the higher risk of its two ends;
  *   - the requirements it would join (both ends carry the requirement, so the
  *     link closes a seam a split left open) and the ones it only touches;
- *   - whether the two systems can already reach each other through the
- *     integrations recorded today, and in how many hops;
+ *   - whether a chain of integrations recorded today already joins the two,
+ *     and through which systems. A chain is a path on paper: it says nothing
+ *     about whether data passes along it;
  *   - per site, whether both ends have hardware there and how the drawing
  *     joins them, by the same check as the Network tab.
+ *
+ * A planned link already recorded as current is built, and a link from a
+ * system to itself is not an integration. Both are set aside, by the same
+ * rules as the integration gap matrix, and counted by setAsideLinks.
  */
 import { isShortfall, matrixIdSet } from './coverage'
+import { carriedNames } from './requirements'
 import { wiringAtSite, type WiringVerdict } from './wiring'
 import type {
   CoverageMatrix, Link, LinkSet, Requirement, RiskLevel, SiteId, System, SystemId, Topology,
@@ -27,10 +33,12 @@ import type {
 
 export type PlannedSite =
   | { siteId: SiteId; label: string; reviewed: false }
-  /** verdict is null when the site has mappings but no drawing was loaded. */
+  /** verdict is null when the site has mappings but the bundle has no drawing for it. */
   | { siteId: SiteId; label: string; reviewed: true; verdict: WiringVerdict | null }
 
 export interface PlannedIntegration {
+  /** Position in links.desired: the row's identity, since a pair may repeat. */
+  index: number
   link: Link
   /** 0, 1 or 2. */
   confirmedOwners: number
@@ -40,8 +48,10 @@ export interface PlannedIntegration {
   requirementsJoined: number[]
   /** Indexes into the requirements: at least one end carries it. */
   requirementsTouched: number[]
-  /** Shortest path through today's recorded integrations; null when there is none. */
+  /** Links in the shortest chain of today's recorded integrations; null when there is none. */
   hopsToday: number | null
+  /** That chain, end to end, as system ids; null when there is none. */
+  chainToday: SystemId[] | null
   /** Ends filed as shortfall rows: the system does not exist yet. */
   shortfallEnds: SystemId[]
   sites: PlannedSite[]
@@ -49,20 +59,37 @@ export interface PlannedIntegration {
 
 const RISK_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 }
 
-function hopsBetween(links: readonly Link[], from: SystemId, to: SystemId): number | null {
+const pairKey = (a: SystemId, b: SystemId) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+
+/** Planned links that are not planned work: already built, or a system joined to itself. */
+export function setAsideLinks(links: LinkSet): { alreadyCurrent: Link[]; selfJoined: Link[] } {
+  const current = new Set(links.current.map((l) => pairKey(l.from, l.to)))
+  return {
+    alreadyCurrent: links.desired.filter(
+      (l) => l.from !== l.to && current.has(pairKey(l.from, l.to)),
+    ),
+    selfJoined: links.desired.filter((l) => l.from === l.to),
+  }
+}
+
+function chainBetween(links: readonly Link[], from: SystemId, to: SystemId): SystemId[] | null {
   const adj = new Map<SystemId, SystemId[]>()
   for (const { from: a, to: b } of links) {
     adj.set(a, [...(adj.get(a) ?? []), b])
     adj.set(b, [...(adj.get(b) ?? []), a])
   }
-  const depth = new Map<SystemId, number>([[from, 0]])
+  const previous = new Map<SystemId, SystemId | null>([[from, null]])
   const queue = [from]
   for (let head = 0; head < queue.length; head += 1) {
     const at = queue[head]!
-    if (at === to) return depth.get(at)!
+    if (at === to) {
+      const chain = [at]
+      for (let step = previous.get(at); step; step = previous.get(step)) chain.unshift(step)
+      return chain
+    }
     for (const next of adj.get(at) ?? []) {
-      if (depth.has(next)) continue
-      depth.set(next, depth.get(at)! + 1)
+      if (previous.has(next)) continue
+      previous.set(next, at)
       queue.push(next)
     }
   }
@@ -86,26 +113,43 @@ export function plannedIntegrations({
   const idByName = new Map(systems.map((s) => [s.name, s.id]))
   const matrixIds = matrixIdSet(systems)
   const carriers = requirements.map(
-    (r) => new Set(r.current.map((name) => idByName.get(name)).filter(Boolean) as SystemId[]),
+    (r) => new Set(carriedNames(r).map((name) => idByName.get(name)).filter(Boolean) as SystemId[]),
   )
+
+  const current = new Set(links.current.map((l) => pairKey(l.from, l.to)))
+  const planned = links.desired
+    .map((link, index) => ({ link, index }))
+    .filter(({ link }) => link.from !== link.to && !current.has(pairKey(link.from, link.to)))
+  const plannedLinks = planned.map(({ link }) => link)
+
+  // Every site the bundle knows of: a device map entry, a drawing, or both.
+  // A drawing with no device map entry is a site nobody has reviewed, and is
+  // named as one rather than left out.
+  const siteLabels = new Map<SiteId, string>()
+  for (const [siteId, site] of Object.entries(coverage.sites)) siteLabels.set(siteId, site.label)
+  for (const [siteId, topology] of Object.entries(topologies)) {
+    if (!siteLabels.has(siteId)) siteLabels.set(siteId, topology.meta.label || siteId)
+  }
 
   // One pass per site over every planned link, by the Network tab's check.
   const verdicts = new Map<SiteId, WiringVerdict[]>()
   const reviewed = new Map<SiteId, boolean>()
-  for (const [siteId, site] of Object.entries(coverage.sites)) {
+  for (const siteId of siteLabels.keys()) {
+    const site = coverage.sites[siteId]
     const isReviewed =
-      Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0
+      !!site &&
+      (Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0)
     reviewed.set(siteId, isReviewed)
     const topology = topologies[siteId]
-    if (isReviewed && topology) {
+    if (site && isReviewed && topology) {
       verdicts.set(
         siteId,
-        wiringAtSite(links.desired, site, topology, matrixIds).map((w) => w.verdict),
+        wiringAtSite(plannedLinks, site, topology, matrixIds).map((w) => w.verdict),
       )
     }
   }
 
-  return links.desired.map((link, index) => {
+  return planned.map(({ link, index }, row) => {
     const a = byId.get(link.from)
     const b = byId.get(link.to)
     const risks = [a?.risk, b?.risk].filter(Boolean) as RiskLevel[]
@@ -118,19 +162,22 @@ export function plannedIntegrations({
       if (hasFrom && hasTo) joined.push(i)
       if (hasFrom || hasTo) touched.push(i)
     })
-    const sites: PlannedSite[] = Object.entries(coverage.sites).map(([siteId, site]) =>
+    const sites: PlannedSite[] = [...siteLabels].map(([siteId, label]) =>
       reviewed.get(siteId)
-        ? { siteId, label: site.label, reviewed: true, verdict: verdicts.get(siteId)?.[index] ?? null }
-        : { siteId, label: site.label, reviewed: false },
+        ? { siteId, label, reviewed: true, verdict: verdicts.get(siteId)?.[row] ?? null }
+        : { siteId, label, reviewed: false },
     )
+    const chain = chainBetween(links.current, link.from, link.to)
     return {
+      index,
       link,
       confirmedOwners: Number(!!a?.confirmed) + Number(!!b?.confirmed),
       crossesOrg: !!a && !!b && a.owner_group_id !== b.owner_group_id,
       risk,
       requirementsJoined: joined,
       requirementsTouched: touched,
-      hopsToday: hopsBetween(links.current, link.from, link.to),
+      hopsToday: chain ? chain.length - 1 : null,
+      chainToday: chain,
       shortfallEnds: [a, b].filter((s): s is System => !!s && isShortfall(s)).map((s) => s.id),
       sites,
     }

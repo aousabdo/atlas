@@ -11,7 +11,7 @@ import sys
 from .curation import is_shortfall
 
 
-def validate(systems, links, sdmap, networks, crosswalk, glossary):
+def validate(systems, links, sdmap, networks, crosswalk, glossary, desired=None):
     """-> list of failure strings. Empty means every gate passed.
 
     Collects all failures rather than bailing on the first, so one run tells
@@ -93,6 +93,16 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary):
                     f"'{link[end]}' is not a matrix system id"
                 )
 
+    # Planned links are curation, so a typo in one is as likely as in a current
+    # link, and it used to reach the planning view as a link to nothing.
+    for link in desired or []:
+        for end in ("from", "to"):
+            if link[end] not in matrix_ids:
+                fails.append(
+                    f"desired link {link['from']}->{link['to']}: "
+                    f"'{link[end]}' is not a matrix system id"
+                )
+
     for row in crosswalk or []:
         for name in row.get("current") or []:
             if name not in system_names:
@@ -123,7 +133,7 @@ def main(argv=None):
     fails = validate(
         systems=inputs["systems"], links=inputs["links"], sdmap=inputs["sdmap"],
         networks=inputs["networks"], crosswalk=inputs["crosswalk"],
-        glossary=inputs["glossary"],
+        glossary=inputs["glossary"], desired=inputs["desired"],
     )
     if fails:
         print("[validate] FAILED:", file=sys.stderr)

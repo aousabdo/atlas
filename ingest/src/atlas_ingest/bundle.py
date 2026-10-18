@@ -218,7 +218,7 @@ def main(argv=None):
     fails = validate(
         systems=inputs["systems"], links=inputs["links"], sdmap=inputs["sdmap"],
         networks=inputs["networks"], crosswalk=inputs["crosswalk"],
-        glossary=inputs["glossary"],
+        glossary=inputs["glossary"], desired=inputs["desired"],
     )
     if fails:
         print("[bundle] refusing to emit; integrity gates failed:", file=sys.stderr)

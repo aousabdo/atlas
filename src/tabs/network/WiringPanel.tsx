@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { matrixIdSet } from '../../lib/coverage'
-import { UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
+import { describeWired, UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
 import type { CoverageMatrix, DeviceId, Link, System, Topology } from '../../types/atlas'
 import { DeviceLinks, Disclosure, listOf, type GraphOverlay } from './ResiliencePanel'
 
@@ -165,14 +165,9 @@ export function WiringPanel({
                 <Group title={`Wired (${wired.length})`}>
                   {wired.map((row) => {
                     if (row.verdict.kind !== 'wired') return null
-                    const { path, hops, cutDeviceIds, singleCable } = row.verdict
+                    const { path, cutDeviceIds } = row.verdict
                     const cuts = cutDeviceIds.length
-                    const span = `${hops} ${hops === 1 ? 'hop' : 'hops'}`
-                    const detail = cuts
-                      ? `${span}, breaks if any one of ${cuts} ${cuts === 1 ? 'device fails' : 'devices fails'}`
-                      : singleCable
-                        ? `${span}, a single cable with no second way round`
-                        : `${span}, with a second way round`
+                    const detail = describeWired(row.verdict)
                     return (
                       <li key={keyOf(row)}>
                         {rowButton(row, detail, path)}

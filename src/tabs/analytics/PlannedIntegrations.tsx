@@ -1,8 +1,13 @@
 import { Fragment, useId, useMemo, useState } from 'react'
 
 import { RiskPill } from '../../components/SeverityPill'
-import { plannedIntegrations, type PlannedIntegration, type PlannedSite } from '../../lib/planning'
-import { UNCHECKED_REASON_TEXT, type WiringVerdict } from '../../lib/wiring'
+import {
+  plannedIntegrations,
+  setAsideLinks,
+  type PlannedIntegration,
+  type PlannedSite,
+} from '../../lib/planning'
+import { describeWired, UNCHECKED_REASON_TEXT, type WiringVerdict } from '../../lib/wiring'
 import type {
   CoverageMatrix, LinkSet, Requirement, SiteId, System, Topology,
 } from '../../types/atlas'
@@ -24,8 +29,9 @@ const SORT: Record<SortKey, (row: PlannedIntegration) => number> = {
   groups: (row) => Number(row.crossesOrg),
   risk: (row) => RISK_RANK[row.risk] ?? 0,
   requirements: (row) => row.requirementsJoined.length * 1000 + row.requirementsTouched.length,
-  // No path today first: those are the links that would join separate groups.
-  today: (row) => (row.hopsToday === null ? Number.MAX_SAFE_INTEGER : -row.hopsToday),
+  // Farthest apart first, and no chain at all counted as farthest: those are
+  // the links that would join separate groups.
+  today: (row) => row.hopsToday ?? Number.MAX_SAFE_INTEGER,
   sites: (row) => row.sites.filter(checkable).length,
 }
 
@@ -104,8 +110,20 @@ export function PlannedIntegrations({
   const groupOf = (id: string) => names.get(id)?.owner_group ?? 'unknown group'
   const deviceLabel = (siteId: SiteId, id: string) =>
     topologies[siteId]?.devices.find((d) => d.id === id)?.label ?? id
-  const keyOf = (row: PlannedIntegration) => `${row.link.from}|${row.link.to}`
+  // Its place in the file, since the same pair may be planned twice.
+  const keyOf = (row: PlannedIntegration) => String(row.index)
   const pair = (row: PlannedIntegration) => `${nameOf(row.link.from)} – ${nameOf(row.link.to)}`
+  const pair2 = (link: { from: string; to: string }) => `${nameOf(link.from)} – ${nameOf(link.to)}`
+
+  const { alreadyCurrent, selfJoined } = setAsideLinks(links)
+  const setAside = [
+    ...(alreadyCurrent.length
+      ? [`${alreadyCurrent.length} planned ${plural(alreadyCurrent.length, 'link is', 'links are')} already recorded as current, so built, and left out: ${listOf(alreadyCurrent.map(pair2))}.`]
+      : []),
+    ...(selfJoined.length
+      ? [`${selfJoined.length} planned ${plural(selfJoined.length, 'link joins', 'links join')} a system to itself and ${plural(selfJoined.length, 'is', 'are')} left out.`]
+      : []),
+  ]
 
   if (rows.length === 0) {
     return (
@@ -114,8 +132,14 @@ export function PlannedIntegrations({
           What to build next
         </h2>
         <p className="mt-2 text-xs text-muted">
-          The bundle records no planned integrations, so there is nothing to compare.
+          The bundle records no planned integrations still to build, so there is
+          nothing to compare.
         </p>
+        {setAside.map((line) => (
+          <p key={line} className="mt-1 text-xs text-muted-3">
+            {line}
+          </p>
+        ))}
       </section>
     )
   }
@@ -140,14 +164,15 @@ export function PlannedIntegrations({
     `${separate} would join systems with no path between them through today's integrations.`,
   ]
 
-  const siteIds = Object.keys(coverage.sites)
+  // The same site list every row carries: device map entries and drawings.
+  const siteIds = rows[0]!.sites.map((s) => s.siteId)
   const anyCheckable = rows.some((r) => r.sites.some(checkable))
   const siteClauses = siteIds.map((siteId) => {
-    const label = coverage.sites[siteId]!.label
     const at = rows.map((r) => r.sites.find((s) => s.siteId === siteId)!)
+    const label = at[0]!.label
     if (at.every((s) => !s.reviewed)) return `${label} has not been reviewed`
     if (at.some((s) => s.reviewed && s.verdict === null)) {
-      return `the drawing for ${label} did not load`
+      return `${label} has mappings but no drawing in this bundle`
     }
     const absent = at.filter(
       (s) =>
@@ -173,7 +198,7 @@ export function PlannedIntegrations({
 
   const verdictShort = (site: PlannedSite): string => {
     if (!site.reviewed) return 'not reviewed'
-    if (!site.verdict) return 'drawing not loaded'
+    if (!site.verdict) return 'no drawing'
     switch (site.verdict.kind) {
       case 'wired':
         return 'wired'
@@ -197,14 +222,8 @@ export function PlannedIntegrations({
 
   const verdictLong = (siteId: SiteId, verdict: WiringVerdict): string => {
     switch (verdict.kind) {
-      case 'wired': {
-        const span = `${verdict.hops} ${plural(verdict.hops, 'hop', 'hops')}`
-        return verdict.cutDeviceIds.length
-          ? `wired, ${span}, breaks if any one of ${verdict.cutDeviceIds.length} ${plural(verdict.cutDeviceIds.length, 'device fails', 'devices fails')}`
-          : verdict.singleCable
-            ? `wired, ${span}, a single cable with no second way round`
-            : `wired, ${span}, with a second way round`
-      }
+      case 'wired':
+        return `wired, ${describeWired(verdict)}`
       case 'co-hosted':
         return `both run on ${listOf(verdict.sharedDeviceIds.map((id) => deviceLabel(siteId, id)))}`
       case 'logical-only':
@@ -236,12 +255,22 @@ export function PlannedIntegrations({
         it.
       </p>
       <p className="mt-2 text-sm text-ink">{facts.join(' ')}</p>
-      {!anyCheckable && (
+      {siteIds.length === 0 ? (
+        <p className="mt-1 text-xs text-muted">
+          No device map or site drawing is loaded, so none can be checked against a
+          site drawing.
+        </p>
+      ) : !anyCheckable ? (
         <p className="mt-1 text-xs text-muted">
           None can be checked against a site drawing yet: {clauses(siteClauses)}.
         </p>
-      )}
-      {anyCheckable && (
+      ) : null}
+      {setAside.map((line) => (
+        <p key={line} className="mt-1 text-xs text-muted-3">
+          {line}
+        </p>
+      ))}
+      {siteIds.length > 0 && anyCheckable && (
         <p className="mt-1 text-xs text-muted">Against the drawings: {clauses(siteClauses)}.</p>
       )}
 
@@ -298,7 +327,7 @@ export function PlannedIntegrations({
               return (
                 <Fragment key={key}>
                   <tr
-                    data-link={key}
+                    data-link={`${row.link.from}|${row.link.to}`}
                     data-dimmed={dimmed ? 'true' : 'false'}
                     className={`border-b border-line align-top ${dimmed ? 'opacity-20' : ''}`}
                   >
@@ -334,14 +363,22 @@ export function PlannedIntegrations({
                           : 'none'}
                     </td>
                     <td className="px-2 py-2 text-muted">
-                      {row.hopsToday === null ? 'no path today' : `${row.hopsToday} hops away`}
+                      {row.hopsToday === null
+                        ? 'no path today'
+                        : `${row.hopsToday} ${plural(row.hopsToday, 'link', 'links')} apart`}
                     </td>
                     <td className="px-2 py-2 text-muted">
-                      {row.sites.map((site) => `${site.label}: ${verdictShort(site)}`).join('; ')}
+                      {row.sites.length === 0
+                        ? 'no site loaded'
+                        : row.sites.map((site) => `${site.label}: ${verdictShort(site)}`).join('; ')}
                     </td>
                   </tr>
                   {open && (
-                    <tr aria-label={`${pair(row)} in detail`} className="border-b border-line bg-surface-2">
+                    <tr
+                      aria-label={`${pair(row)} in detail`}
+                      data-dimmed={dimmed ? 'true' : 'false'}
+                      className={`border-b border-line bg-surface-2 ${dimmed ? 'opacity-20' : ''}`}
+                    >
                       <td colSpan={COLUMNS.length + 1} className="px-3 py-2 text-xs text-muted">
                         {joined > 0 && (
                           <p>Joins: {row.requirementsJoined.map(requirementText).join('; ')}</p>
@@ -352,9 +389,13 @@ export function PlannedIntegrations({
                         {touched === 0 && <p>No requirement names either end.</p>}
                         <p className="mt-1">
                           Today:{' '}
-                          {row.hopsToday === null
-                            ? 'no path between them through the integrations recorded today.'
-                            : `already reachable in ${row.hopsToday} hops through the integrations recorded today.`}
+                          {row.chainToday === null || row.hopsToday === null
+                            ? 'no chain of recorded integrations joins them.'
+                            : `a chain of ${row.hopsToday} recorded ${plural(row.hopsToday, 'integration', 'integrations')} joins them today${
+                                row.chainToday.length > 2
+                                  ? `, via ${listOf(row.chainToday.slice(1, -1).map(nameOf))}`
+                                  : ''
+                              }. The bundle says nothing about whether data passes along it.`}
                         </p>
                         {row.sites.map((site) => (
                           <p key={site.siteId} className="mt-1">
@@ -362,7 +403,7 @@ export function PlannedIntegrations({
                             {!site.reviewed
                               ? 'not reviewed'
                               : !site.verdict
-                                ? 'mapped, but its drawing did not load'
+                                ? 'mapped, but the bundle has no drawing for this site to check against'
                                 : verdictLong(site.siteId, site.verdict)}
                           </p>
                         ))}

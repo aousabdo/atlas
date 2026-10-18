@@ -105,6 +105,52 @@ describe('plannedIntegrations', () => {
   })
 })
 
+describe('the planning facts stay inside what the bundle shows', () => {
+  it('leaves out a planned link that is already recorded as current, and counts it', () => {
+    const result = plannedIntegrations({
+      systems: SYSTEMS,
+      links: { current: [link('a', 'c')], desired: [link('c', 'a'), link('a', 'b')] },
+      requirements: [], coverage: COVERAGE, topologies: {},
+    })
+    expect(result.map((r) => `${r.link.from}-${r.link.to}`)).toEqual(['a-b'])
+  })
+
+  it('counts nothing as carried by a requirement that was not kept', () => {
+    const [ab] = plannedIntegrations({
+      systems: SYSTEMS,
+      links: { current: [], desired: [link('a', 'b')] },
+      requirements: [{ orig: 'Gone', sys: 'OLD', current: ['A', 'B'], status: "Didn't keep" }],
+      coverage: COVERAGE, topologies: {},
+    })
+    expect(ab!.requirementsTouched).toEqual([])
+  })
+
+  it('names the chain of recorded integrations that joins two systems today', () => {
+    expect(row('a', 'e').chainToday).toEqual(['a', 'c', 'e'])
+    expect(row('a', 'b').chainToday).toBeNull()
+  })
+
+  it('gives each row its own place in the file, so a repeated pair stays two rows', () => {
+    const result = plannedIntegrations({
+      systems: SYSTEMS,
+      links: { current: [], desired: [link('a', 'b'), link('a', 'b')] },
+      requirements: [], coverage: COVERAGE, topologies: {},
+    })
+    expect(result.map((r) => r.index)).toEqual([0, 1])
+  })
+
+  it('names a site that has a drawing but no device map as not reviewed', () => {
+    const lone = { ...YARD, site_id: 'heath', meta: { ...YARD.meta, label: 'Heath' } }
+    const [ab] = plannedIntegrations({
+      systems: SYSTEMS, links: LINKS, requirements: REQUIREMENTS, coverage: COVERAGE,
+      topologies: { yard: YARD, heath: lone },
+    })
+    expect(ab!.sites.find((s) => s.siteId === 'heath')).toEqual({
+      siteId: 'heath', label: 'Heath', reviewed: false,
+    })
+  })
+})
+
 describe('a planned integration with a shortfall row at one end', () => {
   it('names the end that is a gap rather than a system', () => {
     const [only] = plannedIntegrations({

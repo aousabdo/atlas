@@ -284,6 +284,8 @@ export function crossFileFailures(parsed: {
   systems: readonly System[]
   /** The merged current links. Same input validate() is handed. */
   links: readonly Link[]
+  /** The planned links, gated the same way. Same input validate() is handed as `desired`. */
+  desired?: readonly Link[]
   coverage: CoverageMatrix
   topologies: Readonly<Record<SiteId, Topology>>
   requirements: readonly Requirement[]
@@ -371,6 +373,18 @@ export function crossFileFailures(parsed: {
       if (!matrixIds.has(link[end])) {
         fails.push(
           `link ${link.from}->${link.to}: '${link[end]}' is not a matrix system id`,
+        )
+      }
+    }
+  }
+
+  // Planned links are curation, so a typo in one is as likely as in a current
+  // link, and it used to reach the planning view as a link to nothing.
+  for (const link of parsed.desired ?? []) {
+    for (const end of ['from', 'to'] as const) {
+      if (!matrixIds.has(link[end])) {
+        fails.push(
+          `desired link ${link.from}->${link.to}: '${link[end]}' is not a matrix system id`,
         )
       }
     }
@@ -465,7 +479,7 @@ export class LocalFileProvider implements AtlasDataProvider {
     })
 
     const fails = crossFileFailures({
-      systems, links: links.current, coverage, topologies, requirements,
+      systems, links: links.current, desired: links.desired, coverage, topologies, requirements,
     })
     if (fails.length > 0) throw integrityError(fails)
 

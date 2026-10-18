@@ -367,6 +367,13 @@ describe('crossFileFailures', () => {
     expect(fails.some((f) => f.includes('matrix_id_exists:false'))).toBe(true)
   })
 
+  it('fails a planned link to an unknown system, as the ingest does', () => {
+    // Mirrors test_a_planned_link_to_an_unknown_system_fails.
+    const desired = [{ from: 'ucop', to: 'ghost', label: 'x', extraction_method: 'override' }]
+    const fails = crossFileFailures(inputs({ desired } as never) as never)
+    expect(fails).toEqual(["desired link ucop->ghost: 'ghost' is not a matrix system id"])
+  })
+
   it('fails hardware mapped to a shortfall row, as the ingest does', () => {
     const gapRow = { ...SYSTEM, id: 'gap', name: 'Gap', category: 'Workflow shortfall' }
     const coverage = site({ mappings: { gap: mapping({ devices: ['d1'] }) } })

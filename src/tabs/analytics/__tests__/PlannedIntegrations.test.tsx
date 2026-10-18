@@ -59,6 +59,32 @@ describe('What to build next', () => {
     expect(row).toHaveTextContent(/Dispatch Management System \(DMS\/CAD\) is a shortfall row/)
   })
 
+  it('sorts the Today column one way: no path first, then farther apart', async () => {
+    const { user, table } = await panel()
+    await user.click(within(table).getByRole('button', { name: /^Today/ }))
+    // dispatch-eventrel is the only pair joined today; it sorts last.
+    expect(bodyRows(table).at(-1)).toHaveAttribute('data-link', 'dispatch|eventrel')
+  })
+
+  it('says a chain of recorded integrations joins two systems, not that data reaches', async () => {
+    const { user, table } = await panel()
+    const row = bodyRows(table).find((r) => r.dataset.link === 'dispatch|eventrel')!
+    expect(row).toHaveTextContent('4 links apart')
+    await user.click(within(table).getByRole('button', { name: /^Dispatch Management System/ }))
+    const detail = within(table).getByRole('row', { name: /Dispatch .* in detail/ })
+    expect(detail).toHaveTextContent(/a chain of 4 recorded integrations joins them today, via /)
+    expect(detail).toHaveTextContent(/says nothing about whether data passes along it/)
+    expect(detail).not.toHaveTextContent(/reachable/)
+  })
+
+  it('dims an open detail row with its row when the filter misses both ends', async () => {
+    const { user, table } = await panel()
+    await user.click(within(table).getByRole('button', { name: /^Beacon – ORBIT/ }))
+    await user.type(screen.getByRole('searchbox', { name: /filter/i }), 'bastion')
+    const detail = within(table).getByRole('row', { name: /Beacon – ORBIT in detail/ })
+    expect(detail).toHaveAttribute('data-dimmed', 'true')
+  })
+
   it('opens a row onto the requirements and sites behind its facts', async () => {
     const { user, table } = await panel()
     await user.click(within(table).getByRole('button', { name: /^Beacon – ORBIT/ }))
