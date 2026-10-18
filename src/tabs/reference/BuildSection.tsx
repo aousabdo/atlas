@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { EmptyState } from '../../components/EmptyState'
+import { readAppBuild } from '../../lib/appBuild'
 import type { Manifest, Project } from '../../types/atlas'
 
 /** Manifest count keys the ingest emits today. Anything else is shown under its
@@ -42,6 +43,29 @@ function Field({
   )
 }
 
+/**
+ * The data bundle's commit, in words when it is not one. The sample is
+ * generated rather than built from a revision, and a locally loaded set has
+ * no ingest run at all; neither may read as a commit.
+ */
+function DataCommit({ sha }: { sha: string }) {
+  if (sha === 'sample') {
+    return (
+      <span className="text-muted-2">
+        none: the sample bundle carries a fixed stamp so its files stay reproducible
+      </span>
+    )
+  }
+  if (sha === 'n/a') {
+    return <span className="text-muted-2">none: loaded from local files</span>
+  }
+  return (
+    <code {...VOLATILE} className="tabular text-accent-ink">
+      {sha}
+    </code>
+  )
+}
+
 export function BuildSection({
   manifest,
   project,
@@ -50,28 +74,59 @@ export function BuildSection({
   project: Project
 }) {
   const counts = Object.entries(manifest.counts)
+  const app = readAppBuild()
 
   return (
     <div className="space-y-6">
       <div className="rounded border border-line bg-surface p-4">
         <h3 className="text-sm font-semibold text-ink">Build provenance</h3>
         <p className="mt-1 text-xs text-muted-3">
-          Every figure on every tab comes from this build. The commit and the build time
-          are what make a briefing slide reproducible.
+          Two stamps: the app that drew these tabs, and the data bundle every figure
+          comes from. A briefing slide is reproducible from the two together.
         </p>
-        <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        <dl
+          role="group"
+          aria-label="This app"
+          className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          <Field term="App commit">
+            {app.kind === 'unstamped' ? (
+              <span className="text-muted-2">not stamped: a development build</span>
+            ) : app.kind === 'local' ? (
+              <span {...VOLATILE} className="text-muted-2">
+                a local build, not from a commit ({app.id})
+              </span>
+            ) : (
+              <code {...VOLATILE} title={app.id} className="tabular text-accent-ink">
+                {app.short}
+              </code>
+            )}
+          </Field>
+          <Field term="App built at">
+            {app.builtAt ? (
+              <span {...VOLATILE} className="tabular">
+                {app.builtAt}
+              </span>
+            ) : (
+              <span className="text-muted-2">not stamped</span>
+            )}
+          </Field>
+        </dl>
+        <dl
+          role="group"
+          aria-label="This data bundle"
+          className="mt-4 grid gap-x-6 gap-y-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           <Field term="Tool version">
             <span {...VOLATILE}>{manifest.tool_version}</span>
           </Field>
-          <Field term="Built at">
+          <Field term="Data built at">
             <span {...VOLATILE} className="tabular">
               {manifest.built_at}
             </span>
           </Field>
-          <Field term="Commit">
-            <code {...VOLATILE} className="tabular text-accent-ink">
-              {manifest.git_sha}
-            </code>
+          <Field term="Data commit">
+            <DataCommit sha={manifest.git_sha} />
           </Field>
           <Field term="Source workbook">{manifest.source_label}</Field>
           <Field term="Baseline date">
