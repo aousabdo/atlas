@@ -152,6 +152,18 @@ def is_shortfall(system):
     return CATEGORY_MAP.get(category, {}).get("branch") == SHORTFALL_BRANCH
 
 
+# Strongest first. "unspecified" is anything the file did not grade.
+CONFIDENCE_GRADES = ("high", "medium", "low", "unspecified")
+
+
+def confidence_grade(entry):
+    """The grade a mapping carries, read one way everywhere. Mirrors
+    confidenceGrade in src/lib/coverage.ts."""
+    raw = entry.get("confidence")
+    grade = raw.lower() if isinstance(raw, str) else ""
+    return grade if grade in CONFIDENCE_GRADES else "unspecified"
+
+
 def mapping_confidence_counts(sdmap, matrix_ids=None):
     """Confidence tally of the realized mappings, across every site.
 
@@ -171,7 +183,6 @@ def mapping_confidence_counts(sdmap, matrix_ids=None):
         for sys_id, entry in site.get("mappings", {}).items():
             if not is_realized_mapping(sys_id, entry, matrix_ids):
                 continue
-            grade = (entry.get("confidence") or "").lower()
-            counts[grade if grade in counts else "unspecified"] += 1
+            counts[confidence_grade(entry)] += 1
             counts["total"] += 1
     return counts

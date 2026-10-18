@@ -5,6 +5,7 @@
  * component owns every node it draws, which is what lets the same geometry be
  * unit tested without a browser and re-laid-out on resize without a teardown.
  */
+import { carriedNames } from '../lib/requirements'
 import { sankey as sankeyLayout } from 'd3-sankey'
 import type { SankeyLink, SankeyNode } from 'd3-sankey'
 
@@ -140,7 +141,7 @@ export function buildRequirementsSankey(
   })
 
   requirements.forEach((req, source) => {
-    const carried = req.status !== "Didn't keep" ? [...new Set(req.current)] : []
+    const carried = carriedNames(req)
     if (carried.length === 0) {
       links.push({ source, target: lossNode(), value: 1, status: req.status })
       return

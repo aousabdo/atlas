@@ -496,6 +496,9 @@ Each line under that heading is one of:
   resolves to nothing. Covers the links mined from the integration prose and the
   `cross_links` in the overrides file, which is the same set the ingest gate
   checks.
+- `desired link <from>-><to>: '<end>' is not a matrix system id` - a planned
+  integration in the overrides file names a system the workbook does not carry.
+  Planned links are curation, so they are gated like current ones.
 - `crosswalk '<requirement>...': current system '<name>' does not match any
   Project/System name in the matrix` - the crosswalk sheet names a current system
   by a spelling the Matrix sheet does not use.

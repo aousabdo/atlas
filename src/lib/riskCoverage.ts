@@ -44,7 +44,7 @@ const byName = (a: System, b: System) => a.name.localeCompare(b.name)
  * Which sites realize each system.
  *
  * A system absent from the map is realized nowhere. The site list is the
- * evidence behind "confirmed deployed": a count with no site names attached is
+ * evidence behind "realized at a site": a count with no site names attached is
  * a claim, and this is what lets the panel show the sites next to the number.
  */
 export function realizationSitesBySystem(
@@ -127,8 +127,8 @@ export function riskBandCoverage(
  * so the panel and any export cannot drift into two phrasings of one figure.
  */
 export function bandSentence(band: RiskBandCoverage): string {
-  const confirmed = band.realized.length
+  const realized = band.realized.length
   const systems = band.total === 1 ? 'system' : 'systems'
-  const verb = confirmed === 1 ? 'is' : 'are'
-  return `Of ${band.total} ${band.risk}-risk ${systems}, ${confirmed} ${verb} confirmed deployed at any site.`
+  const verb = realized === 1 ? 'is' : 'are'
+  return `Of ${band.total} ${band.risk}-risk ${systems}, ${realized} ${verb} realized at a site.`
 }

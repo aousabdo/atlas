@@ -47,6 +47,25 @@
     {
       "denominator": 30,
       "detail": {
+        "by_confidence": {
+          "high": [
+            "bastion",
+            "crosslink",
+            "eventrel",
+            "fpsrel",
+            "ucop"
+          ],
+          "low": [
+            "jetty",
+            "tagpoint"
+          ],
+          "medium": [
+            "civair",
+            "recon",
+            "winrel"
+          ],
+          "unspecified": []
+        },
         "per_site": {
           "northgate": {
             "checked_absent": [

@@ -21,7 +21,8 @@ import type {
   Severity, System, Topology, TopGap,
 } from '../types/atlas'
 import {
-  fieldableSystemIds, matrixIdSet, realizedSystemIds, shortfallSystemIds,
+  bestRealizedGrades, CONFIDENCE_GRADES, fieldableSystemIds, matrixIdSet,
+  realizedSystemIds, shortfallSystemIds,
 } from './coverage'
 
 export const DIMENSION_LABELS: Record<string, string> = {
@@ -163,10 +164,18 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
     }
   }
   const unmapped = [...fieldable].filter((id) => !mappedAnywhere.has(id)).sort()
+  // Proven vs believed, by the same rule as detail.by_confidence in the ingest.
+  const best = bestRealizedGrades(coverage, matrixIds, (id) => fieldable.has(id))
+  const byConfidence = Object.fromEntries(
+    CONFIDENCE_GRADES.map((grade) => [
+      grade,
+      [...best].filter(([, g]) => g === grade).map(([id]) => id).sort(),
+    ]),
+  )
   const realizationGap = dimension(
     'realization_gap', mappedAnywhere.size, total,
     severityFor(pct(mappedAnywhere.size, total)),
-    { per_site: perSite, unmapped, shortfalls },
+    { per_site: perSite, unmapped, shortfalls, by_confidence: byConfidence },
   )
 
   const currentPairs = new Set(links.current.map((l) => pairKey(l.from, l.to)))

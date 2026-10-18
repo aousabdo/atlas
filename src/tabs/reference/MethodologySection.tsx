@@ -110,6 +110,67 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="Proven to believed">
+        <p>
+          A realization figure counts every mapping alike, so each one also says how
+          much of it rests on what. A realized system counts as physically verified
+          when its strongest mapping at any site is graded high, a strong inference
+          when it is medium, a best guess when it is low, and ungraded when the file
+          gives no grade. The verified count is the floor of the range and the whole
+          count is the ceiling. A figure that is all verified holds at every evidence
+          level.
+        </p>
+      </Block>
+
+      <Block title="Network resilience">
+        <p>
+          Single points of failure and single links are counted on the physical links
+          only, cable and radio. A VLAN rides on those same links, so it is never a
+          second way round. A single point of failure is a device whose loss leaves part
+          of the site with no path to the rest. A single link is a link whose loss leaves
+          two or more devices with no path to the rest. A link that is the only
+          attachment of a device cuts off that one device and nothing else, so those
+          devices are counted and named once rather than listed as single links.
+        </p>
+      </Block>
+
+      <Block title="Documented vs wired">
+        <p>
+          Each integration the documents record is checked against one site at a
+          time. Both systems need hardware on that site&rsquo;s drawing. If they share a
+          device, they are on a shared device. Otherwise the check looks for a path on
+          cable and radio between any device of one and any device of the other, and
+          shows one shortest path. A device whose loss alone leaves no such path is
+          named as one the integration breaks on; every such device lies on every
+          path, so testing one shortest path finds them all. A path that exists only
+          through a VLAN is reported as joined only by VLAN, never as wired. An
+          integration with an end that is checked absent, software only or unmapped
+          at the site cannot be checked there, and a site that records no system as
+          either present or checked absent is reported as not reviewed. A path means the integration can run at the site,
+          not that it does: nothing here reads ports, protocols or firewall rules.
+        </p>
+      </Block>
+
+      <Block title="What to build next">
+        <p>
+          Each planned integration is described by facts, not scored. Owners counts how
+          many of its two systems have a confirmed owner. Owner groups says whether it
+          crosses from one group to another. Risk is the higher of its two ends. A
+          planned integration joins a requirement when both of its ends carry that
+          requirement in the crosswalk, and touches one when either end does; a
+          requirement that was not kept is carried by nothing. Today is the shortest
+          chain of integrations recorded now that joins the two, or none; a chain is a
+          path on paper and says nothing about whether data passes along it. Sites
+          applies the documented vs wired check to each site, and names a site with a
+          drawing but no device map as not reviewed. An end filed as a shortfall row is
+          named as one. A planned link already recorded as current is built, and one
+          from a system to itself is not an integration, so both are set aside and
+          named. There is no total and no build order, because
+          any weighting of these facts would be a judgement presented as a finding; the
+          table sorts by one fact at a time and keeps the listed order for ties.
+        </p>
+      </Block>
+
       <Block title="Risk overlay aggregation">
         <p>
           A device takes the highest risk of any system that lists it, in the order high,

@@ -182,3 +182,14 @@ def test_legacy_flat_map_is_normalised_to_the_multi_site_shape(tmp_path):
     assert out["default_site"] == "northgate"
     assert out["sites"]["northgate"]["mappings"]["ucop"]["devices"] == ["d1"]
     assert out["sites"]["northgate"]["not_deployed_at_site"] == {"beacon": "checked, absent"}
+
+
+def test_a_grade_that_is_not_text_is_ungraded():
+    """Mirrors confidenceGrade in the browser: only a string carries a grade.
+    A list holding "high" must never read as physically verified."""
+    from atlas_ingest.curation import confidence_grade
+    assert confidence_grade({"confidence": ["high"]}) == "unspecified"
+    assert confidence_grade({"confidence": 3}) == "unspecified"
+    assert confidence_grade({"confidence": True}) == "unspecified"
+    assert confidence_grade({"confidence": "Medium"}) == "medium"
+    assert confidence_grade({}) == "unspecified"

@@ -1,3 +1,4 @@
+import { EvidenceSplit, evidenceCounts } from '../../components/EvidenceSplit'
 import { ProvenanceChip } from '../../components/ProvenanceChip'
 import { SeverityPill } from '../../components/SeverityPill'
 import { formatPercent } from '../../lib/coverage'
@@ -36,6 +37,7 @@ function DimensionCard({
   onOpen: (key: string) => void
 }) {
   const count = drillCount(dimension)
+  const evidence = evidenceCounts(dimension.detail.by_confidence)
   return (
     <article
       aria-label={`${dimension.label} dimension`}
@@ -57,6 +59,7 @@ function DimensionCard({
         {TAIL[dimension.key] ?? 'counted'}
         <ProvenanceChip source={PROVENANCE[dimension.key] ?? 'manual'} />
       </p>
+      {evidence && <EvidenceSplit counts={evidence} />}
 
       <p className="mt-2 grow text-xs text-muted-2">{BLURB[dimension.key] ?? ''}</p>
 

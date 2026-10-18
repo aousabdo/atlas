@@ -111,6 +111,35 @@ function realization(report: LossinessReport) {
   return report.dimensions.find((d) => d.key === 'realization_gap')!
 }
 
+describe('the realization gap splits the realized systems by evidence', () => {
+  it('files each realized system once, under its best grade across sites', () => {
+    // Mirrors test_realization_gap_splits_the_realized_systems_by_evidence.
+    const base = inputs({})
+    const report = computeLossiness({
+      ...base,
+      systems: ['alpha', 'beta', 'gamma', 'delta'].map((id) => system(id)),
+      coverage: {
+        ...base.coverage,
+        sites: {
+          harbor: site({
+            alpha: mapping({ confidence: 'high' }),
+            beta: mapping({ confidence: 'low' }),
+            delta: mapping({ devices: [], confidence: 'high' }),
+          }),
+          yard: site({
+            beta: mapping({ confidence: 'medium' }),
+            gamma: mapping({ confidence: undefined as never }),
+          }),
+        },
+      },
+    })
+    const gap = realization(report)
+    expect(gap.detail.by_confidence).toEqual({
+      high: ['alpha'], medium: ['beta'], low: [], unspecified: ['gamma'],
+    })
+  })
+})
+
 describe('the realization gap leaves shortfall rows out', () => {
   it('counts neither realized nor unmapped a row that records a gap', () => {
     // Mirrors test_realization_gap_leaves_shortfall_rows_out in the ingest.

@@ -53,7 +53,7 @@ describe('RiskWeightedCoverage', () => {
     // Verified 2026-08-07 against public/data.
     expect(
       within(region).getByText(
-        'Of 9 high-risk systems, 2 are confirmed deployed at any site.',
+        'Of 9 high-risk systems, 2 are realized at a site.',
       ),
     ).toBeInTheDocument()
   })
@@ -88,6 +88,18 @@ describe('RiskWeightedCoverage', () => {
     )
   })
 
+  it('says how much of each band rests on verified evidence', async () => {
+    const { region } = await panel()
+    // bastion and fpsrel both rest on high-confidence mappings.
+    expect(band(region, 'high')).toHaveTextContent(
+      'All 2 physically verified, so this holds at every evidence level.',
+    )
+    // 3 high, 3 medium and 2 low among the 8 realized medium-risk systems.
+    expect(band(region, 'medium')).toHaveTextContent('Proven to believed: 3 to 8.')
+    // Nothing realized, so nothing to grade.
+    expect(band(region, 'low')).not.toHaveTextContent(/Proven|physically verified/)
+  })
+
   it('names the sites behind a realized system on hover', async () => {
     const { region, user } = await panel()
     const chip = within(region).getByRole('listitem', { name: /^bastion/ })
@@ -95,6 +107,9 @@ describe('RiskWeightedCoverage', () => {
     const tip = await screen.findByRole('tooltip')
     expect(tip).toHaveTextContent('Bastion Effector')
     expect(tip).toHaveTextContent('northgate')
+    // The grade behind the band's evidence line, so each count there is traceable.
+    expect(tip).toHaveTextContent('Physically verified.')
+    expect(within(region).getByRole('listitem', { name: /^jetty, .*Best guess\.$/ })).toBeInTheDocument()
   })
 
   it('says why an unrealized system counts as unrealized', async () => {
@@ -158,7 +173,7 @@ describe('RiskWeightedCoverage', () => {
     const region = await screen.findByRole('region', { name: /realization by risk band/i })
     expect(
       within(region).getByText(
-        'Of 9 high-risk systems, 0 are confirmed deployed at any site.',
+        'Of 9 high-risk systems, 0 are realized at a site.',
       ),
     ).toBeInTheDocument()
     expect(within(region).getAllByText('0%')).toHaveLength(3)
