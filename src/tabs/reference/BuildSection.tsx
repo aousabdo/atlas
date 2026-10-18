@@ -93,8 +93,14 @@ export function BuildSection({
             {app.kind === 'unstamped' ? (
               <span className="text-muted-2">not stamped: a development build</span>
             ) : app.kind === 'local' ? (
-              <span {...VOLATILE} className="text-muted-2">
-                a local build, not from a commit ({app.id})
+              // Only the id is masked, and in the fixed-width face: a masked
+              // box sized by proportional glyphs changes width with every
+              // minted id, and the visual suite reads that as a regression.
+              <span className="text-muted-2">
+                a local build, not from a commit:{' '}
+                <code {...VOLATILE} className="tabular">
+                  {app.id}
+                </code>
               </span>
             ) : (
               <code {...VOLATILE} title={app.id} className="tabular text-accent-ink">
