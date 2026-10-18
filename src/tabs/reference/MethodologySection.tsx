@@ -134,6 +134,23 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="Documented vs wired">
+        <p>
+          Each integration the documents record is checked against one site at a
+          time. Both systems need hardware on that site&rsquo;s drawing. If they share a
+          device, they are on a shared device. Otherwise the check looks for a path on
+          cable and radio between any device of one and any device of the other, and
+          shows one shortest path. A device whose loss alone leaves no such path is
+          named as one the integration breaks on; every such device lies on every
+          path, so testing one shortest path finds them all. A path that exists only
+          through a VLAN is reported as joined only by VLAN, never as wired. An
+          integration with an end that is checked absent, software only or unmapped
+          at the site cannot be checked there, and a site with no mappings at all is
+          reported as not reviewed. A path means the integration can run at the site,
+          not that it does: nothing here reads ports, protocols or firewall rules.
+        </p>
+      </Block>
+
       <Block title="Risk overlay aggregation">
         <p>
           A device takes the highest risk of any system that lists it, in the order high,

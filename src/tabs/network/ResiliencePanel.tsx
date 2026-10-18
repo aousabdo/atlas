@@ -254,12 +254,12 @@ function tallyText(tallies: Tally[], nameOf: (tally: Tally) => string = (t) => t
 const byTypeName = (tally: Tally) => kindWord(tally.key, tally.count)
 
 /** "3, 2 and 1" rather than "3 and 2 and 1". */
-function listOf(parts: string[]): string {
+export function listOf(parts: string[]): string {
   if (parts.length <= 1) return parts.join('')
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }
 
-function Disclosure({
+export function Disclosure({
   open,
   onToggle,
   title,
@@ -325,7 +325,7 @@ function NamedCount({
   )
 }
 
-function DeviceLinks({
+export function DeviceLinks({
   ids,
   labelOf,
   onSelect,

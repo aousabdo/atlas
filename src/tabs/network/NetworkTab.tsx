@@ -8,6 +8,7 @@ import { countMappings, matrixIdSet } from '../../lib/coverage'
 import type {
   CoverageMatrix,
   Device,
+  Link,
   Project,
   SiteId,
   System,
@@ -30,6 +31,7 @@ import { ResiliencePanel, useResilience, type GraphOverlay } from './ResilienceP
 import { ViewStrip } from '../../components/ViewStrip'
 import { deviceRisks } from './risk'
 import { SiteSelector } from './SiteSelector'
+import { WiringPanel } from './WiringPanel'
 import { ZonePanel } from './ZonePanel'
 
 const VIEW_MODES: Array<{ mode: ViewMode; label: string; hint: string; key: string }> = [
@@ -104,12 +106,13 @@ function SiteView({ project }: { project: Project }) {
 
   const bundle = useAtlas(
     async (provider) => {
-      const [topology, coverage, systems] = await Promise.all([
+      const [topology, coverage, systems, links] = await Promise.all([
         provider.getTopology(siteId),
         provider.getCoverage(),
         provider.getSystems(),
+        provider.getLinks(),
       ])
-      return { topology, coverage, systems }
+      return { topology, coverage, systems, links }
     },
     [siteId],
   )
@@ -153,6 +156,7 @@ function SiteView({ project }: { project: Project }) {
       topology={bundle.data.topology}
       coverage={bundle.data.coverage}
       systems={bundle.data.systems}
+      links={bundle.data.links.current}
       focusIds={focusIds}
       sites={project.sites}
       onSite={(id) => setSearchParams({ site: id })}
@@ -175,6 +179,7 @@ function SiteTopology({
   topology,
   coverage,
   systems,
+  links,
   focusIds,
   sites,
   onSite,
@@ -182,6 +187,7 @@ function SiteTopology({
   topology: Topology
   coverage: CoverageMatrix
   systems: System[]
+  links: Link[]
   focusIds: string[]
   sites: Project['sites']
   onSite: (siteId: SiteId) => void
@@ -735,6 +741,18 @@ function SiteTopology({
           <ResiliencePanel
             topology={topology}
             selectedId={selectedId}
+            onSelect={select}
+            overlay={overlay}
+            onOverlay={setOverlay}
+          />
+        </div>
+
+        <div className="shrink-0 border-b border-line">
+          <WiringPanel
+            topology={topology}
+            coverage={coverage}
+            systems={systems}
+            links={links}
             onSelect={select}
             overlay={overlay}
             onOverlay={setOverlay}
