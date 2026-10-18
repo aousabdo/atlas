@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import type { LossinessDimension } from '../../types/atlas'
 
@@ -134,9 +134,10 @@ function DrawerBody({
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId()
   return (
-    <section className="mt-5 first:mt-0">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-2">
+    <section aria-labelledby={id} className="mt-5 first:mt-0">
+      <h3 id={id} className="text-xs font-semibold uppercase tracking-wide text-muted-2">
         {title}
       </h3>
       <div className="mt-2">{children}</div>
@@ -218,6 +219,22 @@ function RealizationBody({
             could be fielded, so they are neither realized nor unmapped.
           </p>
           <SystemList ids={shortfalls(dimension)} systemName={systemName} />
+        </Group>
+      )}
+      {realizedByGrade(dimension).length > 0 && (
+        <Group title="By evidence">
+          <p className="mb-1 text-xs text-muted-2">
+            Each realized system once, under the strongest grade of its mappings at
+            any site.
+          </p>
+          {realizedByGrade(dimension).map(([title, ids]) => (
+            <div key={title} className="mt-2">
+              <p className="text-xs text-muted">
+                {title} ({ids.length})
+              </p>
+              <SystemList ids={ids} systemName={systemName} />
+            </div>
+          ))}
         </Group>
       )}
       {sites.length > 0 && (
@@ -385,6 +402,23 @@ export function unconfirmed(dimension: LossinessDimension): string[] {
 }
 
 /** Rows left out of the realization denominator because they are shortfalls. */
+const GRADE_TITLES: Array<[string, string]> = [
+  ['high', 'Physically verified'],
+  ['medium', 'Strong inference'],
+  ['low', 'Best guess'],
+  ['unspecified', 'Ungraded'],
+]
+
+/** The realized systems by evidence grade, strongest first, empty grades left out. */
+export function realizedByGrade(dimension: LossinessDimension): Array<[string, string[]]> {
+  const block = dimension.detail.by_confidence
+  if (!block || typeof block !== 'object') return []
+  return GRADE_TITLES.map(([key, title]): [string, string[]] => [
+    title,
+    strings((block as Record<string, unknown>)[key]),
+  ]).filter(([, ids]) => ids.length > 0)
+}
+
 export function shortfalls(dimension: LossinessDimension): string[] {
   const value = dimension.detail.shortfalls
   return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : []

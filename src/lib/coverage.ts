@@ -164,6 +164,42 @@ export function countMappings(
  * with matrix membership - is gated by atlas_ingest.validate in both
  * directions.
  */
+/** Strongest first. 'unspecified' is anything the file did not grade. */
+export const CONFIDENCE_GRADES = ['high', 'medium', 'low', 'unspecified'] as const
+export type ConfidenceGrade = (typeof CONFIDENCE_GRADES)[number]
+
+/** The grade a mapping carries, read one way everywhere. Mirrors curation.confidence_grade. */
+export function confidenceGrade(mapping: Pick<Mapping, 'confidence'>): ConfidenceGrade {
+  const grade = String(mapping.confidence ?? '').toLowerCase()
+  return (CONFIDENCE_GRADES as readonly string[]).includes(grade)
+    ? (grade as ConfidenceGrade)
+    : 'unspecified'
+}
+
+/**
+ * Each realized system once, under the best grade among its realized mappings
+ * at any site. The split behind every proven-vs-believed figure, and the same
+ * rule as detail.by_confidence in the ingest.
+ */
+export function bestRealizedGrades(
+  coverage: CoverageMatrix,
+  matrixIds: ReadonlySet<SystemId>,
+  admit: (id: SystemId) => boolean = () => true,
+): Map<SystemId, ConfidenceGrade> {
+  const best = new Map<SystemId, ConfidenceGrade>()
+  for (const site of Object.values(coverage.sites)) {
+    for (const [id, mapping] of Object.entries(site.mappings)) {
+      if (!admit(id) || !isRealizedMapping(id, mapping, matrixIds)) continue
+      const grade = confidenceGrade(mapping)
+      const held = best.get(id)
+      if (!held || CONFIDENCE_GRADES.indexOf(grade) < CONFIDENCE_GRADES.indexOf(held)) {
+        best.set(id, grade)
+      }
+    }
+  }
+  return best
+}
+
 export function realizedConfidenceCounts(
   coverage: CoverageMatrix,
   matrixIds: ReadonlySet<SystemId>,
@@ -174,8 +210,7 @@ export function realizedConfidenceCounts(
   for (const site of Object.values(coverage.sites)) {
     for (const [id, mapping] of Object.entries(site.mappings)) {
       if (!isRealizedMapping(id, mapping, matrixIds)) continue
-      const grade = (mapping.confidence ?? '').toLowerCase()
-      counts[grade in counts && grade !== 'total' ? grade : 'unspecified'] += 1
+      counts[confidenceGrade(mapping)] += 1
       counts.total += 1
     }
   }

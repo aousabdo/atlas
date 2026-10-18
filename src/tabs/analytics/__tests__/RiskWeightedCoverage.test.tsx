@@ -88,6 +88,18 @@ describe('RiskWeightedCoverage', () => {
     )
   })
 
+  it('says how much of each band rests on verified evidence', async () => {
+    const { region } = await panel()
+    // bastion and fpsrel both rest on high-confidence mappings.
+    expect(band(region, 'high')).toHaveTextContent(
+      'All 2 physically verified, so this holds at every evidence level.',
+    )
+    // 3 high, 3 medium and 2 low among the 8 realized medium-risk systems.
+    expect(band(region, 'medium')).toHaveTextContent('Proven to believed: 3 to 8.')
+    // Nothing realized, so nothing to grade.
+    expect(band(region, 'low')).not.toHaveTextContent(/Proven|physically verified/)
+  })
+
   it('names the sites behind a realized system on hover', async () => {
     const { region, user } = await panel()
     const chip = within(region).getByRole('listitem', { name: /^bastion/ })

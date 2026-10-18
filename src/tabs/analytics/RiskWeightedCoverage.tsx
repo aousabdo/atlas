@@ -1,7 +1,14 @@
 import { useId } from 'react'
 
+import { EvidenceSplit } from '../../components/EvidenceSplit'
 import { ShortfallNote } from '../../components/ShortfallNote'
-import { formatPercent, shortfallSystemIds } from '../../lib/coverage'
+import {
+  bestRealizedGrades,
+  formatPercent,
+  matrixIdSet,
+  shortfallSystemIds,
+  type ConfidenceGrade,
+} from '../../lib/coverage'
 import {
   bandSentence,
   riskBandCoverage,
@@ -49,6 +56,12 @@ export function RiskWeightedCoverage({
   const headingId = useId()
   const tooltip = useCursorTooltip()
   const bands = riskBandCoverage(systems, coverage)
+  const grades = bestRealizedGrades(coverage, matrixIdSet(systems))
+  const evidenceOf = (band: RiskBandCoverage) => {
+    const counts: Record<ConfidenceGrade, number> = { high: 0, medium: 0, low: 0, unspecified: 0 }
+    for (const r of band.realized) counts[grades.get(r.system.id) ?? 'unspecified'] += 1
+    return counts
+  }
   // Out of every band, as out of the realization gap, and named so the band
   // totals plus these rows add up to the matrix's systems by hand.
   const shortfalls = shortfallSystemIds(systems).map(
@@ -91,6 +104,7 @@ export function RiskWeightedCoverage({
                 </span>
                 <p className="text-sm text-ink">{bandSentence(band)}</p>
               </div>
+              <EvidenceSplit counts={evidenceOf(band)} />
 
               {/* Restates the two counts printed beside it, so it is decorative. */}
               <div

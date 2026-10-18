@@ -110,6 +110,18 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="Proven to believed">
+        <p>
+          A realization figure counts every mapping alike, so each one also says how
+          much of it rests on what. A realized system counts as physically verified
+          when its strongest mapping at any site is graded high, a strong inference
+          when it is medium, a best guess when it is low, and ungraded when the file
+          gives no grade. The verified count is the floor of the range and the whole
+          count is the ceiling. A figure that is all verified holds at every evidence
+          level.
+        </p>
+      </Block>
+
       <Block title="Network resilience">
         <p>
           Single points of failure and single links are counted on the physical links

@@ -10,7 +10,10 @@ that were wanted and still do not exist; 6 is its inverse, hardware in the rack
 that no architecture document explains.
 """
 
-from .curation import is_realized_mapping, is_shortfall, matrix_id_set
+from .curation import (
+    CONFIDENCE_GRADES, confidence_grade, is_realized_mapping, is_shortfall,
+    matrix_id_set,
+)
 
 DIMENSION_ORDER = [
     "requirement_attrition", "ownership_ambiguity", "realization_gap",
@@ -147,17 +150,27 @@ def _realization_gap(systems, sdmap):
     architecture, not a system that could be fielded, so they can be neither
     realized nor unmapped. They are named under detail.shortfalls, so the
     denominator can still be checked against the matrix by hand.
+
+    detail.by_confidence splits the realized systems by evidence: each one is
+    filed once, under the best grade among its realized mappings at any site,
+    so the grades sum to the numerator. It is what lets a figure say how much
+    of it is physically verified and how much is inference or a best guess.
     """
     matrix_ids = matrix_id_set(systems)
     shortfalls = sorted({s["id"] for s in systems if is_shortfall(s)})
     fieldable = matrix_ids - set(shortfalls)
     total = len(fieldable)
-    per_site, mapped_anywhere = {}, set()
+    per_site, mapped_anywhere, best = {}, set(), {}
+    rank = {grade: i for i, grade in enumerate(CONFIDENCE_GRADES)}
     for site_id, site in sdmap.get("sites", {}).items():
-        mapped = sorted(
-            sid for sid, entry in site.get("mappings", {}).items()
-            if sid in fieldable and is_realized_mapping(sid, entry, matrix_ids)
-        )
+        mapped = []
+        for sid, entry in site.get("mappings", {}).items():
+            if sid in fieldable and is_realized_mapping(sid, entry, matrix_ids):
+                mapped.append(sid)
+                grade = confidence_grade(entry)
+                if sid not in best or rank[grade] < rank[best[sid]]:
+                    best[sid] = grade
+        mapped.sort()
         mapped_anywhere.update(mapped)
         per_site[site_id] = {
             "label": site.get("label", site_id),
@@ -171,7 +184,13 @@ def _realization_gap(systems, sdmap):
     return _dimension(
         "realization_gap", len(mapped_anywhere), total,
         severity_for(_pct(len(mapped_anywhere), total)),
-        {"per_site": per_site, "unmapped": unmapped, "shortfalls": shortfalls},
+        {
+            "per_site": per_site, "unmapped": unmapped, "shortfalls": shortfalls,
+            "by_confidence": {
+                grade: sorted(sid for sid, g in best.items() if g == grade)
+                for grade in CONFIDENCE_GRADES
+            },
+        },
     )
 
 

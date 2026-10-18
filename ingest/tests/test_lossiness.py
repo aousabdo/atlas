@@ -356,3 +356,45 @@ def test_a_shortfall_row_listed_twice_is_named_once():
     report = compute_lossiness(systems=rows, links=[], desired=[], crosswalk=[],
                                sdmap={"sites": {}, "pending_review": {}}, networks={})
     assert _dim(report, "realization_gap")["detail"]["shortfalls"] == ["gap"]
+
+
+def test_realization_gap_splits_the_realized_systems_by_evidence():
+    """Proven vs believed: each realized system is filed once, under the best
+    grade of its realized mappings across every site, so the grades sum to the
+    numerator and a reader can say how much of it rests on what."""
+    systems = [
+        {"id": sid, "name": sid.title(), "cat": "Deployed asset record",
+         "soft": False, "risk": "low", "risk_source": "explicit"}
+        for sid in ("alpha", "beta", "gamma", "delta")
+    ]
+
+    def site(mappings):
+        return {"label": "Site", "mappings": mappings, "not_deployed_at_site": {},
+                "unclaimed_devices": {"infrastructure": []}}
+
+    sdmap = {"sites": {
+        "harbor": site({
+            "alpha": {"devices": ["d1"], "confidence": "high"},
+            "beta": {"devices": ["d2"], "confidence": "low"},
+            # Software only: not realized, so not graded.
+            "delta": {"devices": [], "confidence": "high"},
+        }),
+        "yard": site({
+            "beta": {"devices": ["d3"], "confidence": "medium"},
+            "gamma": {"devices": ["d4"]},
+        }),
+    }, "pending_review": {}}
+    report = compute_lossiness(systems=systems, links=[], desired=[],
+                               crosswalk=[], sdmap=sdmap, networks={})
+    gap = _dim(report, "realization_gap")
+    assert gap["detail"]["by_confidence"] == {
+        "high": ["alpha"], "medium": ["beta"], "low": [], "unspecified": ["gamma"],
+    }
+    assert sum(len(v) for v in gap["detail"]["by_confidence"].values()) == gap["numerator"]
+
+
+def test_the_sample_realization_rests_on_five_verified_systems(report):
+    by = _dim(report, "realization_gap")["detail"]["by_confidence"]
+    assert {k: len(v) for k, v in by.items()} == {
+        "high": 5, "medium": 3, "low": 2, "unspecified": 0,
+    }

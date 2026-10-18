@@ -67,6 +67,10 @@ describe('Lossiness', () => {
     const realization = await screen.findByRole('article', { name: /Realization gap/i })
     expect(within(realization).getByText('33.3%')).toBeInTheDocument()
     expect(within(realization).getByText('manual')).toBeInTheDocument()
+    // Proven vs believed: how much of the 10 rests on what.
+    expect(within(realization).getByText(/Proven to believed: 5 to 10\./)).toHaveTextContent(
+      '5 physically verified, 3 by strong inference, 2 best guesses.',
+    )
 
     const integration = await screen.findByRole('article', { name: /Integration gap/i })
     expect(within(integration).getByText('mined from prose')).toBeInTheDocument()
@@ -100,8 +104,13 @@ describe('Lossiness', () => {
   it('lists the 20 unmapped systems and the per-site realization', async () => {
     const { user } = await renderWithProvider(<LossinessTab />)
     const drawer = await drillInto(user, /Realization gap/i)
-    // 20 unmapped, then the 2 shortfall rows named under Not counted.
-    expect(within(drawer).getAllByRole('listitem')).toHaveLength(22)
+    // 20 unmapped, the 2 shortfall rows named under Not counted, then the 10
+    // realized systems filed by evidence.
+    expect(within(drawer).getAllByRole('listitem')).toHaveLength(32)
+    const byEvidence = within(drawer).getByRole('region', { name: 'By evidence' })
+    expect(within(byEvidence).getByText(/Physically verified \(5\)/)).toBeInTheDocument()
+    expect(within(byEvidence).getByText(/Best guess \(2\)/)).toBeInTheDocument()
+    expect(within(byEvidence).getByText('Bastion Effector')).toBeInTheDocument()
     expect(within(drawer).getByText('Not counted')).toBeInTheDocument()
     expect(within(drawer).getByText('Partner Agency Data Sharing')).toBeInTheDocument()
     expect(within(drawer).getByText('Dwell')).toBeInTheDocument()
