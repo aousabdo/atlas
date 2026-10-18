@@ -145,8 +145,8 @@ export function MethodologySection({
           path, so testing one shortest path finds them all. A path that exists only
           through a VLAN is reported as joined only by VLAN, never as wired. An
           integration with an end that is checked absent, software only or unmapped
-          at the site cannot be checked there, and a site with no mappings at all is
-          reported as not reviewed. A path means the integration can run at the site,
+          at the site cannot be checked there, and a site that records no system as
+          either present or checked absent is reported as not reviewed. A path means the integration can run at the site,
           not that it does: nothing here reads ports, protocols or firewall rules.
         </p>
       </Block>

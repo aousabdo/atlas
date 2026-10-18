@@ -9,6 +9,7 @@ import { NetworkTab } from '../../tabs/network/NetworkTab'
 import { ReferenceTab } from '../../tabs/reference/ReferenceTab'
 import type { Mapping } from '../../types/atlas'
 import {
+  confidenceGrade,
   countMappings,
   fieldableSystemIds,
   formatPercent,
@@ -17,6 +18,7 @@ import {
   percentOf,
   realizedAnywhere,
   realizedConfidenceCounts,
+  realizedMappingsAt,
   realizedSystemIds,
   shortfallSystemIds,
 } from '../coverage'
@@ -77,6 +79,33 @@ describe('countMappings', () => {
   it('never loses or double counts a mapping', () => {
     const c = countMappings(site, MATRIX)
     expect(c.realized + c.softwareOnly + c.outsideMatrix).toBe(c.recorded)
+  })
+})
+
+describe('confidenceGrade', () => {
+  it('reads only text as a grade, as the ingest does', () => {
+    expect(confidenceGrade({ confidence: ['high'] as never })).toBe('unspecified')
+    expect(confidenceGrade({ confidence: 3 as never })).toBe('unspecified')
+    expect(confidenceGrade({ confidence: 'Medium' as never })).toBe('medium')
+  })
+})
+
+describe('realizedMappingsAt', () => {
+  it('names the same mappings the tally counts, whatever their case', () => {
+    const coverage = {
+      default_site: 'yard',
+      sites: {
+        yard: {
+          label: 'Yard', scope: '', not_deployed_at_site: {}, unclaimed_devices: { infrastructure: [] },
+          mappings: { alpha: { devices: ['d1'], note: '', confidence: 'Medium' as never } },
+        },
+      },
+      pending_review: {},
+      confidence_counts: {},
+    }
+    const ids = new Set(['alpha'])
+    expect(realizedMappingsAt(coverage, ids, 'medium').map((m) => m.system)).toEqual(['alpha'])
+    expect(realizedConfidenceCounts(coverage, ids).medium).toBe(1)
   })
 })
 

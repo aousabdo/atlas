@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { matrixIdSet } from '../../lib/coverage'
 import { UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
@@ -34,6 +34,9 @@ export function WiringPanel({
   const [open, setOpen] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [openUnchecked, setOpenUnchecked] = useState(false)
+  // The overlay this panel put up, so it only ever takes down its own and
+  // never one the reach tool or a what-if is showing.
+  const ownOverlay = useRef<GraphOverlay | null>(null)
 
   const site = coverage.sites[topology.site_id]
   const reviewed =
@@ -63,7 +66,10 @@ export function WiringPanel({
   const unchecked = of('unchecked')
   const allFragile =
     wired.length > 0 &&
-    wired.every((r) => r.verdict.kind === 'wired' && r.verdict.cutDeviceIds.length > 0)
+    wired.every(
+      (r) =>
+        r.verdict.kind === 'wired' && (r.verdict.cutDeviceIds.length > 0 || r.verdict.singleCable),
+    )
 
   const summary = [
     `${wired.length} wired`,
@@ -73,24 +79,35 @@ export function WiringPanel({
     ...(unchecked.length ? [`${unchecked.length} cannot be checked here`] : []),
   ].join(', ')
 
-  const showPath = (row: LinkWiring, path: DeviceId[]) =>
-    onOverlay({
+  const showPath = (row: LinkWiring, path: DeviceId[]) => {
+    const shown: GraphOverlay = {
       kind: 'path',
       deviceIds: path,
       fromLabel: `${nameOf(row.link.from)} on ${labelOf(path[0]!)}`,
       toLabel: `${nameOf(row.link.to)} on ${labelOf(path[path.length - 1]!)}`,
       hopCount: path.length - 1,
-    })
+    }
+    ownOverlay.current = shown
+    onOverlay(shown)
+  }
+
+  const clearOwnOverlay = () => {
+    if (overlay !== null && overlay === ownOverlay.current) onOverlay(null)
+    ownOverlay.current = null
+  }
 
   const toggleRow = (row: LinkWiring, path: DeviceId[] | null) => {
     const key = keyOf(row)
     if (openKey === key) {
       setOpenKey(null)
-      if (overlay?.kind === 'path') onOverlay(null)
+      clearOwnOverlay()
       return
     }
     setOpenKey(key)
+    // The overlay goes with the row that produced it: a row with no path of
+    // its own takes down the previous row's.
     if (path) showPath(row, path)
+    else clearOwnOverlay()
   }
 
   const rowButton = (row: LinkWiring, detail: string, path: DeviceId[] | null) => (
@@ -140,7 +157,7 @@ export function WiringPanel({
               <p className="mt-1 text-xs text-ink">{summary}.</p>
               {allFragile && (
                 <p className="mt-1 text-xs text-risk-medium-ink">
-                  Every wired integration here breaks if a single device fails.
+                  Every wired integration here breaks if one device or cable fails.
                 </p>
               )}
 
@@ -148,11 +165,14 @@ export function WiringPanel({
                 <Group title={`Wired (${wired.length})`}>
                   {wired.map((row) => {
                     if (row.verdict.kind !== 'wired') return null
-                    const { path, hops, cutDeviceIds } = row.verdict
+                    const { path, hops, cutDeviceIds, singleCable } = row.verdict
                     const cuts = cutDeviceIds.length
+                    const span = `${hops} ${hops === 1 ? 'hop' : 'hops'}`
                     const detail = cuts
-                      ? `${hops} hops, breaks if any one of ${cuts} ${cuts === 1 ? 'device fails' : 'devices fails'}`
-                      : `${hops} hops, with a second way round`
+                      ? `${span}, breaks if any one of ${cuts} ${cuts === 1 ? 'device fails' : 'devices fails'}`
+                      : singleCable
+                        ? `${span}, a single cable with no second way round`
+                        : `${span}, with a second way round`
                     return (
                       <li key={keyOf(row)}>
                         {rowButton(row, detail, path)}

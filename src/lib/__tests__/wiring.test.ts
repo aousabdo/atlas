@@ -52,7 +52,29 @@ describe('wiringAtSite', () => {
   it('finds a cable path and names every device whose loss breaks it', () => {
     expect(verdictOf('a', 'b')).toEqual({
       kind: 'wired', path: ['a1', 'sw1', 'sw2', 'b1'], hops: 3, cutDeviceIds: ['sw1', 'sw2'],
+      singleCable: false,
     })
+  })
+
+  it('never reads one direct cable as a second way round', () => {
+    // x1 and y1 are cabled to each other and nothing else joins them.
+    const direct = topology(['x1', 'y1', 'sw'], [edge('x1', 'y1'), edge('x1', 'sw')])
+    const verdict = verdictOf('a', 'b', site({ a: mapping(['x1']), b: mapping(['y1']) }), direct)
+    expect(verdict).toEqual({
+      kind: 'wired', path: ['x1', 'y1'], hops: 1, cutDeviceIds: [], singleCable: true,
+    })
+    // The same, when the system on two devices reaches the other through one cable.
+    const twoBoxes = topology(['x1', 'x2', 's', 'y1'], [edge('x1', 's'), edge('s', 'x2'), edge('x2', 'y1')])
+    expect(
+      verdictOf('a', 'b', site({ a: mapping(['x1', 'x2']), b: mapping(['y1']) }), twoBoxes),
+    ).toMatchObject({ hops: 1, singleCable: true })
+  })
+
+  it('counts a second cable between the same two devices as a second way round', () => {
+    const doubled = topology(['x1', 'y1'], [edge('x1', 'y1'), edge('x1', 'y1', 'wireless')])
+    expect(
+      verdictOf('a', 'b', site({ a: mapping(['x1']), b: mapping(['y1']) }), doubled),
+    ).toMatchObject({ hops: 1, singleCable: false })
   })
 
   it('reports no single device to lose when there is a second way round', () => {

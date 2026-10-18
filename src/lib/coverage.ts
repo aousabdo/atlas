@@ -170,7 +170,10 @@ export type ConfidenceGrade = (typeof CONFIDENCE_GRADES)[number]
 
 /** The grade a mapping carries, read one way everywhere. Mirrors curation.confidence_grade. */
 export function confidenceGrade(mapping: Pick<Mapping, 'confidence'>): ConfidenceGrade {
-  const grade = String(mapping.confidence ?? '').toLowerCase()
+  // Only text carries a grade, as in the ingest: a list holding 'high' must
+  // never read as physically verified.
+  const raw: unknown = mapping.confidence
+  const grade = typeof raw === 'string' ? raw.toLowerCase() : ''
   return (CONFIDENCE_GRADES as readonly string[]).includes(grade)
     ? (grade as ConfidenceGrade)
     : 'unspecified'
@@ -233,7 +236,7 @@ export function realizedMappingsAt(
   for (const [siteId, site] of Object.entries(coverage.sites)) {
     for (const [id, mapping] of Object.entries(site.mappings)) {
       if (!isRealizedMapping(id, mapping, matrixIds)) continue
-      if (mapping.confidence !== level) continue
+      if (confidenceGrade(mapping) !== level) continue
       out.push({ system: id, site: siteId, confidence: level })
     }
   }

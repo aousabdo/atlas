@@ -159,7 +159,8 @@ CONFIDENCE_GRADES = ("high", "medium", "low", "unspecified")
 def confidence_grade(entry):
     """The grade a mapping carries, read one way everywhere. Mirrors
     confidenceGrade in src/lib/coverage.ts."""
-    grade = (entry.get("confidence") or "").lower()
+    raw = entry.get("confidence")
+    grade = raw.lower() if isinstance(raw, str) else ""
     return grade if grade in CONFIDENCE_GRADES else "unspecified"
 
 

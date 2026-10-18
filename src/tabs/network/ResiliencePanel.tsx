@@ -437,10 +437,19 @@ export function ResiliencePanel({
   // nothing else. Listing each of those as a finding would bury the links
   // that hold whole groups together, so they are counted and named once.
   const groupLinks = resilience.bridges.filter((link) => link.severedCount > 1)
-  const leafIds = resilience.bridges
-    .filter((link) => link.severedCount === 1)
-    .map((link) => link.severedDeviceIds[0]!)
-    .sort((a, b) => labelOf(a).localeCompare(labelOf(b)))
+  // A pair joined only to each other hangs off one link from both ends, so
+  // both are named.
+  const leafIds = [
+    ...new Set(
+      resilience.bridges
+        .filter((link) => link.severedCount === 1)
+        .flatMap((link) =>
+          link.retainedCount === 1
+            ? [...link.severedDeviceIds, ...link.retainedDeviceIds]
+            : link.severedDeviceIds,
+        ),
+    ),
+  ].sort((a, b) => labelOf(a).localeCompare(labelOf(b)))
   const shownLinks = allLinks ? groupLinks : groupLinks.slice(0, PREVIEW)
 
   return (
@@ -565,6 +574,8 @@ export function ResiliencePanel({
           <p className="text-xs text-muted">
             Cutting any one of these links leaves two or more devices with no path
             to the rest. Counted on cable and radio, like the list above.
+            {pieces.length > 1 &&
+              ` The physical links are already in ${pieces.length} separate pieces, so each link is measured inside its own piece.`}
           </p>
 
           {graph && graph.links.length === 0 ? (

@@ -310,6 +310,21 @@ describe('Single links', () => {
     }
   })
 
+  it('names both devices of a pair joined only to each other', async () => {
+    // SPLIT: a chain of three, and a pair joined only to each other.
+    const { user } = renderPanel(SPLIT)
+    const { region } = await openSection(user)
+    const note = within(region).getByText(/hang off a single link of their own/)
+    expect(note).toHaveTextContent(/^4 devices/)
+  })
+
+  it('says each link is measured inside its own piece when the site is in pieces', async () => {
+    const { user } = renderPanel(SPLIT)
+    const { region } = await openSection(user)
+    const section = within(region).getByText(/Cutting any one of these links/).parentElement!
+    expect(section).toHaveTextContent(/already in 2 separate pieces/)
+  })
+
   it('says so when no link holds more than one device', async () => {
     const { user } = renderPanel({
       ...RING,

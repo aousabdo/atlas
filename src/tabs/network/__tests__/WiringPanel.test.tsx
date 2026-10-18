@@ -1,5 +1,9 @@
-import { screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+
+import type { CoverageMatrix, System, Topology } from '../../../types/atlas'
+import { WiringPanel } from '../WiringPanel'
 
 import { renderWithProvider } from '../../../test/renderWithProvider'
 import { NetworkTab } from '../NetworkTab'
@@ -25,7 +29,7 @@ describe('Documented integrations', () => {
     const { user, region } = await openPanel()
     // Every one of the three hangs on single devices: worth a sentence.
     expect(
-      within(region).getByText('Every wired integration here breaks if a single device fails.'),
+      within(region).getByText('Every wired integration here breaks if one device or cable fails.'),
     ).toBeInTheDocument()
     const row = within(region).getByRole('button', {
       name: /^Jetty C-UAS Integration Engine – Event Relay Server/,
@@ -47,6 +51,17 @@ describe('Documented integrations', () => {
     expect(banner).toHaveTextContent(/from Recon Systems on .* to UAS Common Picture on .*, 6 hops/)
   })
 
+  it('takes its own path off the graph when another row opens, and nothing else', async () => {
+    const { user, region } = await openPanel()
+    await user.click(
+      within(region).getByRole('button', { name: /^Recon Systems – UAS Common Picture/ }),
+    )
+    expect(await screen.findByRole('status', { name: 'Path view' })).toBeInTheDocument()
+    // A shared-device row has no path of its own, so the old one must not stay lit.
+    await user.click(within(region).getByRole('button', { name: /^UAS Common Picture – CROSSLINK/ }))
+    expect(screen.queryByRole('status', { name: 'Path view' })).not.toBeInTheDocument()
+  })
+
   it('says when two systems share a device instead of tracing a path', async () => {
     const { region } = await openPanel()
     expect(
@@ -61,6 +76,51 @@ describe('Documented integrations', () => {
       .toHaveTextContent(/Dispatch Management System \(DMS\/CAD\) is checked absent here/)
     expect(within(region).getByText(/^Jetty C-UAS Integration Engine – Relay Homing Plugin/))
       .toHaveTextContent(/Relay Homing Plugin has software only here/)
+  })
+
+  it('never calls one direct cable a second way round', async () => {
+    const user = userEvent.setup()
+    const system = (id: string) => ({ id, name: id.toUpperCase() }) as System
+    const topology = {
+      site_id: 'yard',
+      meta: { label: 'Yard' },
+      zones: {},
+      devices: ['x1', 'y1', 'sw'].map((id) => ({ id, label: id, zone: 'z', type: 'switch' })),
+      edges: [
+        { source: 'x1', target: 'y1', link_type: 'ethernet', label: null },
+        { source: 'x1', target: 'sw', link_type: 'ethernet', label: null },
+      ],
+    } as unknown as Topology
+    const coverage = {
+      sites: {
+        yard: {
+          label: 'Yard', scope: '', not_deployed_at_site: {}, unclaimed_devices: { infrastructure: [] },
+          mappings: {
+            x: { devices: ['x1'], note: '', confidence: 'high' },
+            y: { devices: ['y1'], note: '', confidence: 'high' },
+          },
+        },
+      },
+    } as unknown as CoverageMatrix
+    render(
+      <WiringPanel
+        topology={topology}
+        coverage={coverage}
+        systems={[system('x'), system('y')]}
+        links={[{ from: 'x', to: 'y', label: '', extraction_method: 'override' }]}
+        onSelect={() => {}}
+        overlay={null}
+        onOverlay={() => {}}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /Documented integrations/ }))
+    expect(screen.getByRole('button', { name: /^X – Y/ })).toHaveAccessibleName(
+      /1 hop, a single cable with no second way round/,
+    )
+    expect(screen.queryByText(/with a second way round/)).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Every wired integration here breaks if one device or cable fails.'),
+    ).toBeInTheDocument()
   })
 
   it('says a site nobody has reviewed is unreviewed, not that nothing is wired', async () => {

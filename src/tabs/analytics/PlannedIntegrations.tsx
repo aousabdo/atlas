@@ -197,10 +197,14 @@ export function PlannedIntegrations({
 
   const verdictLong = (siteId: SiteId, verdict: WiringVerdict): string => {
     switch (verdict.kind) {
-      case 'wired':
+      case 'wired': {
+        const span = `${verdict.hops} ${plural(verdict.hops, 'hop', 'hops')}`
         return verdict.cutDeviceIds.length
-          ? `wired, ${verdict.hops} hops, breaks if any one of ${verdict.cutDeviceIds.length} ${plural(verdict.cutDeviceIds.length, 'device fails', 'devices fails')}`
-          : `wired, ${verdict.hops} hops, with a second way round`
+          ? `wired, ${span}, breaks if any one of ${verdict.cutDeviceIds.length} ${plural(verdict.cutDeviceIds.length, 'device fails', 'devices fails')}`
+          : verdict.singleCable
+            ? `wired, ${span}, a single cable with no second way round`
+            : `wired, ${span}, with a second way round`
+      }
       case 'co-hosted':
         return `both run on ${listOf(verdict.sharedDeviceIds.map((id) => deviceLabel(siteId, id)))}`
       case 'logical-only':

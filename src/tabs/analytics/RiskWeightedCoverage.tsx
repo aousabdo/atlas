@@ -47,6 +47,14 @@ export interface RiskWeightedCoverageProps {
  * page rather than behind a control, because the reader who doubts the number
  * is the reader who most needs to see the systems it was counted from.
  */
+/** The grade words the evidence line and Methodology use, per realized chip. */
+const GRADE_WORDS: Record<ConfidenceGrade, string> = {
+  high: 'Physically verified',
+  medium: 'Strong inference',
+  low: 'Best guess',
+  unspecified: 'Ungraded',
+}
+
 export function RiskWeightedCoverage({
   systems,
   coverage,
@@ -118,7 +126,7 @@ export function RiskWeightedCoverage({
               </div>
 
               <ChipRow
-                label={`Confirmed deployed (${band.realized.length})`}
+                label={`Realized (${band.realized.length})`}
                 empty="None. No site names hardware for any system in this band."
                 tone={tone.chip}
                 tooltip={tooltip}
@@ -127,12 +135,12 @@ export function RiskWeightedCoverage({
                 entries={band.realized.map((r) => ({
                   id: r.system.id,
                   realized: true,
-                  detail: `${r.system.name}. Realized at ${r.sites.join(', ')}.`,
+                  detail: `${r.system.name}. Realized at ${r.sites.join(', ')}. ${GRADE_WORDS[grades.get(r.system.id) ?? 'unspecified']}.`,
                 }))}
               />
               <ChipRow
-                label={`Not confirmed anywhere (${band.unrealized.length})`}
-                empty="None. Every system in this band is confirmed somewhere."
+                label={`Not realized anywhere (${band.unrealized.length})`}
+                empty="None. Every system in this band is realized somewhere."
                 tone="bg-surface-2 text-muted"
                 tooltip={tooltip}
                 filterActive={filterActive}

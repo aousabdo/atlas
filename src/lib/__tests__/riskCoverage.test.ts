@@ -188,16 +188,16 @@ describe('bandSentence', () => {
 
   it('states the band, its size and how much of it is confirmed', () => {
     expect(bandSentence(band(11, 2))).toBe(
-      'Of 11 high-risk systems, 2 are confirmed deployed at any site.',
+      'Of 11 high-risk systems, 2 are realized at a site.',
     )
   })
 
   it('agrees with itself in number', () => {
     expect(bandSentence(band(1, 1))).toBe(
-      'Of 1 high-risk system, 1 is confirmed deployed at any site.',
+      'Of 1 high-risk system, 1 is realized at a site.',
     )
     expect(bandSentence(band(3, 0))).toBe(
-      'Of 3 high-risk systems, 0 are confirmed deployed at any site.',
+      'Of 3 high-risk systems, 0 are realized at a site.',
     )
   })
 })

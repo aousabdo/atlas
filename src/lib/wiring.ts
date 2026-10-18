@@ -47,10 +47,18 @@ export type WiringVerdict =
       hops: number
       /**
        * Every device whose loss alone leaves no cable or radio path between
-       * the two ends, in path order. Empty means a second way round exists.
-       * Either end's own devices are never listed: they are the systems.
+       * the two ends, in path order. Either end's own devices are never
+       * listed: they are the systems. Empty does not on its own mean a second
+       * way round: a one-hop path has no device in between to lose.
        */
       cutDeviceIds: DeviceId[]
+      /**
+       * The path is one cable between the two systems' hardware and nothing
+       * else joins them, so cutting that cable breaks the integration. Any
+       * cable on a longer path whose loss would break it has a device in
+       * between that cutDeviceIds already names.
+       */
+      singleCable: boolean
     }
   | { kind: 'co-hosted'; sharedDeviceIds: DeviceId[] }
   /** Joined on the drawing only through a VLAN somewhere along the way. */
@@ -85,7 +93,11 @@ function shortestPath(
   from: readonly DeviceId[],
   to: ReadonlySet<DeviceId>,
   banned: DeviceId | null = null,
+  bannedLink: readonly [DeviceId, DeviceId] | null = null,
 ): DeviceId[] | null {
+  const isBannedLink = (x: DeviceId, y: DeviceId) =>
+    bannedLink !== null &&
+    ((x === bannedLink[0] && y === bannedLink[1]) || (x === bannedLink[1] && y === bannedLink[0]))
   const previous = new Map<DeviceId, DeviceId | null>()
   const queue: DeviceId[] = []
   for (const start of from) {
@@ -101,7 +113,7 @@ function shortestPath(
       return path
     }
     for (const next of adj.get(at) ?? []) {
-      if (next === banned || previous.has(next)) continue
+      if (next === banned || previous.has(next) || isBannedLink(at, next)) continue
       previous.set(next, at)
       queue.push(next)
     }
@@ -155,7 +167,15 @@ function verdictFor(
     const cutDeviceIds = path
       .slice(1, -1)
       .filter((candidate) => shortestPath(physical, a, targets, candidate) === null)
-    return { kind: 'wired', path, hops: path.length - 1, cutDeviceIds }
+    // A one-hop path has no device in between, so test the cable itself. A
+    // second cable between the same two devices is a second way round.
+    let singleCable = false
+    if (path.length === 2) {
+      const [x, y] = [path[0]!, path[1]!]
+      const cables = (physical.get(x) ?? []).filter((next) => next === y).length
+      singleCable = cables === 1 && shortestPath(physical, a, targets, null, [x, y]) === null
+    }
+    return { kind: 'wired', path, hops: path.length - 1, cutDeviceIds, singleCable }
   }
   const logical = shortestPath(recorded, a, targets)
   return logical ? { kind: 'logical-only', path: logical } : { kind: 'no-path' }
