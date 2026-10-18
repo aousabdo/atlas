@@ -5,11 +5,12 @@ import { LoadFailed } from '../../components/LoadFailed'
 import type { AtlasDataProvider } from '../../data/provider'
 import { useAtlas } from '../../data/useAtlas'
 import type {
-  CoverageMatrix, LinkSet, Project, Requirement, System,
+  CoverageMatrix, LinkSet, Project, Requirement, SiteId, System, Topology,
 } from '../../types/atlas'
 import { CoveragePanel } from './CoveragePanel'
 import { IntegrationMatrix } from './IntegrationMatrix'
 import { OwnershipBars } from './OwnershipBars'
+import { PlannedIntegrations } from './PlannedIntegrations'
 import { RequirementsSankey } from './RequirementsSankey'
 import { RiskHeatmap } from './RiskHeatmap'
 import { RiskWeightedCoverage } from './RiskWeightedCoverage'
@@ -27,22 +28,29 @@ interface AnalyticsData {
   coverage: CoverageMatrix
   project: Project
   links: LinkSet
+  /** Every site's drawing, for checking planned integrations against the cabling. */
+  topologies: Record<SiteId, Topology>
 }
 
-function load(provider: AtlasDataProvider): Promise<AnalyticsData> {
-  return Promise.all([
+async function load(provider: AtlasDataProvider): Promise<AnalyticsData> {
+  const [systems, requirements, coverage, project, links] = await Promise.all([
     provider.getSystems(),
     provider.getRequirements(),
     provider.getCoverage(),
     provider.getProject(),
     provider.getLinks(),
-  ]).then(([systems, requirements, coverage, project, links]) => ({
+  ])
+  const drawings = await Promise.all(
+    project.sites.map(async (site) => [site.id, await provider.getTopology(site.id)] as const),
+  )
+  return {
     systems,
     requirements,
     coverage,
     project,
     links,
-  }))
+    topologies: Object.fromEntries(drawings),
+  }
 }
 
 export interface OwnerGroupSlice {
@@ -203,6 +211,18 @@ export function AnalyticsTab() {
             <IntegrationMatrix
               groups={groups}
               links={state.data.links}
+              filterActive={filterActive}
+              matchedIds={matchedIds}
+            />
+          </div>
+          {/* After the matrix that shows the gap, the facts for closing it. */}
+          <div className="min-w-0 lg:col-span-2">
+            <PlannedIntegrations
+              systems={state.data.systems}
+              links={state.data.links}
+              requirements={state.data.requirements}
+              coverage={state.data.coverage}
+              topologies={state.data.topologies}
               filterActive={filterActive}
               matchedIds={matchedIds}
             />

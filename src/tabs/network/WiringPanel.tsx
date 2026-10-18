@@ -1,16 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { matrixIdSet } from '../../lib/coverage'
-import { wiringAtSite, type LinkWiring, type UncheckedReason } from '../../lib/wiring'
+import { UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
 import type { CoverageMatrix, DeviceId, Link, System, Topology } from '../../types/atlas'
 import { DeviceLinks, Disclosure, listOf, type GraphOverlay } from './ResiliencePanel'
-
-const REASON: Record<UncheckedReason, string> = {
-  'checked-absent': 'is checked absent here',
-  'software-only': 'has software only here',
-  'no-record': 'has no record here',
-  'not-in-drawing': 'is mapped to devices this drawing does not have',
-}
 
 /**
  * Documented vs wired, for the site on screen.
@@ -254,7 +247,7 @@ export function WiringPanel({
                             <span className="text-muted-3">
                               {listOf(
                                 row.verdict.reasons.map(
-                                  (r) => `${nameOf(r.systemId)} ${REASON[r.reason]}`,
+                                  (r) => `${nameOf(r.systemId)} ${UNCHECKED_REASON_TEXT[r.reason]}`,
                                 ),
                               )}
                               .

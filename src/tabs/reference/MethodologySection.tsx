@@ -151,6 +151,21 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="What to build next">
+        <p>
+          Each planned integration is described by facts, not scored. Owners counts how
+          many of its two systems have a confirmed owner. Owner groups says whether it
+          crosses from one group to another. Risk is the higher of its two ends. A
+          planned integration joins a requirement when both of its ends carry that
+          requirement in the crosswalk, and touches one when either end does. Today is
+          the shortest path between the two through the integrations recorded now, or
+          none. Sites applies the documented vs wired check to each site. An end filed as
+          a shortfall row is named as one. There is no total and no build order, because
+          any weighting of these facts would be a judgement presented as a finding; the
+          table sorts by one fact at a time and keeps the listed order for ties.
+        </p>
+      </Block>
+
       <Block title="Risk overlay aggregation">
         <p>
           A device takes the highest risk of any system that lists it, in the order high,

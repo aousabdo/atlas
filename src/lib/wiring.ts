@@ -31,6 +31,14 @@ export type UncheckedReason =
   /** Mapped to devices, none of which the drawing has. */
   | 'not-in-drawing'
 
+/** How each reason reads after a system name, wherever it is printed. */
+export const UNCHECKED_REASON_TEXT: Record<UncheckedReason, string> = {
+  'checked-absent': 'is checked absent here',
+  'software-only': 'has software only here',
+  'no-record': 'has no record here',
+  'not-in-drawing': 'is mapped to devices this drawing does not have',
+}
+
 export type WiringVerdict =
   | {
       kind: 'wired'

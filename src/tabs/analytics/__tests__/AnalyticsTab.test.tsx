@@ -362,7 +362,7 @@ describe('Analytics', () => {
     for (const card of document.querySelectorAll('[data-filtered]')) {
       expect(card).toHaveAttribute('data-filtered', 'true')
     }
-    expect(document.querySelectorAll('[data-filtered]')).toHaveLength(5) // 4 cards + the table
+    expect(document.querySelectorAll('[data-filtered]')).toHaveLength(6) // 5 cards + the table
   })
 
   it('dims what the filter does not match', async () => {
