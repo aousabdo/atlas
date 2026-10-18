@@ -27,6 +27,13 @@ const buildId =
   process.env.GITHUB_SHA ??
   `local-${Date.now().toString(36)}`
 
+/**
+ * When this build was made, beside which commit it was made from. The
+ * Reference tab reads both so a reader can tell which code drew the page,
+ * separately from the data bundle's own stamp.
+ */
+const builtAt = process.env.ATLAS_BUILT_AT ?? new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+
 const stampBuild: Plugin = {
   name: 'atlas-build-stamp',
   transformIndexHtml: {
@@ -37,6 +44,11 @@ const stampBuild: Plugin = {
         {
           tag: 'meta',
           attrs: { name: 'atlas-build', content: buildId },
+          injectTo: 'head',
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'atlas-built-at', content: builtAt },
           injectTo: 'head',
         },
       ],

@@ -418,3 +418,10 @@ def test_the_workbook_crosswalk_parses_to_the_committed_rows(sample_workbook):
     the crosswalk reader run over the fabricated workbook must reproduce
     crosswalk.json exactly."""
     assert read_crosswalk(sample_workbook) == read(COMMITTED, "crosswalk.json")
+
+
+def test_the_sample_never_claims_a_commit():
+    """The sample's stamp is fixed so its files stay byte-identical. A fixed
+    hex string read as a real commit on the live site, so the sample says what
+    it is instead."""
+    assert read(COMMITTED, "manifest.json")["git_sha"] == "sample"

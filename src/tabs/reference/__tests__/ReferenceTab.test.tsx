@@ -93,9 +93,13 @@ describe('Reference & Methodology', () => {
     const { provider } = await renderWithProvider(<ReferenceTab />)
     const manifest = await provider.getManifest()
 
-    expect(await screen.findByText('Commit')).toBeInTheDocument()
-    expect(screen.getByText(manifest.git_sha)).toBeInTheDocument()
-    expect(screen.getByText('Built at')).toBeInTheDocument()
+    // The data bundle's own stamp. The sample's is fixed and says so rather
+    // than showing a hex string that reads as a commit.
+    expect(await screen.findByText('Data commit')).toBeInTheDocument()
+    expect(
+      screen.getByText(/none: the sample bundle carries a fixed stamp/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Data built at')).toBeInTheDocument()
     expect(screen.getByText(manifest.built_at)).toBeInTheDocument()
     expect(screen.getByText(manifest.tool_version)).toBeInTheDocument()
     expect(screen.getByText(manifest.source_label)).toBeInTheDocument()
@@ -105,6 +109,34 @@ describe('Reference & Methodology', () => {
     expect(
       within(counts).getByText(String(manifest.counts.systems)),
     ).toBeInTheDocument()
+  })
+
+  it('shows the commit and build time of the app itself, from the page stamp', async () => {
+    const stamp = (name: string, content: string) => {
+      const meta = document.createElement('meta')
+      meta.name = name
+      meta.content = content
+      document.head.appendChild(meta)
+      return meta
+    }
+    const tags = [
+      stamp('atlas-build', '2ce23494c506914a4d270653d1f656b007eccdf0'),
+      stamp('atlas-built-at', '2026-10-18T16:07:12Z'),
+    ]
+    try {
+      await renderWithProvider(<ReferenceTab />)
+      const app = await screen.findByRole('group', { name: 'This app' })
+      expect(app).toHaveTextContent('2ce2349')
+      expect(app).toHaveTextContent('2026-10-18T16:07:12Z')
+    } finally {
+      tags.forEach((tag) => tag.remove())
+    }
+  })
+
+  it('says an unstamped page is unstamped instead of inventing a commit', async () => {
+    await renderWithProvider(<ReferenceTab />)
+    const app = await screen.findByRole('group', { name: 'This app' })
+    expect(app).toHaveTextContent(/not stamped/)
   })
 
   it('surfaces the site classification marking', async () => {

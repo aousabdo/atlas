@@ -27,7 +27,9 @@ from .methodology import extract_methodology
 # --- Provenance. Constants, because a timestamp would churn every rebuild. ---
 BUILT_AT = "2026-08-05T00:00:00"
 SNAPSHOT_LABEL = BUILT_AT.split("T")[0]
-GIT_SHA = "0f1e2d3"
+# Not a commit: the sample is generated, not built from a revision of anything,
+# and a fixed hex string here read as a real commit on the live site.
+GIT_SHA = "sample"
 BUNDLE_VERSION = 1
 TOOL_VERSION = "ATLAS Phase 1"
 SOURCE_LABEL = "Sample Traceability Matrix"

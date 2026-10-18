@@ -115,7 +115,12 @@ jobs:
       # public/data is generated and gitignored, so a fresh checkout has none
       # and the build would ship an app with no data in it.
       - run: node scripts/seed-data.mjs
+      # The stamp names the commit checked out above. Under workflow_run,
+      # GITHUB_SHA is the default branch's head when this run starts, which is
+      # a different commit whenever main moved after CI began.
       - run: npm run build
+        env:
+          ATLAS_BUILD_ID: ${{ github.event.workflow_run.head_sha || github.sha }}
       # The whole of dist, which includes the 404.html the build writes. Pages
       # serves that document for any path naming no file, which is what makes
       # /network and /map open instead of 404ing. Without it every shared link
