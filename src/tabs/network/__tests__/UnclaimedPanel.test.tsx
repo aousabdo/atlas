@@ -113,7 +113,12 @@ describe('Dashed rings in risk mode', () => {
     // Every ring says which roots it was measured from.
     expect(screen.getByText(/^Dashed ring: its loss would strand a system of that risk, on the drawing, from the 7 declared decision positions\./))
       .toBeInTheDocument()
-    expect(screen.getByText('From the 7 declared decision positions')).toBeInTheDocument()
+    expect(screen.getByTestId('legend-ring-row')).toHaveTextContent('Dashed ring: Its loss strands a system')
+    // And each device's tooltip says what rests on it, with the roots.
+    await user.hover(node)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Its loss strands Bastion Effector (high). From the 7 declared decision positions.',
+    )
   })
 
   it('draws no rings at all from roots that are not declared', async () => {
@@ -128,5 +133,59 @@ describe('Dashed rings in risk mode', () => {
     expect(within(graph).queryAllByTestId(/^structural-ring-/)).toHaveLength(0)
     expect(screen.getByText(/^No dashed rings: they are drawn only from declared decision positions/))
       .toBeInTheDocument()
+  })
+})
+
+describe('One root set across the tab', () => {
+  it('drops a hypothetical on the graph when the roots change under it', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const resilience = await screen.findByRole('region', { name: 'Resilience' })
+    await user.click(within(await screen.findByRole('region', { name: 'Devices' }))
+      .getByRole('button', { name: /Core Switch/ }))
+    await user.click(await within(resilience).findByRole('button', { name: /Show on graph/ }))
+    expect(await screen.findByRole('status', { name: /hypothetical view/i })).toBeInTheDocument()
+    await user.selectOptions(within(resilience).getByLabelText('Reachable from'), 'endpoint')
+    expect(screen.queryByRole('status', { name: /hypothetical view/i })).not.toBeInTheDocument()
+  })
+
+  it('goes back to the declared positions when the site changes and comes back', async () => {
+    const { region, user } = await openPanel()
+    await user.selectOptions(within(region).getByLabelText('Reachable from'), '')
+    expect(await within(region).findByText('DERIVED')).toBeInTheDocument()
+    const sites = screen.getByRole('group', { name: 'Site' })
+    await user.click(within(sites).getByRole('button', { name: /Westfield Proving Ground/ }))
+    await screen.findByText(/8 devices/)
+    await user.click(within(screen.getByRole('group', { name: 'Site' }))
+      .getByRole('button', { name: /Northgate Sports Campus/ }))
+    const back = await screen.findByRole('region', { name: 'Unclaimed devices' })
+    await user.click(within(back).getByRole('button', { name: /^\W*Unclaimed devices/ }))
+    expect(await within(back).findByText('DECLARED')).toBeInTheDocument()
+  })
+
+  it('tells the device detail what rests on a device no system lists, and on one a system does', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const list = await screen.findByRole('region', { name: 'Devices' })
+    await user.click(within(list).getByRole('button', { name: /Field House Access Switch/ }))
+    const detail = screen.getByRole('region', { name: 'Device detail' })
+    expect(await within(detail).findByText(/^No system lists this device, but on the drawing its loss strands Bastion Effector \(high\)/))
+      .toHaveTextContent('measured from the 7 declared decision positions. See If this device is removed.')
+    expect(within(detail).queryByText(/expected to be unclaimed/i)).not.toBeInTheDocument()
+    await user.click(within(list).getByRole('button', { name: /Government Cloud Tenancy/ }))
+    expect(await within(detail).findByText(
+      'Its loss also strands Event Relay Server (medium), measured from the 7 declared decision positions.',
+    )).toBeInTheDocument()
+  })
+
+  it('measures the per-device answer from the same set the triage switched to', async () => {
+    const { region, user } = await openPanel()
+    const resilience = await screen.findByRole('region', { name: 'Resilience' })
+    await user.click(within(await screen.findByRole('region', { name: 'Devices' }))
+      .getByRole('button', { name: /Field House Access Switch/ }))
+    expect(await within(resilience).findByText('Measured from the 7 declared decision positions.')).toBeInTheDocument()
+    await user.click(within(region).getByRole('button', { name: 'Show without them' }))
+    expect(await within(resilience).findByText(
+      'Measured from the 4 declared decision positions not marked as assumptions.',
+    )).toBeInTheDocument()
+    expect(within(resilience).getByText('DECLARED · ASSUMPTIONS OUT')).toBeInTheDocument()
   })
 })

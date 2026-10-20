@@ -30,7 +30,7 @@ const GROUP_TITLE: Record<TriageGroup, string> = {
 
 const GROUP_LEAD: Record<TriageGroup, string> = {
   'load-bearing':
-    'Removing any one of these strands a realized system, cuts part of one off, breaks a documented integration, or cuts a decision position off from every system.',
+    'Removing any one of these strands a realized system, cuts part of one off, breaks a documented integration, or cuts a POSITION off from every system.',
   'cuts-devices-off': 'Removing it leaves devices with no path to a root, but every realized system keeps one.',
   'nothing-loses-path':
     'Every other device keeps a path to a root without it. Some of these are a second way round for something else.',
@@ -58,7 +58,7 @@ export function UnclaimedPanel({
   onSelect,
   onShow,
   siteLabel,
-  assumedCount,
+  reviewed,
 }: {
   topology: Topology
   deps: SiteDependencies | null
@@ -70,8 +70,8 @@ export function UnclaimedPanel({
   onSelect: (id: DeviceId) => void
   onShow: (id: DeviceId) => void
   siteLabel: string
-  /** How many of the site's declared positions are marked as assumptions, whatever is chosen now. */
-  assumedCount: number
+  /** Known before the dependencies land, so the root controls never flicker away. */
+  reviewed: boolean
 }) {
   const declaresPositions = rootOptions.some((o) => o.key === '@declared')
   const [open, setOpen] = useState(false)
@@ -144,7 +144,7 @@ export function UnclaimedPanel({
                   className="w-full truncate rounded px-1 py-0.5 text-left text-xs text-muted hover:bg-surface-2 hover:text-ink"
                 >
                   {labelOf(id)}
-                  {roots.deviceIds.includes(id) ? ' · decision position' : ''}
+                  {roots.deviceIds.includes(id) ? ` · ${namers.positionWord(1)}` : ''}
                   {group === 'cuts-devices-off'
                     ? ` · cuts off ${deps!.byDevice.get(id)!.blast?.unreachableCount ?? 0}`
                     : ''}
@@ -169,11 +169,7 @@ export function UnclaimedPanel({
 
       {open && (
         <div className="mb-2 pl-5">
-          {!deps ? (
-            <p role="status" className="text-xs text-muted">
-              Working out what rests on each device.
-            </p>
-          ) : triage!.status === 'not-reviewed' ? (
+          {!reviewed ? (
             <p className="text-xs text-muted">
               Nobody has recorded which systems run at {siteLabel}, so its {total} devices read
               as unclaimed only because nobody has looked, and nothing can be said to rest on
@@ -218,22 +214,26 @@ export function UnclaimedPanel({
                     Joined only by VLAN, so they seed nothing: {listOf(roots.logicalOnlyIds.map(labelOf))}.
                   </p>
                 )}
-                {!declaresPositions && (
+                {roots.isolatedIds.length > 0 && (
+                  <p className="mt-1 text-muted-3">
+                    No link of any kind on the drawing, so they seed nothing: {listOf(roots.isolatedIds.map(labelOf))}.
+                  </p>
+                )}
+                {!declaresPositions && roots.choice.source === 'derived' && (
                   <p className="mt-1 text-muted-3">
                     No decision positions are declared for this site, so reachability is measured
                     from the drawing&rsquo;s entry points. Add decision_roots for this site to the
                     device map to measure from where decisions are made.
                   </p>
                 )}
-                <RootSelect
-                  options={rootOptions}
-                  assumedCount={assumedCount}
-                  value={roots.key}
-                  onChange={onRootKey}
-                />
+                <RootSelect options={rootOptions} value={roots.key} onChange={onRootKey} />
               </div>
 
-              {triage!.status === 'no-realized-system' ? (
+              {!deps ? (
+                <p role="status" className="mt-2 text-xs text-muted">
+                  Working out what rests on each device.
+                </p>
+              ) : triage!.status === 'no-realized-system' ? (
                 <p className="mt-2 text-xs text-muted">
                   {siteLabel} records checked absences but no realized system, so there is
                   nothing for a device to strand.
@@ -254,6 +254,22 @@ export function UnclaimedPanel({
                     Each device is removed from the drawing on its own. Cable and radio only; a
                     VLAN is never a way round. A drawing shows what can reach, not what does.
                   </p>
+
+                  {/* Systems no device can be charged with, named once. */}
+                  {deps.standings
+                    .filter((st) => st.status !== 'assessable')
+                    .map((st) => (
+                      <p key={st.systemId} className="mt-1 text-xs text-risk-medium-ink">
+                        {st.status === 'never-reaches'
+                          ? `${namers.nameOf(st.systemId)} has no path to ${phrase} before anything is removed (${listOf(st.deviceIds.map(labelOf))}), so it is never counted against a device.`
+                          : `${namers.nameOf(st.systemId)} is joined only by VLAN links (${listOf(st.deviceIds.map(labelOf))}), so the drawing does not show what it rests on.`}
+                      </p>
+                    ))}
+                  {deps.notInDrawing.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-3">
+                      Realized here but on no device this drawing has: {listOf(deps.notInDrawing.map(namers.nameOf))}.
+                    </p>
+                  )}
 
                   {triage!.population.length !== triage!.listedUnclaimedIds.length && (
                     <p className="mt-1 text-xs text-muted-3">
@@ -281,7 +297,9 @@ export function UnclaimedPanel({
                         <h3 className="text-[10px] font-semibold tracking-widest text-muted uppercase">
                           {GROUP_TITLE[group]} ({ids.length})
                         </h3>
-                        <p className="mt-0.5 text-xs text-muted-3">{GROUP_LEAD[group]}</p>
+                        <p className="mt-0.5 text-xs text-muted-3">
+                          {GROUP_LEAD[group].replace('POSITION', namers.positionWord(1))}
+                        </p>
                         {group === 'load-bearing' ? (
                           ids.length === 0 ? (
                             <p className="mt-1 text-xs text-muted">
@@ -298,7 +316,9 @@ export function UnclaimedPanel({
                               <li key={deviceId} className="text-xs text-muted">
                                 {reason === 'only-root'
                                   ? `${labelOf(deviceId)} is the only root, so removing it leaves nothing to measure from.`
-                                  : `${labelOf(deviceId)} is joined only by VLAN, so the drawing does not show what rests on it.`}
+                                  : reason === 'not-reached'
+                                    ? `${labelOf(deviceId)} is not reachable from ${phrase} on cable and radio to begin with, so nothing is measured through it.`
+                                    : `${labelOf(deviceId)} is joined only by VLAN, so the drawing does not show what rests on it.`}
                               </li>
                             ))}
                           </ul>
@@ -386,6 +406,13 @@ function DependencyDetail({
 }
 
 function verdictWords(v: Verdict, namers: Namers): string {
+  if (v.notAssessed) {
+    return v.notAssessed === 'only-root'
+      ? 'not assessed, as the only root'
+      : v.notAssessed === 'not-reached'
+        ? 'not assessed, as no root reaches it'
+        : 'not assessed'
+  }
   if (v.stranded.length === 0 && v.partial.length === 0) {
     return v.group === 'load-bearing' ? 'load-bearing' : v.group === 'cuts-devices-off' ? 'cuts devices off only' : 'strands none'
   }
@@ -440,6 +467,12 @@ function SensitivityBlock({
         <p className="mt-0.5 text-xs text-muted">
           Every declared position is marked as an assumption, so there is nothing to compare
           against.
+        </p>
+      ) : sensitivity.status === 'alternative-unusable' ? (
+        <p className="mt-0.5 text-xs text-muted">
+          Without the {n} {n === 1 ? 'position' : 'positions'} marked as assumptions, none left
+          has a cable or radio link ({listOf(sensitivity.unusableIds.map(namers.labelOf))}), so there
+          is nothing to compare against.
         </p>
       ) : sensitivity.changes.length === 0 ? (
         <p className="mt-0.5 text-xs text-muted">

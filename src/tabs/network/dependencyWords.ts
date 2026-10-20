@@ -13,6 +13,11 @@ export interface Namers {
   nameOf: (id: SystemId) => string
   riskOf: (id: SystemId) => RiskLevel
   labelOf: (id: DeviceId) => string
+  /**
+   * What to call a root: "decision position" only when the site declared it
+   * one, "root" otherwise. A printer is an endpoint, not a decision position.
+   */
+  positionWord: (count: number) => string
 }
 
 export function listOf(parts: string[]): string {
@@ -64,7 +69,7 @@ export function summarizeDependency(d: DeviceDependency, n: Namers): string {
     facts.push(
       facts.length === 0 && positions.length === 1
         ? `cuts ${n.labelOf(positions[0]!)} off from every system`
-        : `cuts ${positions.length} decision ${plural(positions.length, 'position', 'positions')} off`,
+        : `cuts ${positions.length} ${n.positionWord(positions.length)} off`,
     )
   }
   if (facts.length === 0 && (d.blast?.unreachableCount ?? 0) > 0) {
@@ -101,20 +106,29 @@ export function describeDependency(d: DeviceDependency, n: Namers, rootCount: nu
       lines.push(`Strands ${n.nameOf(s.systemId)}, which also runs on this device: every other device it runs on loses its path.`)
     }
     for (const p of partialOf(d)) {
-      const total = p.lostDeviceIds.length + p.keptDeviceIds.length
+      // Counted against every device the system runs on, so the number can be
+      // checked against the mapping by hand; this device and any device that
+      // had no path to begin with are said separately.
+      const lost = p.lostDeviceIds.length
       const kept = p.keptDeviceIds.map(n.labelOf)
+      const already = p.deviceCount - lost - p.keptDeviceIds.length - (p.alsoRunsHere ? 1 : 0)
       lines.push(
-        `Cuts part of ${n.nameOf(p.systemId)} off: ${p.lostDeviceIds.length} of its ${total} devices lose their path (${listOf(p.lostDeviceIds.map(n.labelOf))}). ${listOf(kept)} ${kept.length === 1 ? 'keeps its path' : 'keep theirs'}.`,
+        [
+          `Cuts part of ${n.nameOf(p.systemId)} off: ${lost} of its ${p.deviceCount} devices ${lost === 1 ? 'loses its path' : 'lose their path'} (${listOf(p.lostDeviceIds.map(n.labelOf))}).`,
+          `${listOf(kept)} ${kept.length === 1 ? 'keeps its path' : 'keep theirs'}.`,
+          ...(p.alsoRunsHere ? ['It also runs on this device.'] : []),
+          ...(already > 0 ? [`${already} had no path to begin with.`] : []),
+        ].join(' '),
       )
     }
     for (const s of d.systems.filter((x) => x.kind === 'runs-only-here')) {
       lines.push(`Runs ${n.nameOf(s.systemId)}, on this device only. That is this device's own risk, not a dependency.`)
     }
     if (d.positionsCutOff.length === 1) {
-      lines.push(`Cuts ${n.labelOf(d.positionsCutOff[0]!)}, a decision position, off from every other device a system runs on.`)
+      lines.push(`Cuts ${n.labelOf(d.positionsCutOff[0]!)}, a ${n.positionWord(1)}, off from every other device a system runs on.`)
     } else if (d.positionsCutOff.length > 1) {
       lines.push(
-        `Cuts ${d.positionsCutOff.length} decision positions off from every other device a system runs on: ${listOf(d.positionsCutOff.map(n.labelOf))}.`,
+        `Cuts ${d.positionsCutOff.length} ${n.positionWord(d.positionsCutOff.length)} off from every other device a system runs on: ${listOf(d.positionsCutOff.map(n.labelOf))}.`,
       )
     }
     if (d.systems.filter((s) => s.kind !== 'runs-only-here').length === 0) {
@@ -135,7 +149,7 @@ export function describeIntegrations(d: DeviceDependency, n: Namers): string[] {
     )
     for (const i of breaks) {
       if (i.endsKeepRoots) {
-        lines.push(`${pair(i.link.from, i.link.to)}: both ends still reach a decision position; they no longer reach each other.`)
+        lines.push(`${pair(i.link.from, i.link.to)}: both ends still reach a ${n.positionWord(1)}; they no longer reach each other.`)
       } else if (i.after.kind === 'logical-only') {
         lines.push(`${pair(i.link.from, i.link.to)}: only a VLAN is drawn between them now.`)
       }
@@ -160,7 +174,12 @@ export function describeIntegrations(d: DeviceDependency, n: Namers): string[] {
  * For a claimed device it names only the systems its loss strands that do not
  * run on it, which is what the dashed ring marks.
  */
-export function restsOnSentence(d: DeviceDependency, n: Namers, phrase: string, claimed: boolean): string | null {
+export function restsOnSentence(
+  d: DeviceDependency,
+  n: Namers,
+  phrase: string,
+  { claimed, listedNotRealized }: { claimed: boolean; listedNotRealized: boolean },
+): string | null {
   if (d.notAssessed) return null
   const stranded = strandedOf(d).filter((s) => !s.alsoRunsHere)
   const strandedWords = stranded.map((s) => `${n.nameOf(s.systemId)} (${n.riskOf(s.systemId)})`)
@@ -179,8 +198,11 @@ export function restsOnSentence(d: DeviceDependency, n: Namers, phrase: string, 
   }
   if (d.positionsCutOff.length === 1) parts.push(`cuts ${n.labelOf(d.positionsCutOff[0]!)} off from every system`)
   else if (d.positionsCutOff.length > 1) {
-    parts.push(`cuts ${d.positionsCutOff.length} decision positions off from every system`)
+    parts.push(`cuts ${d.positionsCutOff.length} ${n.positionWord(d.positionsCutOff.length)} off from every system`)
   }
   if (parts.length === 0) return null
-  return `No system lists this device, but on the drawing its loss ${listOf(parts)}, measured from ${phrase}. See If this device is removed.`
+  const lead = listedNotRealized
+    ? 'No realized system runs on this device (the mappings above name no system the matrix carries, or no hardware)'
+    : 'No system lists this device'
+  return `${lead}, but on the drawing its loss ${listOf(parts)}, measured from ${phrase}. See If this device is removed.`
 }

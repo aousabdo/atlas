@@ -263,3 +263,28 @@ def test_decision_roots_are_checked_without_a_topology_except_for_existence():
                               networks={})) == []
     fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(note="")), networks={}))
     assert len(fails) == 1 and "no note" in fails[0]
+
+
+def test_decision_roots_that_are_not_an_object_fail():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=["d1"]), networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots: must be an object "
+                     "with devices, assumed and note"]
+
+
+def test_decision_root_devices_that_are_not_a_list_of_ids_fail():
+    for bad in ("d1", {"d1": True}, [1, 2]):
+        fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(devices=bad, assumed=[])),
+                                   networks=NET))
+        assert fails == ["system_device_map.sites.northgate.decision_roots: devices must be a "
+                         "list of device ids"], bad
+
+
+def test_assumed_that_is_not_a_list_of_ids_fails():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(assumed={"d2": True})), networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots.assumed: must be a list "
+                     "of device ids"]
+
+
+def test_an_assumption_listed_twice_fails():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(assumed=["d2", "d2"])), networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots.assumed: 'd2' is listed twice"]

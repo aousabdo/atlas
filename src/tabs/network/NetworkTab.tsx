@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadFailed } from '../../components/LoadFailed'
 import { useAtlas } from '../../data/useAtlas'
-import { countMappings, matrixIdSet } from '../../lib/coverage'
+import { countMappings, isReviewedSite, matrixIdSet } from '../../lib/coverage'
 import {
   choiceFromKey,
   defaultRootChoice,
@@ -39,7 +39,7 @@ import { ResiliencePanel, useResilience, type GraphOverlay } from './ResilienceP
 import { ViewStrip } from '../../components/ViewStrip'
 import { deviceRisks } from './risk'
 import { breaksOf, listOf as listWords, restsOnSentence, strandedOf, type Namers } from './dependencyWords'
-import { rootPhrase } from './roots'
+import { positionWordFor, rootPhrase } from './roots'
 import { SiteSelector } from './SiteSelector'
 import { UnclaimedPanel } from './UnclaimedPanel'
 import { useDependencies } from './useDependencies'
@@ -386,8 +386,9 @@ function SiteTopology({
       nameOf: (id) => systemsById.get(id)?.name ?? id,
       riskOf: (id) => systemsById.get(id)?.risk ?? 'low',
       labelOf: (id) => labelById.get(id) ?? id,
+      positionWord: positionWordFor(roots),
     }),
-    [systemsById, labelById],
+    [systemsById, labelById, roots],
   )
   const phrase = rootPhrase(roots, namers.labelOf)
   const rings = useMemo(() => (deps ? structuralRings(deps) : new Map()), [deps])
@@ -417,7 +418,9 @@ function SiteTopology({
   )
   const ringHint = !measured
     ? null
-    : declaredRoots
+    : !roots.usable
+      ? `No dashed rings: none of ${phrase} has a cable or radio link, so nothing is measured and nothing is called safe.`
+      : declaredRoots
       ? `Dashed ring: its loss would strand a system of that risk, on the drawing, from ${phrase}.`
       : `No dashed rings: they are drawn only from declared decision positions; this view measures from ${phrase}.`
   // No mappings means the overlay has nothing to say, so the original hid the
@@ -750,7 +753,7 @@ function SiteTopology({
         nodeScale={nodeScale}
         riskMode={riskMode}
         riskById={riskById}
-        rings={declaredRoots ? rings : undefined}
+        rings={declaredRoots && roots.usable ? rings : undefined}
         riskNote={riskNote}
         ringSuffix={ringSuffix}
         transform={transform}
@@ -868,7 +871,7 @@ function SiteTopology({
             onSelect={select}
             onShow={selectAndShow}
             siteLabel={topology.meta.label}
-            assumedCount={site?.decision_roots?.assumed?.length ?? 0}
+            reviewed={isReviewedSite(site)}
           />
         </div>
 
@@ -903,7 +906,10 @@ function SiteTopology({
             onSelect={select}
             restsOn={(() => {
               const dep = selectedDevice && deps?.review === 'reviewed' ? deps.byDevice.get(selectedDevice.id) : undefined
-              return dep ? restsOnSentence(dep, namers, phrase, dep.runsSystemIds.length > 0) : null
+              if (!dep) return null
+              const claimed = dep.runsSystemIds.length > 0
+              const listedNotRealized = !claimed && (systemsByDevice.get(dep.deviceId) ?? []).length > 0
+              return restsOnSentence(dep, namers, phrase, { claimed, listedNotRealized })
             })()}
           />
         </div>
@@ -1083,13 +1089,7 @@ function SiteTopology({
               deviceTypes={deviceTypes}
               linkTypes={linkTypes}
               riskMode={riskMode}
-              ringCaption={
-                measured
-                  ? declaredRoots
-                    ? `From ${phrase}`
-                    : 'No rings from these roots'
-                  : undefined
-              }
+              ringRow={measured && declaredRoots && roots.usable}
             />
           </div>
 

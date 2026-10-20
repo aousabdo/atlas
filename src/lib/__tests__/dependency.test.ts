@@ -199,6 +199,125 @@ describe('what a device strands', () => {
   })
 })
 
+describe('fail closed: never call something safe that was not measured', () => {
+  it('treats a declared position with no link at all as seeding nothing', () => {
+    const lonely = topology([...YARD.devices, device('booth', 'endpoint')], YARD.edges)
+    const site = yardSite(YARD_SITE.mappings, { devices: ['booth'], note: 'x' })
+    const roots = resolveRoots(lonely, site, DECLARED)
+    expect(roots.isolatedIds).toEqual(['booth'])
+    expect(roots.usable).toBe(false)
+    const deps = siteDependencies({ ...YARD_INPUT, topology: lonely, site }, roots)
+    expect(deps.triage.status).toBe('no-roots')
+    expect(deps.byDevice.get('sw')!.notAssessed).toBe('no-roots')
+  })
+
+  it('does not assess a device no root reaches to begin with', () => {
+    // A piece of the drawing with no root in it: the rail yard.
+    const pieces = topology(
+      [...YARD.devices, device('rail_sw'), device('rail_cam', 'sensor')],
+      [...YARD.edges, edge('rail_sw', 'rail_cam')],
+    )
+    const deps = siteDependencies({ ...YARD_INPUT, topology: pieces }, resolveRoots(pieces, YARD_SITE, DECLARED))
+    expect(deps.byDevice.get('rail_sw')!.notAssessed).toBe('not-reached')
+    expect(deps.triage.groups['not-assessed']).toEqual(['rail_cam', 'rail_sw'].sort())
+    expect(deps.triage.groups['nothing-loses-path']).not.toContain('rail_sw')
+  })
+
+  it('still files a device that breaks an integration as load-bearing, whatever the roots', () => {
+    // The only root also carries the only path between two systems.
+    const line = topology(
+      [device('a1'), device('hub', 'endpoint'), device('b1')],
+      [edge('a1', 'hub'), edge('hub', 'b1')],
+    )
+    const site = yardSite({ a: mapping(['a1']), b: mapping(['b1']) }, { devices: ['hub'], note: 'x' })
+    const deps = siteDependencies(
+      { topology: line, site, systems: [system('a'), system('b')], links: [{ from: 'a', to: 'b', label: '', extraction_method: 'override' }] },
+      resolveRoots(line, site, DECLARED),
+    )
+    const hub = deps.byDevice.get('hub')!
+    expect(hub.notAssessed).toBe('only-root')
+    expect(hub.integrations.map((i) => i.kind)).toEqual(['breaks'])
+    expect(deps.triage.groups['load-bearing']).toEqual(['hub'])
+  })
+
+  it('counts only roots with a cable or radio link as one a system runs on', () => {
+    const vlanned = topology(
+      [device('desk', 'endpoint'), device('sw'), device('cam', 'sensor')],
+      [edge('desk', 'sw', 'vlan'), edge('sw', 'cam')],
+    )
+    const site = yardSite({ eff: mapping(['cam', 'desk']) }, { devices: ['desk', 'sw'], note: 'x' })
+    const deps = siteDependencies({ topology: vlanned, site, systems: [system('eff')], links: [] }, resolveRoots(vlanned, site, DECLARED))
+    expect(deps.standings[0]!.onRootIds).toEqual([])
+  })
+
+  it('names a system that reaches no root, and one on VLAN links only, without charging any device', () => {
+    const t = topology(
+      [device('desk', 'endpoint'), device('sw'), device('far'), device('farcam', 'sensor'), device('v1'), device('v2')],
+      [edge('desk', 'sw'), edge('far', 'farcam'), edge('v1', 'v2', 'vlan')],
+    )
+    const site = yardSite({ lost: mapping(['farcam']), ghost: mapping(['v1']) }, { devices: ['desk'], note: 'x' })
+    const deps = siteDependencies({ topology: t, site, systems: [system('lost'), system('ghost')], links: [] }, resolveRoots(t, site, DECLARED))
+    expect(deps.standings.map((s) => [s.systemId, s.status])).toEqual([['ghost', 'vlan-only'], ['lost', 'never-reaches']])
+    expect([...deps.byDevice.values()].flatMap((d) => d.systems)).toEqual([])
+  })
+})
+
+describe('the comparison without the assumed positions', () => {
+  it('is not applicable without assumptions, or from roots that are not declared', () => {
+    const none = yardSite(YARD_SITE.mappings, { devices: ['desk'], note: 'x' })
+    const deps = siteDependencies({ ...YARD_INPUT, site: none }, resolveRoots(YARD, none, DECLARED))
+    expect(rootSensitivity({ ...YARD_INPUT, site: none }, deps).status).toBe('not-applicable')
+    const derived = siteDependencies(YARD_INPUT, resolveRoots(YARD, YARD_SITE, { source: 'derived' }))
+    expect(rootSensitivity(YARD_INPUT, derived).status).toBe('not-applicable')
+  })
+
+  it('says every position is assumed only when that is so', () => {
+    const all = yardSite(YARD_SITE.mappings, { devices: ['desk'], assumed: ['desk'], note: 'x' })
+    const deps = siteDependencies({ ...YARD_INPUT, site: all }, resolveRoots(YARD, all, DECLARED))
+    expect(rootSensitivity({ ...YARD_INPUT, site: all }, deps).status).toBe('no-roots-left')
+    // The one left is joined only by VLAN: a different reason, named as such.
+    const vlanned = topology([...YARD.devices, device('booth', 'endpoint')], [...YARD.edges, edge('booth', 'sw', 'vlan')])
+    const site = yardSite(YARD_SITE.mappings, { devices: ['desk', 'booth'], assumed: ['desk'], note: 'x' })
+    const input = { ...YARD_INPUT, topology: vlanned, site }
+    const result = rootSensitivity(input, siteDependencies(input, resolveRoots(vlanned, site, DECLARED)))
+    expect(result).toMatchObject({ status: 'alternative-unusable', unusableIds: ['booth'] })
+  })
+
+  it('counts a move into "not assessed" as a change, with its reason', () => {
+    // Without the assumed handheld, the desk is the only root.
+    const deps = siteDependencies(YARD_INPUT, resolveRoots(YARD, YARD_SITE, DECLARED))
+    const result = rootSensitivity(YARD_INPUT, deps)
+    expect(result.status).toBe('compared')
+    if (result.status !== 'compared') return
+    expect(result.changes.find((c) => c.deviceId === 'desk')?.without.notAssessed).toBe('only-root')
+  })
+})
+
+describe('integrations on a shared device', () => {
+  const shared = topology(
+    [device('a1'), device('s1'), device('s2'), device('b1'), device('sw')],
+    [edge('a1', 'sw'), edge('b1', 'sw'), edge('s1', 'sw'), edge('s2', 'sw')],
+  )
+  const link = { from: 'a', to: 'b', label: '', extraction_method: 'override' as const }
+  const run = (aDevices: string[], bDevices: string[]) => {
+    const site = yardSite({ a: mapping(aDevices), b: mapping(bDevices) }, { devices: ['sw'], note: 'x' })
+    return siteDependencies({ topology: shared, site, systems: [system('a'), system('b')], links: [link] }, resolveRoots(shared, site, DECLARED))
+  }
+
+  it('survives losing one shared device when another remains', () => {
+    expect(run(['s1', 's2'], ['s1', 's2']).byDevice.get('s1')!.integrations).toEqual([])
+  })
+
+  it('breaks when the last shared device goes and no other path is left', () => {
+    const deps = run(['s1', 'a1'], ['s1', 'b1'])
+    expect(deps.byDevice.get('s1')!.integrations).toEqual([])
+    const isolated = topology([device('a1'), device('s1'), device('b1')], [edge('a1', 's1'), edge('s1', 'b1')])
+    const site = yardSite({ a: mapping(['s1', 'a1']), b: mapping(['s1', 'b1']) }, { devices: ['a1'], note: 'x' })
+    const d = siteDependencies({ topology: isolated, site, systems: [system('a'), system('b')], links: [link] }, resolveRoots(isolated, site, DECLARED))
+    expect(d.byDevice.get('s1')!.integrations.map((i) => i.kind)).toEqual(['breaks'])
+  })
+})
+
 describe('the sample, from the declared decision positions', () => {
   const deps = sampleDeps()
 
@@ -224,7 +343,7 @@ describe('the sample, from the declared decision positions', () => {
     expect(strandedIds(deps, 'core_router')).toEqual(['crosslink', 'eventrel'])
     expect(d.systems.find((s) => s.kind === 'partial')).toEqual({
       kind: 'partial', systemId: 'ucop', lostDeviceIds: ['cop_application', 'gov_cloud'],
-      keptDeviceIds: ['mcv_display'], alsoRunsHere: false,
+      keptDeviceIds: ['mcv_display'], alsoRunsHere: false, deviceCount: 3,
     })
   })
 

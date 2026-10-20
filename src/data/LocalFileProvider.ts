@@ -293,26 +293,46 @@ function decisionRootFailures(
   site: CoverageSite,
   deviceIds: ReadonlySet<string> | null,
 ): string[] {
-  const roots = site.decision_roots
-  if (roots === undefined || roots === null) return []
+  const raw: unknown = site.decision_roots
+  if (raw === undefined || raw === null) return []
   const where = `system_device_map.sites.${siteId}.decision_roots`
-  const devices: string[] = Array.isArray(roots.devices) ? roots.devices : []
-  const fails: string[] = []
-  if (devices.length === 0) {
-    fails.push(`${where}: devices is empty; omit decision_roots to measure from the drawing's entry points`)
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return [`${where}: must be an object with devices, assumed and note`]
   }
-  if (deviceIds) {
+  const roots = raw as { devices?: unknown; assumed?: unknown; note?: unknown }
+  const idList = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((v) => typeof v === 'string')
+  const fails: string[] = []
+  let devices: string[] | null = null
+  if (roots.devices !== undefined && roots.devices !== null && !idList(roots.devices)) {
+    fails.push(`${where}: devices must be a list of device ids`)
+  } else {
+    devices = (roots.devices as string[] | undefined | null) ?? []
+    if (devices.length === 0) {
+      fails.push(`${where}: devices is empty; omit decision_roots to measure from the drawing's entry points`)
+    }
+    if (deviceIds) {
+      for (const device of devices) {
+        if (!deviceIds.has(device)) fails.push(`${where}: device '${device}' is not in the ${siteId} topology`)
+      }
+    }
+    const seen = new Set<string>()
     for (const device of devices) {
-      if (!deviceIds.has(device)) fails.push(`${where}: device '${device}' is not in the ${siteId} topology`)
+      if (seen.has(device)) fails.push(`${where}: device '${device}' is listed twice`)
+      seen.add(device)
     }
   }
-  const seen = new Set<string>()
-  for (const device of devices) {
-    if (seen.has(device)) fails.push(`${where}: device '${device}' is listed twice`)
-    seen.add(device)
-  }
-  for (const device of Array.isArray(roots.assumed) ? roots.assumed : []) {
-    if (!seen.has(device)) fails.push(`${where}.assumed: '${device}' is not one of its devices`)
+  if (roots.assumed !== undefined && roots.assumed !== null && !idList(roots.assumed)) {
+    fails.push(`${where}.assumed: must be a list of device ids`)
+  } else {
+    const seenAssumed = new Set<string>()
+    for (const device of (roots.assumed as string[] | undefined | null) ?? []) {
+      if (seenAssumed.has(device)) fails.push(`${where}.assumed: '${device}' is listed twice`)
+      else if (devices !== null && !devices.includes(device)) {
+        fails.push(`${where}.assumed: '${device}' is not one of its devices`)
+      }
+      seenAssumed.add(device)
+    }
   }
   if (typeof roots.note !== 'string' || roots.note.trim() === '') {
     fails.push(`${where}: no note; say who chose these positions and why`)

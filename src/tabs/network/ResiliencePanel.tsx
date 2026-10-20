@@ -726,12 +726,7 @@ export function ResiliencePanel({
               <p className="mt-1 truncate text-sm text-ink">{blast.label}</p>
 
               {controlled ? (
-                <RootSelect
-                  options={rootOptions ?? []}
-                  assumedCount={roots.assumedIds.length}
-                  value={roots.key}
-                  onChange={onRootKey}
-                />
+                <RootSelect options={rootOptions ?? []} value={roots.key} onChange={onRootKey} />
               ) : (
                 <label className="mt-1 flex items-center gap-2 text-xs">
                   <span className="shrink-0 text-muted-3">Reachable from</span>

@@ -400,6 +400,24 @@ describe('crossFileFailures', () => {
         `${where}: no note; say who chose these positions and why`,
       ])
     })
+    it('fails a block that is not an object', () => {
+      expect(fails(['d1'] as never)).toEqual([`${where}: must be an object with devices, assumed and note`])
+    })
+    it('fails devices that are not a list of ids', () => {
+      for (const bad of ['d1', { d1: true }, [1, 2]]) {
+        expect(fails({ devices: bad, note: 'x' })).toEqual([`${where}: devices must be a list of device ids`])
+      }
+    })
+    it('fails assumptions that are not a list of ids', () => {
+      expect(fails({ devices: ['d1'], assumed: { d1: true }, note: 'x' })).toEqual([
+        `${where}.assumed: must be a list of device ids`,
+      ])
+    })
+    it('fails an assumption listed twice', () => {
+      expect(fails({ devices: ['d1'], assumed: ['d1', 'd1'], note: 'x' })).toEqual([
+        `${where}.assumed: 'd1' is listed twice`,
+      ])
+    })
     it('checks everything but existence without a topology', () => {
       expect(fails({ devices: ['ghost'], note: 'x' }, {})).toEqual([])
       expect(fails({ devices: ['ghost'], note: '' }, {})).toHaveLength(1)

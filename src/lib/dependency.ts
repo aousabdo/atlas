@@ -47,10 +47,12 @@ export interface RootSet {
   unknownIds: DeviceId[]
   /** Joined only by VLAN: they seed nothing. */
   logicalOnlyIds: DeviceId[]
+  /** On the drawing with no link of any kind: they reach nothing but themselves, so seed nothing. */
+  isolatedIds: DeviceId[]
   /** Declared choices only. */
   assumedIds: DeviceId[]
   note: string | null
-  /** At least one root seeds a physical search. */
+  /** At least one root has a cable or radio link to seed a search from. */
   usable: boolean
 }
 
@@ -106,8 +108,11 @@ export function resolveRoots(
   }
   const unique = sorted(new Set(wanted))
   const deviceIds = unique.filter((id) => onDrawing.has(id))
-  const logicalOnly = new Set(buildGraph(topology).anomalies.logicalOnlyDeviceIds)
+  const anomalies = buildGraph(topology).anomalies
+  const logicalOnly = new Set(anomalies.logicalOnlyDeviceIds)
+  const isolated = new Set(anomalies.isolatedDeviceIds)
   const logicalOnlyIds = deviceIds.filter((id) => logicalOnly.has(id))
+  const isolatedIds = deviceIds.filter((id) => isolated.has(id))
   const isDeclared = choice.source === 'declared' || choice.source === 'declared-without-assumed'
   return {
     choice,
@@ -115,9 +120,10 @@ export function resolveRoots(
     deviceIds,
     unknownIds: unique.filter((id) => !onDrawing.has(id)),
     logicalOnlyIds,
+    isolatedIds,
     assumedIds: isDeclared ? deviceIds.filter((id) => assumed.has(id)) : [],
     note: isDeclared ? (declared?.note ?? null) : null,
-    usable: deviceIds.some((id) => !logicalOnly.has(id)),
+    usable: deviceIds.some((id) => !logicalOnly.has(id) && !isolated.has(id)),
   }
 }
 
@@ -125,6 +131,8 @@ export interface RootChoiceOption {
   choice: RootChoice
   key: string
   count: number
+  /** declared-without-assumed only: how many declared positions on the drawing it leaves out. */
+  removed?: number
 }
 
 /** The root sets a reader can measure from at this site, declared ones first. */
@@ -134,7 +142,13 @@ export function rootChoices(topology: Topology, site: CoverageSite | undefined):
     options.push({ choice, key: rootKey(choice), count: resolveRoots(topology, site, choice).deviceIds.length })
   if (site?.decision_roots) {
     add({ source: 'declared' })
-    if ((site.decision_roots.assumed ?? []).length > 0) add({ source: 'declared-without-assumed' })
+    // Counted from the resolved set, so a repeated or off-drawing assumption
+    // never inflates the number in the option's label.
+    const removed = resolveRoots(topology, site, { source: 'declared' }).assumedIds.length
+    if (removed > 0) {
+      add({ source: 'declared-without-assumed' })
+      options[options.length - 1]!.removed = removed
+    }
   }
   add({ source: 'derived' })
   for (const type of sorted(new Set(topology.devices.map((d) => d.type)))) {
@@ -168,6 +182,8 @@ export type SystemEffect =
       lostDeviceIds: DeviceId[]
       keptDeviceIds: DeviceId[]
       alsoRunsHere: boolean
+      /** Every device the system runs on that has a cable or radio link, this one included. */
+      deviceCount: number
     }
 
 export interface IntegrationEffect {
@@ -182,7 +198,12 @@ export interface IntegrationEffect {
   endsKeepRoots: boolean
 }
 
-export type NotAssessed = 'not-reviewed' | 'no-roots' | 'only-root' | 'vlan-only'
+/**
+ * not-reached: no root reaches the device before anything is removed (a
+ * piece of the drawing with no root in it, or an unlinked device), so
+ * removing it cannot be measured against the roots.
+ */
+export type NotAssessed = 'not-reviewed' | 'no-roots' | 'only-root' | 'vlan-only' | 'not-reached'
 
 export interface DeviceDependency {
   deviceId: DeviceId
@@ -309,7 +330,8 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
   const wiring = wiringAtSite(links, site, topology, matrixIds)
 
   // Reachability before anything is removed, from the usable roots.
-  const usableRoots = roots.deviceIds.filter((id) => !logicalOnly.has(id))
+  const isolatedAll = new Set(graph.anomalies.isolatedDeviceIds)
+  const usableRoots = roots.deviceIds.filter((id) => !logicalOnly.has(id) && !isolatedAll.has(id))
   const pieceOf = new Map<DeviceId, number>()
   graph.components.forEach((piece, i) => piece.deviceIds.forEach((id) => pieceOf.set(id, i)))
   const rootPieces = new Set(usableRoots.map((id) => pieceOf.get(id)))
@@ -323,7 +345,7 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
     return {
       systemId,
       deviceIds,
-      onRootIds: deviceIds.filter((d) => roots.deviceIds.includes(d)),
+      onRootIds: deviceIds.filter((d) => usableRoots.includes(d)),
       vlanOnlyIds,
       alreadyCutOffIds,
       status:
@@ -366,6 +388,7 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
     else if (usableRoots.length === 1 && usableRoots[0] === X) notAssessed = 'only-root'
 
     const blast = roots.usable ? blastRadius(topology, X, { rootIds: roots.deviceIds }) : null
+    if (notAssessed === null && blast && !blast.removedWasReachable) notAssessed = 'not-reached'
     const lostSet = new Set(blast?.unreachableDeviceIds ?? [])
     const reachesAfter = (id: DeviceId) => id !== X && reachesBefore(id) && !lostSet.has(id)
 
@@ -389,6 +412,7 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
         } else if (lost.length > 0) {
           systemsHere.push({
             kind: 'partial', systemId: standing.systemId, lostDeviceIds: lost, keptDeviceIds: kept, alsoRunsHere,
+            deviceCount: standing.deviceIds.length - standing.vlanOnlyIds.length,
           })
         }
       }
@@ -473,12 +497,15 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
   for (const id of population) {
     const dep = byDevice.get(id)!
     let group: TriageGroup
-    if (dep.notAssessed && dep.notAssessed !== 'no-roots') {
+    // A broken integration holds whatever the roots, so it files a device as
+    // load-bearing even where nothing else about it can be measured.
+    const breaks = dep.integrations.some((i) => i.kind === 'breaks')
+    if (breaks) group = 'load-bearing'
+    else if (dep.notAssessed && dep.notAssessed !== 'no-roots') {
       group = 'not-assessed'
       notAssessedList.push({ deviceId: id, reason: dep.notAssessed })
     } else if (
       dep.systems.some((s) => s.kind === 'stranded' || s.kind === 'partial') ||
-      dep.integrations.some((i) => i.kind === 'breaks') ||
       dep.positionsCutOff.length > 0
     ) group = 'load-bearing'
     else if ((dep.blast?.unreachableCount ?? 0) > 0) group = 'cuts-devices-off'
@@ -526,6 +553,7 @@ export function structuralRings(
 
 export interface Verdict {
   group: TriageGroup | null
+  notAssessed: NotAssessed | null
   stranded: SystemId[]
   partial: SystemId[]
 }
@@ -538,7 +566,10 @@ export interface VerdictChange {
 
 export type Sensitivity =
   | { status: 'not-applicable' }
+  /** Every declared position is assumed (or not on the drawing). */
   | { status: 'no-roots-left'; assumedIds: DeviceId[] }
+  /** Positions are left, but none has a cable or radio link to measure from. */
+  | { status: 'alternative-unusable'; assumedIds: DeviceId[]; unusableIds: DeviceId[] }
   | {
       status: 'compared'
       assumedIds: DeviceId[]
@@ -553,6 +584,7 @@ function verdictOf(deps: SiteDependencies, id: DeviceId): Verdict {
     .find(([, ids]) => ids.includes(id))
   return {
     group: groupEntry ? groupEntry[0] : null,
+    notAssessed: dep?.notAssessed ?? null,
     stranded: (dep?.systems ?? []).filter((s) => s.kind === 'stranded').map((s) => s.systemId).sort(),
     partial: (dep?.systems ?? []).filter((s) => s.kind === 'partial').map((s) => s.systemId).sort(),
   }
@@ -573,7 +605,14 @@ export function rootSensitivity(input: DependencyInput, deps: SiteDependencies):
     return { status: 'not-applicable' }
   }
   const alternative = resolveRoots(input.topology, input.site, { source: 'declared-without-assumed' })
-  if (!alternative.usable) return { status: 'no-roots-left', assumedIds: deps.roots.assumedIds }
+  if (alternative.deviceIds.length === 0) return { status: 'no-roots-left', assumedIds: deps.roots.assumedIds }
+  if (!alternative.usable) {
+    return {
+      status: 'alternative-unusable',
+      assumedIds: deps.roots.assumedIds,
+      unusableIds: sorted(new Set([...alternative.logicalOnlyIds, ...alternative.isolatedIds])),
+    }
+  }
   const other = siteDependencies(input, alternative)
   const labelOf = new Map(input.topology.devices.map((d) => [d.id, d.label]))
   const changes: VerdictChange[] = []

@@ -46,9 +46,12 @@ export function rootPhrase(roots: RootSet, labelOf: (id: DeviceId) => string): s
       return `the ${n} declared decision ${n === 1 ? 'position' : 'positions'} not marked as assumptions`
     case 'derived':
       if (n === 0) return 'nothing, because the drawing has no entry point'
-      return n === 1
-        ? `the drawing's entry point, ${labelOf(roots.deviceIds[0]!)}`
-        : `the drawing's ${n} entry points`
+      if (n === 1) return `the drawing's entry point, ${labelOf(roots.deviceIds[0]!)}`
+      // Named, as the panel always did: on an unreviewed site nothing else names them.
+      return `the drawing's ${n} entry points, ${listNames([
+        ...roots.deviceIds.slice(0, 2).map(labelOf),
+        ...(n > 2 ? [`${n - 2} more`] : []),
+      ])}`
     case 'type':
       return n === 0
         ? 'nothing, because no device matches that choice'
@@ -56,13 +59,25 @@ export function rootPhrase(roots: RootSet, labelOf: (id: DeviceId) => string): s
   }
 }
 
+function listNames(parts: string[]): string {
+  if (parts.length <= 1) return parts.join('')
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
+/** What to call a root in a sentence: only declared ones are decision positions. */
+export function positionWordFor(roots: RootSet): (count: number) => string {
+  const declared = roots.choice.source === 'declared' || roots.choice.source === 'declared-without-assumed'
+  return (count) =>
+    declared ? (count === 1 ? 'decision position' : 'decision positions') : count === 1 ? 'root' : 'roots'
+}
+
 /** The option text a reader picks a root set by. */
-export function rootOptionLabel(option: RootChoiceOption, assumedCount: number): string {
+export function rootOptionLabel(option: RootChoiceOption): string {
   switch (option.choice.source) {
     case 'declared':
       return `Declared decision positions (${option.count})`
     case 'declared-without-assumed':
-      return `Declared, without the ${assumedCount} marked as assumptions (${option.count})`
+      return `Declared, without the ${option.removed ?? 0} marked as assumptions (${option.count})`
     case 'derived':
       return 'Entry points in the drawing'
     case 'type':
@@ -76,12 +91,10 @@ export function rootOptionLabel(option: RootChoiceOption, assumedCount: number):
  */
 export function RootSelect({
   options,
-  assumedCount,
   value,
   onChange,
 }: {
   options: readonly RootChoiceOption[]
-  assumedCount: number
   value: string
   onChange: (key: string) => void
 }) {
@@ -96,7 +109,7 @@ export function RootSelect({
       >
         {options.map((option) => (
           <option key={option.key} value={option.key}>
-            {rootOptionLabel(option, assumedCount)}
+            {rootOptionLabel(option)}
           </option>
         ))}
       </select>

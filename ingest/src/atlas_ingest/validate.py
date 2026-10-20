@@ -24,23 +24,42 @@ def _decision_root_failures(site_id, site, device_ids):
     if roots is None:
         return []
     where = f"system_device_map.sites.{site_id}.decision_roots"
-    devices = list(roots.get("devices") or [])
+    if not isinstance(roots, dict):
+        return [f"{where}: must be an object with devices, assumed and note"]
+
+    def id_list(value):
+        return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
     fails = []
-    if not devices:
-        fails.append(f"{where}: devices is empty; omit decision_roots to measure from "
-                     f"the drawing's entry points")
-    if device_ids is not None:
+    raw_devices = roots.get("devices")
+    devices = None
+    if raw_devices is not None and not id_list(raw_devices):
+        fails.append(f"{where}: devices must be a list of device ids")
+    else:
+        devices = raw_devices or []
+        if not devices:
+            fails.append(f"{where}: devices is empty; omit decision_roots to measure from "
+                         f"the drawing's entry points")
+        if device_ids is not None:
+            for device in devices:
+                if device not in device_ids:
+                    fails.append(f"{where}: device '{device}' is not in the {site_id} topology")
+        seen = set()
         for device in devices:
-            if device not in device_ids:
-                fails.append(f"{where}: device '{device}' is not in the {site_id} topology")
-    seen = set()
-    for device in devices:
-        if device in seen:
-            fails.append(f"{where}: device '{device}' is listed twice")
-        seen.add(device)
-    for device in roots.get("assumed") or []:
-        if device not in seen:
-            fails.append(f"{where}.assumed: '{device}' is not one of its devices")
+            if device in seen:
+                fails.append(f"{where}: device '{device}' is listed twice")
+            seen.add(device)
+    raw_assumed = roots.get("assumed")
+    if raw_assumed is not None and not id_list(raw_assumed):
+        fails.append(f"{where}.assumed: must be a list of device ids")
+    else:
+        seen_assumed = set()
+        for device in raw_assumed or []:
+            if device in seen_assumed:
+                fails.append(f"{where}.assumed: '{device}' is listed twice")
+            elif devices is not None and device not in devices:
+                fails.append(f"{where}.assumed: '{device}' is not one of its devices")
+            seen_assumed.add(device)
     note = roots.get("note")
     if not isinstance(note, str) or not note.strip():
         fails.append(f"{where}: no note; say who chose these positions and why")
