@@ -39,6 +39,16 @@ export interface ForceGraphProps {
   nodeScale: number
   riskMode: boolean
   riskById: Map<string, RiskLevel>
+  /**
+   * Risk mode only: devices whose loss would strand a system that does not
+   * run on them, coloured by that system's risk. Drawn apart from the node's
+   * own colour, never folded into it.
+   */
+  rings?: ReadonlyMap<string, { risk: RiskLevel; systemIds: string[] }>
+  /** Risk mode only: the tooltip's line about what rests on the device, root set included. */
+  riskNote?: (deviceId: string) => string | null
+  /** Appended to a ringed node's accessible name: the systems its loss would strand. */
+  ringSuffix?: (deviceId: string) => string | null
   transform: Transform
   /**
    * A setter, not a sink for a value.
@@ -215,6 +225,9 @@ export function ForceGraph({
   nodeScale,
   riskMode,
   riskById,
+  rings,
+  riskNote,
+  ringSuffix,
   transform,
   onTransform,
   onSize,
@@ -560,7 +573,9 @@ export function ForceGraph({
                   key={node.id}
                   role="graphics-symbol"
                   tabIndex={0}
-                  aria-label={labelById.get(node.id) ?? node.id}
+                  aria-label={`${labelById.get(node.id) ?? node.id}${
+                    riskMode && rings?.has(node.id) && ringSuffix ? (ringSuffix(node.id) ?? '') : ''
+                  }`}
                   data-testid={`device-${node.id}`}
                   data-focused={isFocused ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
@@ -595,6 +610,21 @@ export function ForceGraph({
                     onSelect(node.id)
                   }}
                 >
+                  {riskMode && rings?.has(node.id) && (
+                    // Inside the node's group so it dims with any overlay, and
+                    // following the node's own shape so it reads as this
+                    // device's, not as a chokepoint mark.
+                    <path
+                      aria-hidden="true"
+                      data-testid={`structural-ring-${node.id}`}
+                      data-structural={rings.get(node.id)!.risk}
+                      d={nodeShapePath(shape, node.r * nodeScale + 5 * inv)}
+                      fill="none"
+                      stroke={riskColor(rings.get(node.id)!.risk)}
+                      strokeWidth={round(1.6 * inv)}
+                      strokeDasharray={`${round(3 * inv)} ${round(2 * inv)}`}
+                    />
+                  )}
                   <path
                     d={nodeShapePath(shape, node.r * nodeScale)}
                     fill={isSelected ? 'var(--color-surface-2)' : 'var(--color-bg)'}
@@ -651,6 +681,9 @@ export function ForceGraph({
             {zoneShort(hovered.zone)} · {hovered.type}
             {riskMode && ` · ${riskById.get(hovered.id) ?? 'unmapped'} risk`}
           </span>
+          {riskMode && riskNote && riskNote(hovered.id) && (
+            <span className="mt-0.5 block text-muted">{riskNote(hovered.id)}</span>
+          )}
         </div>
       )}
 

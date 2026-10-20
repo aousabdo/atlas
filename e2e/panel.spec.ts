@@ -47,6 +47,13 @@ const SECTIONS = [
       page.getByRole('region', { name: 'Resilience' }).getByRole('button', { name: /^Reach/ }),
   },
   {
+    name: 'the unclaimed devices',
+    find: (page: Page) =>
+      page.getByRole('region', { name: 'Unclaimed devices' }).getByRole('button', {
+        name: /Unclaimed devices/,
+      }),
+  },
+  {
     name: 'the device record',
     find: (page: Page) => page.getByRole('region', { name: 'Device detail' }),
   },

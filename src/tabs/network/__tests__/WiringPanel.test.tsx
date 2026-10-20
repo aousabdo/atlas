@@ -37,8 +37,9 @@ describe('Documented integrations', () => {
     expect(row).toHaveAccessibleName(/6 hops, breaks if any one of 5 devices fails/)
     await user.click(row)
     expect(row).toHaveAttribute('aria-expanded', 'true')
+    // Each named, and marked when no system claims it.
     for (const name of ['Operations Switch', 'Core Switch', 'Core Router']) {
-      expect(within(region).getAllByRole('button', { name }).length).toBeGreaterThan(0)
+      expect(within(region).getAllByRole('button', { name: new RegExp(`^${name}`) }).length).toBeGreaterThan(0)
     }
   })
 
@@ -167,5 +168,16 @@ describe('Documented integrations', () => {
     const { region } = await openPanel('/network?site=westfield')
     expect(within(region).getByText(/Nobody has recorded which systems run at/)).toBeInTheDocument()
     expect(within(region).queryByText(/wired/)).not.toBeInTheDocument()
+  })
+})
+
+describe('Documented integrations, and the devices they rest on', () => {
+  it('says how many wired integrations rest on devices no system claims', async () => {
+    const { user, region } = await openPanel()
+    expect(within(region).getByText(/^All 3 wired integrations rest on devices no system claims, 6 in all\./))
+      .toBeInTheDocument()
+    await user.click(within(region).getByRole('button', { name: /^Jetty C-UAS Integration Engine – Event Relay Server/ }))
+    expect(within(region).getByRole('button', { name: 'Operations Switch · no system claims it' })).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Government Cloud Tenancy' })).toBeInTheDocument()
   })
 })

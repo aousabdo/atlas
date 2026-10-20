@@ -97,6 +97,11 @@ export const ABOUT: Record<string, AboutContent> = {
         body:
           'A device no system claims is hardware in the rack that no architecture document explains. That count feeds the orphaned hardware measure on the Lossiness tab, and it is the inverse of the integration gap: things that exist but are unaccounted for, rather than things accounted for that do not exist.',
       },
+      {
+        heading: 'Dashed rings',
+        body:
+          'In risk mode, a dashed ring marks a device whose loss would leave a realized system with no path to the declared decision positions, coloured by that system\'s risk. The colour inside the ring is still the device\'s own risk. Both rest on the drawing as recorded, and the positions are named on screen.',
+      },
     ],
   },
 

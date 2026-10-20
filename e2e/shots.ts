@@ -58,6 +58,13 @@ export const THEMES = ['dark', 'light'] as const
  * notice has gone stale; a test with no baseline used to be written silently
  * and trusted by the next run.
  */
-export const SHOTS: string[] = TABS.flatMap((tab) =>
-  THEMES.map((theme) => `${tab.name}-${theme}.png`),
-)
+/**
+ * States a tab shot cannot reach: the network's risk overlay carries the
+ * dashed rings, which the default view never draws.
+ */
+export const STATE_SHOTS = ['network-risk'] as const
+
+export const SHOTS: string[] = [
+  ...TABS.flatMap((tab) => THEMES.map((theme) => `${tab.name}-${theme}.png`)),
+  ...STATE_SHOTS.flatMap((name) => THEMES.map((theme) => `${name}-${theme}.png`)),
+]

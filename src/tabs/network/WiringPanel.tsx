@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { isReviewedSite, matrixIdSet } from '../../lib/coverage'
+import { isRealizedMapping, isReviewedSite, matrixIdSet } from '../../lib/coverage'
 import { describeWired, UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
 import type { CoverageMatrix, DeviceId, Link, System, Topology } from '../../types/atlas'
 import { DeviceLinks, Disclosure, listOf, type GraphOverlay } from './ResiliencePanel'
@@ -34,6 +34,7 @@ export function WiringPanel({
   const [open, setOpen] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [openUnchecked, setOpenUnchecked] = useState(false)
+  const [openUnclaimedCuts, setOpenUnclaimedCuts] = useState(false)
   // The overlay this panel put up, so it only ever takes down its own and
   // never one the reach tool or a what-if is showing.
   const ownOverlay = useRef<GraphOverlay | null>(null)
@@ -63,6 +64,24 @@ export function WiringPanel({
   const logical = of('logical-only')
   const noPath = of('no-path')
   const unchecked = of('unchecked')
+  // The devices wired integrations break on that no realized system claims:
+  // the grey boxes the integrations rest on.
+  const claimed = useMemo(() => {
+    const ids = matrixIdSet(systems)
+    return new Set(
+      Object.entries(site?.mappings ?? {})
+        .filter(([id, m]) => isRealizedMapping(id, m, ids))
+        .flatMap(([, m]) => m.devices),
+    )
+  }, [site, systems])
+  const unclaimedCutsOf = (row: LinkWiring) =>
+    row.verdict.kind === 'wired' ? row.verdict.cutDeviceIds.filter((id) => !claimed.has(id)) : []
+  const restingOnUnclaimed = wired.filter((row) => unclaimedCutsOf(row).length > 0)
+  const unclaimedCuts = [...new Set(wired.flatMap(unclaimedCutsOf))].sort((a, b) =>
+    labelOf(a).localeCompare(labelOf(b)),
+  )
+  const claimLabel = (id: DeviceId) => (claimed.has(id) ? labelOf(id) : `${labelOf(id)} · no system claims it`)
+
   const allFragile =
     wired.length > 0 &&
     wired.every(
@@ -159,6 +178,26 @@ export function WiringPanel({
                   Every wired integration here breaks if one device or cable fails.
                 </p>
               )}
+              {restingOnUnclaimed.length > 0 && (
+                <>
+                  <p className="mt-1 text-xs text-muted">
+                    {restingOnUnclaimed.length === wired.length
+                      ? `${wired.length === 1 ? 'The wired integration rests' : `All ${wired.length} wired integrations rest`} on devices no system claims, ${unclaimedCuts.length} in all.`
+                      : `${restingOnUnclaimed.length} of ${wired.length} wired integrations rest on at least one device no system claims (${unclaimedCuts.length} in all).`}{' '}
+                    <button
+                      type="button"
+                      aria-expanded={openUnclaimedCuts}
+                      onClick={() => setOpenUnclaimedCuts((on) => !on)}
+                      className="rounded px-1 text-accent-ink hover:bg-surface-2"
+                    >
+                      {openUnclaimedCuts ? 'Hide them' : `Name the ${unclaimedCuts.length}`}
+                    </button>
+                  </p>
+                  {openUnclaimedCuts && (
+                    <DeviceLinks ids={unclaimedCuts} labelOf={labelOf} onSelect={onSelect} />
+                  )}
+                </>
+              )}
 
               {wired.length > 0 && (
                 <Group title={`Wired (${wired.length})`}>
@@ -177,7 +216,7 @@ export function WiringPanel({
                                 <p className="mt-1 text-xs text-muted-3">
                                   Breaks if any one of these fails:
                                 </p>
-                                <DeviceLinks ids={cutDeviceIds} labelOf={labelOf} onSelect={onSelect} />
+                                <DeviceLinks ids={cutDeviceIds} labelOf={claimLabel} onSelect={onSelect} />
                               </>
                             )}
                             <p className="mt-1 text-xs text-muted-3">

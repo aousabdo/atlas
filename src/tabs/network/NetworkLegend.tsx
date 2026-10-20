@@ -172,11 +172,17 @@ export function NetworkLegend({
   deviceTypes,
   linkTypes,
   riskMode,
+  ringCaption,
 }: {
   deviceTypes: string[]
   linkTypes: string[]
   /** The risk column only appears while the overlay is on, as in the original. */
   riskMode: boolean
+  /**
+   * Which roots the dashed rings are measured from, or why there are none.
+   * Undefined leaves the ring row out entirely.
+   */
+  ringCaption?: string
 }) {
   return (
     <section aria-label="Legend" className="text-xs text-muted">
@@ -219,7 +225,21 @@ export function NetworkLegend({
                   <span>{row.label}</span>
                 </li>
               ))}
+              {ringCaption !== undefined && (
+                // One short line, like the rows above it: the column has to stay
+                // no taller than the node types beside it, or the legend wraps,
+                // the bottom stack grows and the graph refits smaller.
+                <li className="flex items-center gap-2 whitespace-nowrap">
+                  <svg aria-hidden="true" width={10} height={10} viewBox="0 0 10 10" className="shrink-0">
+                    <circle cx={5} cy={5} r={4} fill="none" stroke="var(--color-muted)" strokeWidth={1.2} strokeDasharray="2 1.5" />
+                  </svg>
+                  <span>Dashed ring: its loss strands a system</span>
+                </li>
+              )}
             </ul>
+            {ringCaption !== undefined && (
+              <p className="whitespace-nowrap text-[10px] text-muted-3">{ringCaption}</p>
+            )}
           </div>
         )}
       </div>

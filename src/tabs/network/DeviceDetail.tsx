@@ -27,6 +27,8 @@ export interface DeviceDetailProps {
   systems: DeviceSystem[]
   connections: DeviceConnection[]
   onSelect: (deviceId: string) => void
+  /** What rests on this device on the drawing, with its root set, or null. */
+  restsOn?: string | null
 }
 
 const CONFIDENCE_CLASS: Record<Confidence, string> = {
@@ -54,6 +56,7 @@ export function DeviceDetail({
   systems,
   connections,
   onSelect,
+  restsOn,
 }: DeviceDetailProps) {
   return (
     <section
@@ -103,8 +106,8 @@ export function DeviceDetail({
           </h3>
           {systems.length === 0 ? (
             <p className="mt-1 text-sm text-muted">
-              No system mapping recorded for this device. Infrastructure is
-              expected to be unclaimed; anything else is a gap.
+              {restsOn ??
+                'No system mapping recorded for this device. Infrastructure is expected to be unclaimed; anything else is a gap.'}
             </p>
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
@@ -127,6 +130,8 @@ export function DeviceDetail({
               ))}
             </ul>
           )}
+
+          {systems.length > 0 && restsOn && <p className="mt-2 text-xs text-muted">{restsOn}</p>}
 
           <h3 className="mt-4 text-sm font-semibold text-ink">
             Connections ({connections.length})
