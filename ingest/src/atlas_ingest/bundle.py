@@ -123,6 +123,37 @@ def _system_payload(s):
     }
 
 
+class SnapshotCollision(ValueError):
+    """This run's snapshot would replace one that is not provably its own."""
+
+
+def _check_snapshot_slot(path, project_slug):
+    """Refuse to overwrite a snapshot that is not this project's.
+
+    Snapshots are named by date, so a second project built into the same
+    directory on the same day would replace the first one's file, and the
+    index, which runs after the write, would never see it. A snapshot is the
+    one part of a bundle no rebuild can recreate, so the check runs before
+    anything is written, and a file whose project cannot be read is not
+    assumed to be this run's.
+    """
+    if not path.exists():
+        return
+    try:
+        owner = json.loads(path.read_text(encoding="utf-8")).get("project")
+    except (OSError, ValueError, AttributeError):
+        owner = None
+    if owner == project_slug:
+        return
+    whose = (f"is {owner}'s snapshot" if isinstance(owner, str) and owner.strip()
+             else "names no project")
+    raise SnapshotCollision(
+        f"snapshots/{path.name} {whose}, and this run would replace it with "
+        f"{project_slug}'s. No rebuild can recreate it, so nothing was written: "
+        f"build {project_slug} into another directory, or move that file out first."
+    )
+
+
 def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
                  networks, source_label, baseline_date, built_at, git_sha,
                  project_slug, project_name):
@@ -136,6 +167,9 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
     """
     check_project_slug(project_slug)
     out_dir = Path(out_dir)
+    _check_snapshot_slot(
+        out_dir / "snapshots" / f"{built_at.split('T')[0]}.json", project_slug,
+    )
 
     report = compute_lossiness(
         systems=systems, links=links, desired=desired,
@@ -303,15 +337,19 @@ def main(argv=None):
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    manifest = emit_bundles(
-        out_dir=args.out, systems=inputs["systems"], links=inputs["links"],
-        desired=inputs["desired"], crosswalk=inputs["crosswalk"],
-        glossary=inputs["glossary"], sdmap=inputs["sdmap"],
-        networks=inputs["networks"], source_label=args.source_label,
-        baseline_date=args.baseline_date, built_at=now_iso(), git_sha=git_sha(),
-        project_slug=args.project_slug,
-        project_name=args.project_name or args.project_slug,
-    )
+    try:
+        manifest = emit_bundles(
+            out_dir=args.out, systems=inputs["systems"], links=inputs["links"],
+            desired=inputs["desired"], crosswalk=inputs["crosswalk"],
+            glossary=inputs["glossary"], sdmap=inputs["sdmap"],
+            networks=inputs["networks"], source_label=args.source_label,
+            baseline_date=args.baseline_date, built_at=now_iso(), git_sha=git_sha(),
+            project_slug=args.project_slug,
+            project_name=args.project_name or args.project_slug,
+        )
+    except SnapshotCollision as collision:
+        print(f"[bundle] refusing to emit; {collision}", file=sys.stderr)
+        return 1
     print(f"[bundle] wrote {args.out}: " + ", ".join(
         f"{v} {k}" for k, v in manifest["counts"].items()))
     return 0

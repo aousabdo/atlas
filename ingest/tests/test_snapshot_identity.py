@@ -1,8 +1,9 @@
 """A snapshot says which project it measures, and the index keeps to one.
 
-The failure this pins was reachable through the documented workflow. `npm
-test` runs scripts/seed-data.mjs, which copies fixtures/synthetic into
-public/data, sample snapshot included. README "Regenerating the data" then
+The failure this pins was reachable through the documented workflow.
+scripts/seed-data.mjs, which the README's Development section runs (and npm
+test once ran as pretest), copies fixtures/synthetic into public/data, sample
+snapshot included. README "Regenerating the data" then
 runs the real ingest with `-o public/data`, which is also the CLI default.
 emit_bundles used to index every *.json under snapshots/, and a snapshot
 carried nothing but a date, a commit and seven figures, so the sample's
@@ -51,8 +52,8 @@ def _read(root, name):
     return json.loads((root / name).read_text(encoding="utf-8"))
 
 
-def _seed_like_npm_test(target):
-    """What scripts/seed-data.mjs does to public/data before every npm test."""
+def _seed_like_seed_script(target):
+    """What scripts/seed-data.mjs does to public/data when it copies the sample in."""
     shutil.copytree(SYNTHETIC_BUNDLE, target)
     return target
 
@@ -74,7 +75,7 @@ def test_project_json_is_the_project_the_run_was_given(tmp_path, emit):
 def test_the_seeded_sample_snapshot_is_not_indexed_beside_a_real_one(
         tmp_path, emit, capsys):
     """The reported failure, step for step: seed, then ingest over the seed."""
-    data = _seed_like_npm_test(tmp_path / "data")
+    data = _seed_like_seed_script(tmp_path / "data")
 
     manifest = emit(data)
 
@@ -89,7 +90,7 @@ def test_the_seeded_sample_snapshot_is_not_indexed_beside_a_real_one(
 def test_a_foreign_snapshot_is_reported_but_never_deleted(tmp_path, emit):
     """Snapshots are the one part of a bundle a rebuild cannot recreate, so
     the ingest leaves another project's file where it found it."""
-    data = _seed_like_npm_test(tmp_path / "data")
+    data = _seed_like_seed_script(tmp_path / "data")
     sample = (data / "snapshots" / "2026-08-05.json").read_bytes()
 
     emit(data)
@@ -198,3 +199,49 @@ def test_the_cli_names_the_project_by_its_slug_when_no_name_is_given(paths, tmp_
     out = tmp_path / "out"
     assert bundle.main(_cli_args(paths, out, "--project-slug", SLUG)) == 0
     assert _read(out, "project.json")["name"] == SLUG
+
+
+# --- Two projects, one directory, one day ----------------------------------
+def test_another_projects_snapshot_of_the_same_day_is_never_overwritten(tmp_path, emit):
+    """A snapshot is the one part of a bundle a rebuild cannot recreate, and
+    the file is named by date. A second project built into the same directory
+    on the same day used to replace the first project's snapshot without a
+    word, because the index runs after the write and never saw it."""
+    out = tmp_path / "data"
+    emit(out, project_slug="alpha-cuas")
+    before = (out / "snapshots" / "2026-10-08.json").read_bytes()
+    project_before = (out / "project.json").read_bytes()
+
+    with pytest.raises(bundle.SnapshotCollision, match="alpha-cuas"):
+        emit(out, project_slug="bravo-cuas")
+
+    # Refused before anything was written, not halfway through.
+    assert (out / "snapshots" / "2026-10-08.json").read_bytes() == before
+    assert (out / "project.json").read_bytes() == project_before
+
+
+def test_a_snapshot_of_unknown_ownership_on_the_same_day_is_not_overwritten(tmp_path, emit):
+    out = tmp_path / "data"
+    (out / "snapshots").mkdir(parents=True)
+    unknown = out / "snapshots" / "2026-10-08.json"
+    unknown.write_text('{"label": "2026-10-08", "dimensions": []}\n', encoding="utf-8")
+    with pytest.raises(bundle.SnapshotCollision, match="names no project"):
+        emit(out)
+    assert unknown.read_text(encoding="utf-8") == '{"label": "2026-10-08", "dimensions": []}\n'
+
+
+def test_the_same_project_rebuilt_the_same_day_replaces_its_own_snapshot(tmp_path, emit):
+    out = tmp_path / "data"
+    emit(out)
+    emit(out)
+    assert _read(out, "manifest.json")["snapshots"] == ["2026-10-08"]
+
+
+def test_the_cli_refuses_a_same_day_collision_without_a_traceback(paths, tmp_path, capsys):
+    out = tmp_path / "out"
+    assert bundle.main(_cli_args(paths, out, "--project-slug", "alpha-cuas")) == 0
+    capsys.readouterr()
+    assert bundle.main(_cli_args(paths, out, "--project-slug", "bravo-cuas")) == 1
+    err = capsys.readouterr().err
+    assert "refusing to emit" in err and "alpha-cuas" in err
+    assert _read(out, "project.json")["slug"] == "alpha-cuas"

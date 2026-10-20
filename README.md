@@ -239,8 +239,10 @@ previous script warned and continued, which is how stale data shipped unnoticed.
 `--project-slug` is the bundle's identity, and it has no default. `project.json` carries
 it, and so does every snapshot the ingest writes. The manifest indexes only the snapshots
 in `snapshots/` that carry this run's slug. Any other file there is named on stderr, left
-where it is, and not indexed: the sample's snapshot after `npm test` has seeded
-`public/data`, for example, or one written before snapshots had an identity. The Trend view
+where it is, and not indexed: the sample's snapshot after `node scripts/seed-data.mjs` has
+copied the sample into `public/data`, for example, or one written before snapshots had an
+identity. A run that would overwrite such a file, because another project was built into
+the same directory on the same day, refuses and writes nothing. The Trend view
 applies the same rule and will not compare snapshots that are not the bundle's own. Without
 this, the sample and the real snapshot were indexed side by side, and the gap between them
 was shown as movement in the architecture.
