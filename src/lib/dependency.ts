@@ -127,6 +127,17 @@ export function resolveRoots(
   }
 }
 
+/**
+ * The roots a reachability search starts from: all of them but the ones with
+ * no link of any kind, which can reach nothing and must not count themselves
+ * as reached. VLAN-only roots stay in, because blastRadius already leaves them
+ * out of the search and says so.
+ */
+export function searchRootIds(roots: RootSet): DeviceId[] {
+  const isolated = new Set(roots.isolatedIds)
+  return roots.deviceIds.filter((id) => !isolated.has(id))
+}
+
 export interface RootChoiceOption {
   choice: RootChoice
   key: string
@@ -387,7 +398,7 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
     else if (logicalOnly.has(X)) notAssessed = 'vlan-only'
     else if (usableRoots.length === 1 && usableRoots[0] === X) notAssessed = 'only-root'
 
-    const blast = roots.usable ? blastRadius(topology, X, { rootIds: roots.deviceIds }) : null
+    const blast = roots.usable ? blastRadius(topology, X, { rootIds: searchRootIds(roots) }) : null
     if (notAssessed === null && blast && !blast.removedWasReachable) notAssessed = 'not-reached'
     const lostSet = new Set(blast?.unreachableDeviceIds ?? [])
     const reachesAfter = (id: DeviceId) => id !== X && reachesBefore(id) && !lostSet.has(id)
@@ -551,11 +562,19 @@ export function structuralRings(
   return rings
 }
 
+/**
+ * What a device's rows say about systems and decision positions, compared
+ * across root sets. The devices a partly cut-off system loses and the
+ * positions cut off are compared by id, because the detail names them: a
+ * claim about an assumed position, or about which hardware loses its path,
+ * rests on the assumption even when the systems named stay the same.
+ */
 export interface Verdict {
   group: TriageGroup | null
   notAssessed: NotAssessed | null
   stranded: SystemId[]
-  partial: SystemId[]
+  partial: Array<{ systemId: SystemId; lostDeviceIds: DeviceId[] }>
+  positionsCutOff: DeviceId[]
 }
 
 export interface VerdictChange {
@@ -586,7 +605,11 @@ function verdictOf(deps: SiteDependencies, id: DeviceId): Verdict {
     group: groupEntry ? groupEntry[0] : null,
     notAssessed: dep?.notAssessed ?? null,
     stranded: (dep?.systems ?? []).filter((s) => s.kind === 'stranded').map((s) => s.systemId).sort(),
-    partial: (dep?.systems ?? []).filter((s) => s.kind === 'partial').map((s) => s.systemId).sort(),
+    partial: (dep?.systems ?? [])
+      .filter((s): s is Extract<SystemEffect, { kind: 'partial' }> => s.kind === 'partial')
+      .map((s) => ({ systemId: s.systemId, lostDeviceIds: [...s.lostDeviceIds].sort() }))
+      .sort((a, b) => a.systemId.localeCompare(b.systemId)),
+    positionsCutOff: [...(dep?.positionsCutOff ?? [])].sort(),
   }
 }
 

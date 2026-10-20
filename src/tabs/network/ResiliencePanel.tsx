@@ -15,6 +15,7 @@ import {
   type TraceReport,
 } from '../../lib/graph'
 import type { DeviceDependency, RootChoiceOption, RootSet, SiteDependencies } from '../../lib/dependency'
+import { searchRootIds } from '../../lib/dependency'
 import { useWork } from '../../lib/ready'
 import type { DeviceId, Topology } from '../../types/atlas'
 import { describeDependency, describeIntegrations, strandedOf, breaksOf, type Namers } from './dependencyWords'
@@ -422,8 +423,10 @@ export function ResiliencePanel({
   const [allReach, setAllReach] = useState(false)
 
   const blastKey = controlled ? roots.key : rootKind
+  // The same search the dependency runs, so the count here and the verdict
+  // below are measured from one set: a root with no link at all seeds nothing.
   const blastRoots = controlled
-    ? (roots.key === '' ? null : roots.deviceIds)
+    ? searchRootIds(roots)
     : (rootKind ? rootIdsOfKind(topology, rootKind) : null)
   const blast = useBlastRadius(topology, selectedId, blastKey, blastRoots)
   const trace = useTrace(topology, fromType, toType)
@@ -883,7 +886,7 @@ export function ResiliencePanel({
                         ...describeDependency(
                           dependency,
                           namers,
-                          roots.deviceIds.length - roots.logicalOnlyIds.length,
+                          roots.deviceIds.length - roots.logicalOnlyIds.length - roots.isolatedIds.length,
                         ),
                         ...describeIntegrations(dependency, namers),
                       ].map((line) => (

@@ -8,6 +8,7 @@ import type {
   SiteDependencies,
   TriageGroup,
   Verdict,
+  VerdictChange,
 } from '../../lib/dependency'
 import type { DeviceId, Topology } from '../../types/atlas'
 import { describeDependency, describeIntegrations, listOf, summarizeDependency, worstStrandedRisk, type Namers } from './dependencyWords'
@@ -413,15 +414,31 @@ function verdictWords(v: Verdict, namers: Namers): string {
         ? 'not assessed, as no root reaches it'
         : 'not assessed'
   }
-  if (v.stranded.length === 0 && v.partial.length === 0) {
-    return v.group === 'load-bearing' ? 'load-bearing' : v.group === 'cuts-devices-off' ? 'cuts devices off only' : 'strands none'
-  }
   const parts: string[] = []
   if (v.stranded.length === 1) parts.push(`strands ${namers.nameOf(v.stranded[0]!)}`)
   else if (v.stranded.length > 1) parts.push(`strands ${v.stranded.length} systems`)
-  if (v.partial.length === 1) parts.push(`cuts part of ${namers.nameOf(v.partial[0]!)} off`)
-  else if (v.partial.length > 1) parts.push(`cuts part of ${v.partial.length} off`)
-  return parts.join(' and ')
+  if (v.partial.length > 0) {
+    // The count of devices lost, so a change in the hardware cut off shows.
+    const lost = v.partial.reduce((sum, p) => sum + p.lostDeviceIds.length, 0)
+    const whose = v.partial.length === 1 ? namers.nameOf(v.partial[0]!.systemId) : `${v.partial.length} systems`
+    parts.push(`cuts part of ${whose} off (${lost} ${lost === 1 ? 'device' : 'devices'})`)
+  }
+  if (v.positionsCutOff.length > 0) {
+    const k = v.positionsCutOff.length
+    parts.push(`cuts ${k} ${namers.positionWord(k)} off`)
+  }
+  if (parts.length > 0) return listOf(parts)
+  return v.group === 'load-bearing' ? 'load-bearing' : v.group === 'cuts-devices-off' ? 'cuts devices off only' : 'strands none'
+}
+
+/** One row of the assumption check: what it says now, and without the assumptions. */
+function changeWords(change: VerdictChange, namers: Namers): string {
+  const shown = verdictWords(change.shown, namers)
+  const without = verdictWords(change.without, namers)
+  // Same words, different ids: say that the devices or positions differ.
+  return shown === without
+    ? `${shown}; without them, the same counts, but different ${change.shown.positionsCutOff.join() !== change.without.positionsCutOff.join() ? namers.positionWord(2) : 'devices'}.`
+    : `${shown}; without them, ${without}.`
 }
 
 function SensitivityBlock({
@@ -511,7 +528,7 @@ function SensitivityBlock({
                   >
                     {namers.labelOf(change.deviceId)}
                   </button>
-                  : {verdictWords(change.shown, namers)}; without them, {verdictWords(change.without, namers)}.
+                  : {changeWords(change, namers)}
                 </li>
               ))}
             </ul>

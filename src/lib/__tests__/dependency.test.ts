@@ -11,6 +11,7 @@ import {
   resolveRoots,
   rootChoices,
   rootSensitivity,
+  searchRootIds,
   siteDependencies,
   structuralRings,
   topologyWithout,
@@ -211,6 +212,22 @@ describe('fail closed: never call something safe that was not measured', () => {
     expect(deps.byDevice.get('sw')!.notAssessed).toBe('no-roots')
   })
 
+  it('does not let a root with no link at all count itself as reached beside usable ones', () => {
+    // desk is usable; booth has no link of any kind. booth must not seed
+    // itself, so removing it is not a measured "nothing loses its path".
+    const lonely = topology([...YARD.devices, device('booth', 'endpoint')], YARD.edges)
+    const site = yardSite(YARD_SITE.mappings, { devices: ['booth', 'desk'], note: 'x' })
+    const roots = resolveRoots(lonely, site, DECLARED)
+    expect(roots.usable).toBe(true)
+    expect(searchRootIds(roots)).toEqual(['desk'])
+    const deps = siteDependencies({ ...YARD_INPUT, topology: lonely, site }, roots)
+    const booth = deps.byDevice.get('booth')!
+    expect(booth.blast!.removedWasReachable).toBe(false)
+    expect(booth.notAssessed).toBe('not-reached')
+    expect(deps.triage.groups['not-assessed']).toContain('booth')
+    expect(deps.triage.groups['one-link']).not.toContain('booth')
+  })
+
   it('does not assess a device no root reaches to begin with', () => {
     // A piece of the drawing with no root in it: the rail yard.
     const pieces = topology(
@@ -403,9 +420,14 @@ describe('the sample, from the declared decision positions', () => {
     expect(sensitivity.status).toBe('compared')
     if (sensitivity.status !== 'compared') return
     expect(sensitivity.changes.map((c) => c.deviceId).sort()).toEqual([
-      'core_agg_switch', 'core_edge_switch', 'core_switch', 'guest_net_ap', 'guest_net_switch',
-      'mcv_router', 'mcv_switch', 'ops_net_switch',
+      'core_agg_switch', 'core_edge_switch', 'core_switch', 'field_house_switch', 'guest_net_ap',
+      'guest_net_switch', 'mcv_router', 'mcv_switch', 'ops_net_switch',
     ])
+    // Its systems stay the same; the position it cuts off is an assumed one.
+    const fh = sensitivity.changes.find((c) => c.deviceId === 'field_house_switch')!
+    expect(fh.shown.stranded).toEqual(fh.without.stranded)
+    expect(fh.shown.positionsCutOff).toEqual(['field_house_display'])
+    expect(fh.without.positionsCutOff).toEqual([])
     expect(sensitivity.rings).toEqual({ shown: { total: 9, high: 1 }, without: { total: 10, high: 4 } })
   })
 })

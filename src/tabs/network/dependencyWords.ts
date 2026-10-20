@@ -86,54 +86,64 @@ export function summarizeDependency(d: DeviceDependency, n: Namers): string {
  */
 export function describeDependency(d: DeviceDependency, n: Namers, rootCount: number): string[] {
   const lines: string[] = []
-  if (d.notAssessed === 'only-root') {
-    lines.push('This device is the only root, so removing it leaves nothing to measure from. No verdict on systems.')
-  } else if (d.notAssessed === 'vlan-only') {
-    lines.push('This device is joined only by VLAN links, so the drawing does not show what rests on it.')
-  } else if (d.notAssessed === 'no-roots') {
-    lines.push('No root here has a cable or radio link, so nothing is measured and nothing is called safe.')
-  } else {
-    if (d.isRoot) lines.push(`This device is one of the roots; measured from the other ${rootCount - 1}.`)
-    const stranded = strandedOf(d)
-    const own = stranded.filter((s) => !s.alsoRunsHere)
-    const shared = stranded.filter((s) => s.alsoRunsHere)
-    if (own.length > 0) {
-      lines.push(
-        `Strands ${listOf(own.map((s) => n.nameOf(s.systemId)))}: every device ${own.length === 1 ? 'it runs' : 'each runs'} on loses its path.`,
-      )
-    }
-    for (const s of shared) {
-      lines.push(`Strands ${n.nameOf(s.systemId)}, which also runs on this device: every other device it runs on loses its path.`)
-    }
-    for (const p of partialOf(d)) {
-      // Counted against every device the system runs on, so the number can be
-      // checked against the mapping by hand; this device and any device that
-      // had no path to begin with are said separately.
-      const lost = p.lostDeviceIds.length
-      const kept = p.keptDeviceIds.map(n.labelOf)
-      const already = p.deviceCount - lost - p.keptDeviceIds.length - (p.alsoRunsHere ? 1 : 0)
-      lines.push(
-        [
-          `Cuts part of ${n.nameOf(p.systemId)} off: ${lost} of its ${p.deviceCount} devices ${lost === 1 ? 'loses its path' : 'lose their path'} (${listOf(p.lostDeviceIds.map(n.labelOf))}).`,
-          `${listOf(kept)} ${kept.length === 1 ? 'keeps its path' : 'keep theirs'}.`,
-          ...(p.alsoRunsHere ? ['It also runs on this device.'] : []),
-          ...(already > 0 ? [`${already} had no path to begin with.`] : []),
-        ].join(' '),
-      )
-    }
-    for (const s of d.systems.filter((x) => x.kind === 'runs-only-here')) {
-      lines.push(`Runs ${n.nameOf(s.systemId)}, on this device only. That is this device's own risk, not a dependency.`)
-    }
-    if (d.positionsCutOff.length === 1) {
-      lines.push(`Cuts ${n.labelOf(d.positionsCutOff[0]!)}, a ${n.positionWord(1)}, off from every other device a system runs on.`)
-    } else if (d.positionsCutOff.length > 1) {
-      lines.push(
-        `Cuts ${d.positionsCutOff.length} ${n.positionWord(d.positionsCutOff.length)} off from every other device a system runs on: ${listOf(d.positionsCutOff.map(n.labelOf))}.`,
-      )
-    }
-    if (d.systems.filter((s) => s.kind !== 'runs-only-here').length === 0) {
-      lines.push('No realized system loses its path.')
-    }
+  // Every reason a device is not assessed says so in words, never as "no
+  // realized system loses its path", which would call it safe.
+  switch (d.notAssessed) {
+    case 'only-root':
+      return ['This device is the only root, so removing it leaves nothing to measure from. No verdict on systems.']
+    case 'vlan-only':
+      return ['This device is joined only by VLAN links, so the drawing does not show what rests on it.']
+    case 'no-roots':
+      return ['No root here has a cable or radio link, so nothing is measured and nothing is called safe.']
+    case 'not-reached':
+      return [
+        'No root reaches this device on cable and radio to begin with, so nothing is measured through it. No verdict on systems.',
+      ]
+    case 'not-reviewed':
+      return ['Nobody has recorded which systems run here, so nothing is measured and nothing is called safe.']
+    case null:
+      break
+  }
+  if (d.isRoot) lines.push(`This device is one of the roots; measured from the other ${rootCount - 1}.`)
+  const stranded = strandedOf(d)
+  const own = stranded.filter((s) => !s.alsoRunsHere)
+  const shared = stranded.filter((s) => s.alsoRunsHere)
+  if (own.length > 0) {
+    lines.push(
+      `Strands ${listOf(own.map((s) => n.nameOf(s.systemId)))}: every device ${own.length === 1 ? 'it runs' : 'each runs'} on loses its path.`,
+    )
+  }
+  for (const s of shared) {
+    lines.push(`Strands ${n.nameOf(s.systemId)}, which also runs on this device: every other device it runs on loses its path.`)
+  }
+  for (const p of partialOf(d)) {
+    // Counted against every device the system runs on, so the number can be
+    // checked against the mapping by hand; this device and any device that
+    // had no path to begin with are said separately.
+    const lost = p.lostDeviceIds.length
+    const kept = p.keptDeviceIds.map(n.labelOf)
+    const already = p.deviceCount - lost - p.keptDeviceIds.length - (p.alsoRunsHere ? 1 : 0)
+    lines.push(
+      [
+        `Cuts part of ${n.nameOf(p.systemId)} off: ${lost} of its ${p.deviceCount} devices ${lost === 1 ? 'loses its path' : 'lose their path'} (${listOf(p.lostDeviceIds.map(n.labelOf))}).`,
+        `${listOf(kept)} ${kept.length === 1 ? 'keeps its path' : 'keep theirs'}.`,
+        ...(p.alsoRunsHere ? ['It also runs on this device.'] : []),
+        ...(already > 0 ? [`${already} had no path to begin with.`] : []),
+      ].join(' '),
+    )
+  }
+  for (const s of d.systems.filter((x) => x.kind === 'runs-only-here')) {
+    lines.push(`Runs ${n.nameOf(s.systemId)}, on this device only. That is this device's own risk, not a dependency.`)
+  }
+  if (d.positionsCutOff.length === 1) {
+    lines.push(`Cuts ${n.labelOf(d.positionsCutOff[0]!)}, a ${n.positionWord(1)}, off from every other device a system runs on.`)
+  } else if (d.positionsCutOff.length > 1) {
+    lines.push(
+      `Cuts ${d.positionsCutOff.length} ${n.positionWord(d.positionsCutOff.length)} off from every other device a system runs on: ${listOf(d.positionsCutOff.map(n.labelOf))}.`,
+    )
+  }
+  if (d.systems.filter((s) => s.kind !== 'runs-only-here').length === 0) {
+    lines.push('No realized system loses its path.')
   }
   return lines
 }

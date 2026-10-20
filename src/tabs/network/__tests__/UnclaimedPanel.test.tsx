@@ -69,10 +69,14 @@ describe('Unclaimed devices', () => {
 
   it('names every verdict that rests on the assumed positions, and shows the alternative', async () => {
     const { region, toggle, user } = await openPanel()
-    expect(within(region).getByText(/^8 devices' verdicts rest on the 3 positions marked as assumptions\./))
+    expect(within(region).getByText(/^9 devices' verdicts rest on the 3 positions marked as assumptions\./))
       .toBeInTheDocument()
-    await user.click(within(region).getByRole('button', { name: 'List the 8' }))
+    await user.click(within(region).getByRole('button', { name: 'List the 9' }))
     expect(within(region).getByText(/^: strands 2 systems; without them, strands 8 systems\./)).toBeInTheDocument()
+    // Listed though its systems do not change: the position it cuts off is an assumed one.
+    expect(within(region).getByText(
+      /^: strands Bastion Effector and cuts 1 decision position off; without them, strands Bastion Effector\./,
+    )).toBeInTheDocument()
     await user.click(within(region).getByRole('button', { name: 'Show without them' }))
     expect(await within(region).findByText('DECLARED · ASSUMPTIONS OUT')).toBeInTheDocument()
     expect(toggle).toHaveAccessibleName(/9 of 52$/)

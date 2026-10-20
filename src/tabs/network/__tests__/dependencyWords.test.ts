@@ -78,3 +78,14 @@ describe('the sentences about what rests on a device', () => {
       .toBe('Its loss also strands Event Relay Server (medium), measured from the 7 declared decision positions.')
   })
 })
+
+describe('a device the roots never reach', () => {
+  it('says nothing was measured, never that nothing loses its path', () => {
+    const unreached = { ...dep('core_switch'), notAssessed: 'not-reached' as const, systems: [], positionsCutOff: [] }
+    const lines = describeDependency(unreached, declared, 7)
+    expect(lines).toEqual([
+      'No root reaches this device on cable and radio to begin with, so nothing is measured through it. No verdict on systems.',
+    ])
+    expect(lines.join(' ')).not.toMatch(/No realized system loses its path/)
+  })
+})
