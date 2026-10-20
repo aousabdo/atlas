@@ -12,9 +12,11 @@ import { TrendView } from '../TrendView'
 /**
  * The Trend view compares snapshots of one project, or none.
  *
- * `npm test` seeds public/data with the sample bundle, snapshot included, and
- * README "Regenerating the data" then runs the real ingest into the same
- * directory. The ingest used to index every snapshot file it found there, and
+ * scripts/seed-data.mjs puts the sample bundle, snapshot included, in
+ * public/data, and README "Regenerating the data" then runs the real ingest
+ * into the same directory. (npm test used to run the seed itself; it no longer
+ * does, and the seed now refuses to empty a public/data that is not the
+ * sample.) The ingest used to index every snapshot file it found there, and
  * a snapshot said nothing about whose it was, so the sample's snapshot and the
  * real one arrived here side by side. This view compares the first with the
  * last, and it reported the gap between a fabricated sample and a real
