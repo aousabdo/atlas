@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { matrixIdSet } from '../../lib/coverage'
+import { isReviewedSite, matrixIdSet } from '../../lib/coverage'
 import { describeWired, UNCHECKED_REASON_TEXT, wiringAtSite, type LinkWiring } from '../../lib/wiring'
 import type { CoverageMatrix, DeviceId, Link, System, Topology } from '../../types/atlas'
 import { DeviceLinks, Disclosure, listOf, type GraphOverlay } from './ResiliencePanel'
@@ -39,9 +39,7 @@ export function WiringPanel({
   const ownOverlay = useRef<GraphOverlay | null>(null)
 
   const site = coverage.sites[topology.site_id]
-  const reviewed =
-    !!site &&
-    (Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0)
+  const reviewed = isReviewedSite(site)
 
   const rows = useMemo(
     () => (site && reviewed ? wiringAtSite(links, site, topology, matrixIdSet(systems)) : []),
