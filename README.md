@@ -227,6 +227,8 @@ PYTHONPATH=ingest/src python3 -m atlas_ingest.bundle \
   --system-device-map path/to/system_device_map.json \
   --network-json northgate:path/to/northgate_network.json \
   --network-json westfield:path/to/westfield_network.json \
+  --project-slug your-project \
+  --project-name "Your Project" \
   -o public/data
 ```
 
@@ -234,14 +236,37 @@ Integrity gates run first and **fail closed**: if a mapping names a system that 
 the matrix, or an edge points at a device that does not exist, nothing is written. The
 previous script warned and continued, which is how stale data shipped unnoticed.
 
+`--project-slug` is the bundle's identity, and it has no default. `project.json` carries
+it, and so does every snapshot the ingest writes. The manifest indexes only the snapshots
+in `snapshots/` that carry this run's slug. Any other file there is named on stderr, left
+where it is, and not indexed: the sample's snapshot after `node scripts/seed-data.mjs` has
+copied the sample into `public/data`, for example, or one written before snapshots had an
+identity. A run that would overwrite such a file, because another project was built into
+the same directory on the same day, refuses and writes nothing. The Trend view
+applies the same rule and will not compare snapshots that are not the bundle's own. Without
+this, the sample and the real snapshot were indexed side by side, and the gap between them
+was shown as movement in the architecture.
+
+The identity is the slug rather than the source label and baseline date, because those two
+change at every new baseline, and movement across baselines is what the Trend view is for.
+
 The classifier tables are also emitted as TypeScript (`npm run ingest:tables`) so the
 in-browser parser uses the same tables rather than a hand-maintained copy. A test
 regenerates that file and fails if it has drifted.
+
+`public/data` is gitignored, so a bundle built there exists nowhere else, and its
+`snapshots/` cannot be rebuilt from any input, since each one records a build that has
+already happened. `npm test` does not touch it: the unit suite reads `fixtures/synthetic`
+directly. `node scripts/seed-data.mjs`, which copies the sample in, refuses to empty a
+`public/data` it cannot identify as the sample (by `project.json`'s slug, and by any
+snapshot that names its project), names what is there, and changes nothing. To go back to
+the sample, move the real bundle out of the repo first. `--force` discards it instead.
 
 ## Development
 
 ```bash
 npm install          # needs one-time network access to cdn.sheetjs.com
+node scripts/seed-data.mjs  # copy the sample bundle into public/data; refuses over a real one
 npm run dev
 npm test             # unit and component tests
 npm run e2e          # visual regression, needs Chromium

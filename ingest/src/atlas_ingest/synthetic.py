@@ -1359,7 +1359,7 @@ def _snapshot(report):
     should show movement needs a second, genuinely different set of inputs,
     never an edited figure.
     """
-    return snapshot_payload(report, BUILT_AT, GIT_SHA)
+    return snapshot_payload(report, BUILT_AT, GIT_SHA, PROJECT_SLUG)
 
 
 def emit(out_dir):

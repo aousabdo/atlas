@@ -19,6 +19,8 @@ def _emit(target, systems, links, desired, crosswalk, glossary, sdmap, networks)
         baseline_date="2026-03-05",
         built_at="2026-08-05T12:00:00",
         git_sha="testsha",
+        project_slug="harbor-cuas",
+        project_name="Harbor C-UAS Architecture",
     )
 
 

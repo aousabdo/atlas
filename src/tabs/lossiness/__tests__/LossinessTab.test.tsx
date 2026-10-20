@@ -261,6 +261,7 @@ describe('TrendView', () => {
     attrition: number,
     orphaned: number,
   ): SnapshotMetrics => ({
+    project: 'reference-cuas',
     label,
     built_at: `${label}T12:00:00`,
     git_sha: 'abc1234',
@@ -289,6 +290,7 @@ describe('TrendView', () => {
   it('compares the dimensions once a second snapshot exists', () => {
     render(
       <TrendView
+        project="reference-cuas"
         snapshots={[snapshot('2026-08-05', 81.8, 59), snapshot('2026-09-02', 90.9, 44)]}
       />,
     )
@@ -309,6 +311,7 @@ describe('TrendView', () => {
     // 31.3, so the same fraction reads two ways on one tab.
     render(
       <TrendView
+        project="reference-cuas"
         snapshots={[snapshot('2026-08-05', 31.25, 59), snapshot('2026-09-02', 40, 44)]}
       />,
     )
@@ -318,7 +321,7 @@ describe('TrendView', () => {
   })
 
   it('does not pretend an empty history is a measurement', () => {
-    render(<TrendView snapshots={[]} />)
+    render(<TrendView project="reference-cuas" snapshots={[]} />)
     expect(screen.getByText(/no snapshots yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })

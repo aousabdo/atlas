@@ -5,6 +5,8 @@ identical inputs produce identical bytes. Non-determinism here means every
 rebuild churns the git diff and real changes hide in the noise.
 """
 import json
+import re
+import sys
 from pathlib import Path
 
 from .classify import owner_group_display
@@ -12,13 +14,35 @@ from .curation import mapping_confidence_counts
 from .lossiness import compute_lossiness, top_gaps
 from .methodology import extract_methodology
 
+BUNDLE_VERSION = 1
+
 SNAPSHOT_FIELDS = ("key", "label", "numerator", "denominator",
                    "value_pct", "unit", "severity")
 
+# Lower-case words joined by single hyphens. The slug is compared byte for
+# byte, here and in the browser, so it gets exactly one spelling: 'Harbor' and
+# 'harbor' would otherwise read as two projects and split one history in two.
+_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
-def snapshot_payload(report, built_at, git_sha):
-    """One build's snapshot: its date and commit, and the seven lossiness
-    figures exactly as the report states them.
+
+def check_project_slug(slug):
+    """The slug, or a ValueError saying why it cannot be one."""
+    if not isinstance(slug, str) or not _SLUG.fullmatch(slug):
+        raise ValueError(
+            f"project slug {slug!r} is not a slug: use lower-case letters and "
+            f"digits joined by single hyphens, e.g. 'harbor-cuas'"
+        )
+    return slug
+
+
+def snapshot_payload(report, built_at, git_sha, project):
+    """One build's snapshot: whose it is, its date and commit, and the seven
+    lossiness figures exactly as the report states them.
+
+    `project` is the project slug, the same string project.json carries. A
+    snapshot used to carry no identity at all, so a sample snapshot seeded
+    into the output directory was indexed beside a real one, and the Trend
+    view showed the difference between the two projects as movement.
 
     The sample generator writes its committed snapshot through this too, so
     neither writer can restate a figure. It once recorded requirement
@@ -27,6 +51,7 @@ def snapshot_payload(report, built_at, git_sha):
     inputs then showed a loss that never happened.
     """
     return {
+        "project": project,
         "label": built_at.split("T")[0],
         "built_at": built_at,
         "git_sha": git_sha,
@@ -34,7 +59,37 @@ def snapshot_payload(report, built_at, git_sha):
                        for d in report["dimensions"]],
     }
 
-BUNDLE_VERSION = 1
+
+def _index_snapshots(snapshot_dir, project):
+    """Labels of the snapshots in snapshot_dir that are `project`'s.
+
+    Any other file is named on stderr and left where it is. Not indexing it
+    is what keeps it out of the Trend view, since the manifest is the only way
+    the app finds a snapshot. Deleting it is not this function's call: a
+    snapshot is the one part of a bundle a rebuild cannot recreate.
+    """
+    labels = []
+    for path in sorted(snapshot_dir.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = None
+        if not isinstance(payload, dict):
+            reason = "it could not be read as a snapshot"
+        elif payload.get("project") == project:
+            labels.append(path.stem)
+            continue
+        elif not payload.get("project"):
+            # Absent, null and "" alike. TrendView reads them the same way.
+            reason = ("it carries no project identity, so nothing says whose "
+                      "it is")
+        else:
+            reason = f"it is a snapshot of project {payload['project']!r}"
+        print(f"[bundle] not indexing snapshots/{path.name}: {reason}, and "
+              f"this bundle is {project!r}. It is left in {snapshot_dir}; "
+              f"remove it if it should not ship beside this bundle.",
+              file=sys.stderr)
+    return sorted(labels)
 
 
 def _write(path, payload):
@@ -68,10 +123,53 @@ def _system_payload(s):
     }
 
 
+class SnapshotCollision(ValueError):
+    """This run's snapshot would replace one that is not provably its own."""
+
+
+def _check_snapshot_slot(path, project_slug):
+    """Refuse to overwrite a snapshot that is not this project's.
+
+    Snapshots are named by date, so a second project built into the same
+    directory on the same day would replace the first one's file, and the
+    index, which runs after the write, would never see it. A snapshot is the
+    one part of a bundle no rebuild can recreate, so the check runs before
+    anything is written, and a file whose project cannot be read is not
+    assumed to be this run's.
+    """
+    if not path.exists():
+        return
+    try:
+        owner = json.loads(path.read_text(encoding="utf-8")).get("project")
+    except (OSError, ValueError, AttributeError):
+        owner = None
+    if owner == project_slug:
+        return
+    whose = (f"is {owner}'s snapshot" if isinstance(owner, str) and owner.strip()
+             else "names no project")
+    raise SnapshotCollision(
+        f"snapshots/{path.name} {whose}, and this run would replace it with "
+        f"{project_slug}'s. No rebuild can recreate it, so nothing was written: "
+        f"build {project_slug} into another directory, or move that file out first."
+    )
+
+
 def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
-                 networks, source_label, baseline_date, built_at, git_sha):
-    """Write every bundle under out_dir. Returns the manifest."""
+                 networks, source_label, baseline_date, built_at, git_sha,
+                 project_slug, project_name):
+    """Write every bundle under out_dir. Returns the manifest.
+
+    project_slug is the bundle's identity: project.json carries it and so does
+    every snapshot, and the manifest indexes only the snapshots that match.
+    It is not the source label and baseline date, because those name a
+    revision of the matrix and change at every new baseline, which is exactly
+    the movement the Trend view exists to show.
+    """
+    check_project_slug(project_slug)
     out_dir = Path(out_dir)
+    _check_snapshot_slot(
+        out_dir / "snapshots" / f"{built_at.split('T')[0]}.json", project_slug,
+    )
 
     report = compute_lossiness(
         systems=systems, links=links, desired=desired,
@@ -109,8 +207,8 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
         _write(out_dir / "sites" / f"{site_id}.json", net)
 
     _write(out_dir / "project.json", {
-        "slug": "dhs-cuas",
-        "name": "DHS C-UAS Architecture",
+        "slug": project_slug,
+        "name": project_name,
         "baseline_date": baseline_date,
         "source_label": source_label,
         "sites": [
@@ -127,8 +225,9 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
 
     # Snapshots are written before the manifest so the index below sees this
     # run's file. A static host cannot be globbed, so the manifest is the only
-    # way the app can discover which snapshots exist.
-    snapshot = snapshot_payload(report, built_at, git_sha)
+    # way the app can discover which snapshots exist, and so the index is
+    # where another project's snapshot is kept out.
+    snapshot = snapshot_payload(report, built_at, git_sha, project_slug)
     _write(out_dir / "snapshots" / f"{snapshot['label']}.json", snapshot)
 
     manifest = {
@@ -138,7 +237,7 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
         "git_sha": git_sha,
         "source_label": source_label,
         "baseline_date": baseline_date,
-        "snapshots": sorted(p.stem for p in (out_dir / "snapshots").glob("*.json")),
+        "snapshots": _index_snapshots(out_dir / "snapshots", project_slug),
         "counts": {
             "systems": len(systems),
             "confirmed": sum(1 for s in systems if not s["soft"]),
@@ -204,14 +303,26 @@ export const OWNER_GROUP_DISPLAY: Record<string, string> = {ts(config.OWNER_GROU
 def main(argv=None):
     """CLI: validate, then emit. Never emits over a failing gate."""
     import argparse
-    import sys
 
     from .cli import add_input_args, git_sha, load_all_inputs, now_iso
     from .validate import validate
 
+    def slug(value):
+        try:
+            return check_project_slug(value)
+        except ValueError as e:
+            raise argparse.ArgumentTypeError(str(e)) from None
+
     parser = argparse.ArgumentParser(description="Emit ATLAS JSON bundles")
     add_input_args(parser)
     parser.add_argument("-o", "--out", default="public/data")
+    # Required, with no default. A defaulted identity is how every bundle this
+    # ingest wrote came to claim the same project.
+    parser.add_argument("--project-slug", required=True, type=slug,
+                        help="the project this bundle and its snapshots "
+                             "belong to, e.g. harbor-cuas")
+    parser.add_argument("--project-name",
+                        help="display name; defaults to the slug")
     args = parser.parse_args(argv)
 
     inputs = load_all_inputs(args)
@@ -226,19 +337,23 @@ def main(argv=None):
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    manifest = emit_bundles(
-        out_dir=args.out, systems=inputs["systems"], links=inputs["links"],
-        desired=inputs["desired"], crosswalk=inputs["crosswalk"],
-        glossary=inputs["glossary"], sdmap=inputs["sdmap"],
-        networks=inputs["networks"], source_label=args.source_label,
-        baseline_date=args.baseline_date, built_at=now_iso(), git_sha=git_sha(),
-    )
+    try:
+        manifest = emit_bundles(
+            out_dir=args.out, systems=inputs["systems"], links=inputs["links"],
+            desired=inputs["desired"], crosswalk=inputs["crosswalk"],
+            glossary=inputs["glossary"], sdmap=inputs["sdmap"],
+            networks=inputs["networks"], source_label=args.source_label,
+            baseline_date=args.baseline_date, built_at=now_iso(), git_sha=git_sha(),
+            project_slug=args.project_slug,
+            project_name=args.project_name or args.project_slug,
+        )
+    except SnapshotCollision as collision:
+        print(f"[bundle] refusing to emit; {collision}", file=sys.stderr)
+        return 1
     print(f"[bundle] wrote {args.out}: " + ", ".join(
         f"{v} {k}" for k, v in manifest["counts"].items()))
     return 0
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())

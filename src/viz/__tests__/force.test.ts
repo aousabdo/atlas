@@ -16,10 +16,10 @@ import {
   type ViewMode,
 } from '../force'
 
-/** The real bundle, so the layout is exercised against the shape it ships with. */
+/** The committed bundle, so the layout is exercised against the shape it ships with. */
 function loadSite(name: string): LayoutInput {
   const raw = readFileSync(
-    join(process.cwd(), 'public', 'data', 'sites', `${name}.json`),
+    join(process.cwd(), 'fixtures', 'synthetic', 'sites', `${name}.json`),
     'utf-8',
   )
   const topology = JSON.parse(raw) as Topology

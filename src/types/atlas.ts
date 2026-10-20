@@ -170,6 +170,13 @@ export interface LossinessReport {
 }
 
 export interface SnapshotMetrics {
+  /**
+   * The slug of the project this snapshot measures, the same string as
+   * Project.slug. Optional because snapshots written before it existed carry
+   * none, and nothing can say whose those are. TrendView compares only
+   * snapshots whose project is the bundle's own.
+   */
+  project?: string
   label: string
   built_at: string
   git_sha: string

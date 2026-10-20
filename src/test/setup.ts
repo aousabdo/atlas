@@ -20,7 +20,7 @@ afterEach(() => {
   cleanup()
 })
 
-const DATA_DIR = join(process.cwd(), 'public', 'data')
+const DATA_DIR = join(process.cwd(), 'fixtures', 'synthetic')
 
 /**
  * Serve the committed bundles through a stubbed fetch.
@@ -29,6 +29,11 @@ const DATA_DIR = join(process.cwd(), 'public', 'data')
  * response handling, error mapping — rather than reaching around it to the
  * filesystem, and it means every component test runs against the real data
  * rather than a fixture that can drift from it.
+ *
+ * It reads fixtures/synthetic, not public/data. public/data is a copy of it
+ * that only scripts/seed-data.mjs makes, and it is also where an analyst
+ * builds the real bundle. When the suite read it, npm test had to seed it
+ * first, and seeding deleted the real bundle, snapshots and all.
  */
 vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
   const url = typeof input === 'string' ? input : input.toString()
