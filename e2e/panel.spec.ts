@@ -47,6 +47,13 @@ const SECTIONS = [
       page.getByRole('region', { name: 'Resilience' }).getByRole('button', { name: /^Reach/ }),
   },
   {
+    name: 'the unclaimed devices',
+    find: (page: Page) =>
+      page.getByRole('region', { name: 'Unclaimed devices' }).getByRole('button', {
+        name: /Unclaimed devices/,
+      }),
+  },
+  {
     name: 'the device record',
     find: (page: Page) => page.getByRole('region', { name: 'Device detail' }),
   },
@@ -114,5 +121,26 @@ for (const laptop of LAPTOPS) {
       await wheelTo(page, panel, target)
       await expect(target, `${section.name} cannot be reached at ${laptop.name}`).toBeInViewport()
     }
+  })
+}
+
+// The risk legend carries one more row than the others, the dashed ring. If it
+// wraps, the bottom stack grows, the graph fits itself into what is left and a
+// laptop reader gets the whole site at a third of its size. Same height in
+// both modes is the check.
+for (const laptop of LAPTOPS) {
+  test(`risk mode keeps the bottom stack the same height at ${laptop.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: laptop.width, height: laptop.height })
+    await page.goto(NETWORK.path)
+    await settle(page, NETWORK)
+
+    const stack = page.getByTestId('network-chrome-bottom')
+    const before = (await stack.boundingBox())?.height
+    await page.getByRole('button', { name: /^Risk/ }).click()
+    await expect(page.getByTestId('structural-ring-field_house_switch')).toBeVisible()
+    await expect(page.getByTestId('legend-ring-row')).toBeVisible()
+    const after = (await stack.boundingBox())?.height
+    expect(before, 'the bottom stack has no height').toBeGreaterThan(0)
+    expect(after, `the risk legend grows the bottom stack at ${laptop.name}`).toBe(before)
   })
 }

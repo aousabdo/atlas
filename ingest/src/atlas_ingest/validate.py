@@ -6,9 +6,70 @@ and owns the exit code. That split is what makes the gates unit-testable.
 Replaces build_cuas_tool_v4.py:617-720, which warned and continued. Warning and
 continuing is how stale data shipped, so every check here is an error.
 """
+import re
 import sys
 
 from .curation import is_shortfall
+
+# Blank, as both engines read it: Python's whitespace plus U+FEFF, which is
+# exactly JavaScript's \s plus U+001C-001F and U+0085 (LocalFileProvider.ts).
+# str.strip() and String.trim() disagree on those, so neither is used.
+_BLANK = re.compile(r"[\s\ufeff]*")
+
+
+def _decision_root_failures(site_id, site, device_ids):
+    """The five gates on a site's declared decision positions.
+
+    decision_roots is a curated judgement about where decisions are made, so
+    it has to name real devices, once each, with a note saying who chose them.
+    Absent means "not decided": reachability is then measured from the
+    drawing's entry points. Only the existence check needs the topology.
+    Mirrored word for word in crossFileFailures.
+    """
+    roots = site.get("decision_roots")
+    if roots is None:
+        return []
+    where = f"system_device_map.sites.{site_id}.decision_roots"
+    if not isinstance(roots, dict):
+        return [f"{where}: must be an object with devices, assumed and note"]
+
+    def id_list(value):
+        return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+    fails = []
+    raw_devices = roots.get("devices")
+    devices = None
+    if raw_devices is not None and not id_list(raw_devices):
+        fails.append(f"{where}: devices must be a list of device ids")
+    else:
+        devices = raw_devices or []
+        if not devices:
+            fails.append(f"{where}: devices is empty; omit decision_roots to measure from "
+                         f"the drawing's entry points")
+        if device_ids is not None:
+            for device in devices:
+                if device not in device_ids:
+                    fails.append(f"{where}: device '{device}' is not in the {site_id} topology")
+        seen = set()
+        for device in devices:
+            if device in seen:
+                fails.append(f"{where}: device '{device}' is listed twice")
+            seen.add(device)
+    raw_assumed = roots.get("assumed")
+    if raw_assumed is not None and not id_list(raw_assumed):
+        fails.append(f"{where}.assumed: must be a list of device ids")
+    else:
+        seen_assumed = set()
+        for device in raw_assumed or []:
+            if device in seen_assumed:
+                fails.append(f"{where}.assumed: '{device}' is listed twice")
+            elif devices is not None and device not in devices:
+                fails.append(f"{where}.assumed: '{device}' is not one of its devices")
+            seen_assumed.add(device)
+    note = roots.get("note")
+    if not isinstance(note, str) or _BLANK.fullmatch(note):
+        fails.append(f"{where}: no note; say who chose these positions and why")
+    return fails
 
 
 def validate(systems, links, sdmap, networks, crosswalk, glossary, desired=None):
@@ -69,6 +130,8 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary, desired=None)
                             f"system_device_map.sites.{site_id}.mappings.{sys_id}: "
                             f"device '{device}' is not in the {site_id} topology"
                         )
+
+        fails.extend(_decision_root_failures(site_id, site, device_ids))
 
         for sys_id in site.get("not_deployed_at_site") or {}:
             if sys_id not in matrix_ids:

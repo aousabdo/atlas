@@ -136,6 +136,7 @@ interface RawSiteBlock {
   not_deployed_at_site?: Record<string, string>
   not_deployed_at_northgate?: Record<string, string>
   unclaimed_devices?: { infrastructure: string[] }
+  decision_roots?: CoverageSite['decision_roots']
 }
 
 interface RawSystemDeviceMap {
@@ -184,6 +185,8 @@ function normaliseSystemDeviceMap(
       not_deployed_at_site:
         block.not_deployed_at_site ?? block.not_deployed_at_northgate ?? {},
       unclaimed_devices: block.unclaimed_devices ?? { infrastructure: [] },
+      // Copied only when declared, as the ingest does: absent means "not decided".
+      ...(block.decision_roots !== undefined ? { decision_roots: block.decision_roots } : {}),
     }
   }
 
@@ -280,6 +283,65 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
  * here does cost correctness, which is what makes the two decisions the same
  * decision rather than a contradiction.
  */
+/**
+ * The five gates on a site's declared decision positions, word for word the
+ * ingest's _decision_root_failures. Only the existence check needs the
+ * topology; the rest are facts about the block itself.
+ */
+function decisionRootFailures(
+  siteId: string,
+  site: CoverageSite,
+  deviceIds: ReadonlySet<string> | null,
+): string[] {
+  const raw: unknown = site.decision_roots
+  if (raw === undefined || raw === null) return []
+  const where = `system_device_map.sites.${siteId}.decision_roots`
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return [`${where}: must be an object with devices, assumed and note`]
+  }
+  const roots = raw as { devices?: unknown; assumed?: unknown; note?: unknown }
+  const idList = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((v) => typeof v === 'string')
+  const fails: string[] = []
+  let devices: string[] | null = null
+  if (roots.devices !== undefined && roots.devices !== null && !idList(roots.devices)) {
+    fails.push(`${where}: devices must be a list of device ids`)
+  } else {
+    devices = (roots.devices as string[] | undefined | null) ?? []
+    if (devices.length === 0) {
+      fails.push(`${where}: devices is empty; omit decision_roots to measure from the drawing's entry points`)
+    }
+    if (deviceIds) {
+      for (const device of devices) {
+        if (!deviceIds.has(device)) fails.push(`${where}: device '${device}' is not in the ${siteId} topology`)
+      }
+    }
+    const seen = new Set<string>()
+    for (const device of devices) {
+      if (seen.has(device)) fails.push(`${where}: device '${device}' is listed twice`)
+      seen.add(device)
+    }
+  }
+  if (roots.assumed !== undefined && roots.assumed !== null && !idList(roots.assumed)) {
+    fails.push(`${where}.assumed: must be a list of device ids`)
+  } else {
+    const seenAssumed = new Set<string>()
+    for (const device of (roots.assumed as string[] | undefined | null) ?? []) {
+      if (seenAssumed.has(device)) fails.push(`${where}.assumed: '${device}' is listed twice`)
+      else if (devices !== null && !devices.includes(device)) {
+        fails.push(`${where}.assumed: '${device}' is not one of its devices`)
+      }
+      seenAssumed.add(device)
+    }
+  }
+  // Blank as validate.py reads it: trim() and Python's strip() disagree on
+  // U+FEFF, U+001C-001F and U+0085, so both engines name the same 30 characters.
+  if (typeof roots.note !== 'string' || /^[\s\x1c-\x1f\x85]*$/.test(roots.note)) {
+    fails.push(`${where}: no note; say who chose these positions and why`)
+  }
+  return fails
+}
+
 export function crossFileFailures(parsed: {
   systems: readonly System[]
   /** The merged current links. Same input validate() is handed. */
@@ -346,6 +408,8 @@ export function crossFileFailures(parsed: {
         }
       }
     }
+
+    fails.push(...decisionRootFailures(siteId, site, deviceIds))
 
     for (const systemId of Object.keys(site.not_deployed_at_site)) {
       if (!matrixIds.has(systemId)) {

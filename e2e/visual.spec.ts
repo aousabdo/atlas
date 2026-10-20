@@ -47,6 +47,28 @@ for (const tab of TABS) {
   }
 }
 
+// The risk overlay is the only place the dashed rings are drawn, so it gets a
+// shot of its own: a ring that drifts off its node, or a colour that folds
+// into the node's own, is a picture problem no DOM assertion would see.
+for (const theme of THEMES) {
+  test(`network in risk mode renders in ${theme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme })
+    await page.addInitScript((t) => {
+      localStorage.setItem('atlas-theme', t)
+    }, theme)
+    const network = TABS.find((tab) => tab.name === 'network')!
+    await page.goto(network.path)
+    await settle(page, network)
+    await page.getByRole('button', { name: /^Risk/ }).click()
+    await expect(page.getByTestId('structural-ring-field_house_switch')).toBeVisible()
+    await expect(page).toHaveScreenshot(`network-risk-${theme}.png`, {
+      fullPage: true,
+      mask: [page.locator('[data-volatile]')],
+      maskColor: await maskColor(page),
+    })
+  })
+}
+
 test('the two themes are actually different', async ({ page }) => {
   const bg = async (theme: 'dark' | 'light') => {
     await page.addInitScript((t) => {

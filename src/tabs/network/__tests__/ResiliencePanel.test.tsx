@@ -355,9 +355,15 @@ describe('Blast radius', () => {
     )
 
     expect(await within(region).findByText(/If this device is removed/i)).toBeInTheDocument()
-    expect(within(region).getByText(/\b3 of 71 lose their path/)).toBeInTheDocument()
+    // Measured from the site's declared decision positions, the default where a
+    // site declares them. From the drawing's entry point it was 3.
+    expect(within(region).getByText(/\b2 of 71 lose their path/)).toBeInTheDocument()
     // A reachability count means nothing without the frame it was measured from.
-    expect(within(region).getByText(/Internet/)).toBeInTheDocument()
+    expect(within(region).getByText(/Measured from the 7 declared decision positions/)).toBeInTheDocument()
+    // And what rests on it, across the layers: no system claims this switch.
+    expect(
+      await within(region).findByText(/^Strands Bastion Effector: every device it runs on loses its path\./),
+    ).toBeInTheDocument()
   })
 
   // A yard on cable, with two applications joined to it by VLAN only.
@@ -403,7 +409,9 @@ describe('Blast radius', () => {
     const { user } = await renderWithProvider(<NetworkTab />)
     const region = await panel()
     await user.click(within(await devices()).getByRole('button', { name: /Sensor Net Firewall/ }))
-    expect(await within(region).findByText(/Measured from Internet/)).toBeInTheDocument()
+    expect(
+      await within(region).findByText(/Measured from the 7 declared decision positions/),
+    ).toBeInTheDocument()
 
     await user.selectOptions(within(region).getByLabelText('Reachable from'), 'endpoint')
 
@@ -451,7 +459,7 @@ describe('Blast radius', () => {
     await user.click(await within(region).findByRole('button', { name: /Show on graph/ }))
 
     const banner = await screen.findByRole('status', { name: /hypothetical view/i })
-    expect(banner).toHaveTextContent(/3 of 71/)
+    expect(banner).toHaveTextContent(/2 of 71, 1 realized system stranded\./)
 
     // Lit means "lost its path". The device being removed did not lose a path,
     // it is the removal, so drawing it lit and still wired at full strength to
@@ -468,7 +476,7 @@ describe('Blast radius', () => {
     const lit = within(graph)
       .getAllByRole('graphics-symbol')
       .filter((node) => node.getAttribute('opacity') === '1')
-    expect(lit).toHaveLength(3)
+    expect(lit).toHaveLength(2)
   })
 
   it('takes the removed marker away with the hypothetical', async () => {

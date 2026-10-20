@@ -14,9 +14,13 @@ import {
   type Tally,
   type TraceReport,
 } from '../../lib/graph'
+import type { DeviceDependency, RootChoiceOption, RootSet, SiteDependencies } from '../../lib/dependency'
+import { searchRootIds, usableRootIds } from '../../lib/dependency'
 import { useWork } from '../../lib/ready'
 import type { DeviceId, Topology } from '../../types/atlas'
-import { linkStyle, nodeStyle } from './NetworkLegend'
+import { describeDependency, describeIntegrations, strandedOf, breaksOf, type Namers } from './dependencyWords'
+import { linkStyle } from './NetworkLegend'
+import { kindWord, RootBadgeChip, RootSelect, rootPhrase as rootPhraseOf } from './roots'
 
 /**
  * What the graph is being asked to draw instead of the current state.
@@ -47,6 +51,10 @@ export type GraphOverlay =
       severedCount: number
       /** Where reachability was measured from, in words. */
       rootLabel: string
+      /** Realized systems the removal strands, when the systems layer was measured. */
+      systemsStranded?: number
+      /** Documented integrations the removal breaks. */
+      integrationsBroken?: number
     }
   | {
       kind: 'path'
@@ -63,6 +71,18 @@ export interface ResiliencePanelProps {
   /** Null when the canvas is showing the current state. */
   overlay: GraphOverlay | null
   onOverlay: (overlay: GraphOverlay | null) => void
+  /**
+   * The page's one root set, when the page owns it. Absent, the panel keeps
+   * its own choice of device type, as it did before the systems layer.
+   */
+  roots?: RootSet
+  rootOptions?: readonly RootChoiceOption[]
+  onRootKey?: (key: string) => void
+  /** What rests on the selected device, across the layers. */
+  dependency?: DeviceDependency | null
+  review?: SiteDependencies['review']
+  namers?: Namers
+  siteLabel?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -130,14 +150,21 @@ function rootIdsOfKind(topology: Topology, kind: string): DeviceId[] {
   return topology.devices.filter((device) => device.type === kind).map((device) => device.id)
 }
 
-function blastOf(topology: Topology, deviceId: string, rootKind: string): BlastRadiusReport {
+/**
+ * Keyed by the root set's key, so the same device measured from two root
+ * sets is two answers. null roots means the drawing's own entry points.
+ */
+function blastOf(
+  topology: Topology,
+  deviceId: string,
+  rootKey: string,
+  rootIds: readonly DeviceId[] | null,
+): BlastRadiusReport {
   const store = bucket(BLASTS, topology)
-  const key = `${rootKind}|${deviceId}`
+  const key = `${rootKey}|${deviceId}`
   const hit = store.get(key)
   if (hit) return hit
-  const value = rootKind
-    ? blastRadius(topology, deviceId, { rootIds: rootIdsOfKind(topology, rootKind) })
-    : blastRadius(topology, deviceId)
+  const value = rootIds ? blastRadius(topology, deviceId, { rootIds }) : blastRadius(topology, deviceId)
   store.set(key, value)
   return value
 }
@@ -185,26 +212,29 @@ export function useResilience(topology: Topology): Resilience {
 function useBlastRadius(
   topology: Topology,
   deviceId: string | null,
-  rootKind: string,
+  rootKey: string,
+  rootIds: readonly DeviceId[] | null,
 ): BlastRadiusReport | null {
   const [state, setState] = useState<{
     for: Topology
     deviceId: string
-    rootKind: string
+    rootKey: string
     value: BlastRadiusReport
   } | null>(null)
 
   useEffect(() => {
     if (!deviceId) return
-    setState({ for: topology, deviceId, rootKind, value: blastOf(topology, deviceId, rootKind) })
-  }, [topology, deviceId, rootKind])
+    setState({ for: topology, deviceId, rootKey, value: blastOf(topology, deviceId, rootKey, rootIds) })
+    // rootIds follows from rootKey for a given topology.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topology, deviceId, rootKey])
 
   if (!deviceId) return null
   const fresh =
     state !== null &&
     state.for === topology &&
     state.deviceId === deviceId &&
-    state.rootKind === rootKind
+    state.rootKey === rootKey
   return fresh ? state.value : null
 }
 
@@ -242,10 +272,6 @@ const PREVIEW = 5
  * is used, and the legend's word for it is what the reader has already learnt,
  * so the key stays in the select values and the word goes in the sentences.
  */
-function kindWord(type: string, count = 1): string {
-  const word = nodeStyle(type).label.toLowerCase()
-  return count === 1 ? word : `${word}s`
-}
 
 function tallyText(tallies: Tally[], nameOf: (tally: Tally) => string = (t) => t.label): string {
   return tallies.map((tally) => `${nameOf(tally)} ${tally.count} of ${tally.total}`).join(' · ')
@@ -373,7 +399,15 @@ export function ResiliencePanel({
   onSelect,
   overlay,
   onOverlay,
+  roots,
+  rootOptions,
+  onRootKey,
+  dependency,
+  review,
+  namers,
+  siteLabel,
 }: ResiliencePanelProps) {
+  const controlled = roots !== undefined && onRootKey !== undefined
   const resilience = useResilience(topology)
   const [openSpof, setOpenSpof] = useState(true)
   const [openLinks, setOpenLinks] = useState(false)
@@ -388,7 +422,13 @@ export function ResiliencePanel({
   const [toType, setToType] = useState('')
   const [allReach, setAllReach] = useState(false)
 
-  const blast = useBlastRadius(topology, selectedId, rootKind)
+  const blastKey = controlled ? roots.key : rootKind
+  // The same search the dependency runs, so the count here and the verdict
+  // below are measured from one set: a root with no link at all seeds nothing.
+  const blastRoots = controlled
+    ? searchRootIds(roots)
+    : (rootKind ? rootIdsOfKind(topology, rootKind) : null)
+  const blast = useBlastRadius(topology, selectedId, blastKey, blastRoots)
   const trace = useTrace(topology, fromType, toType)
 
   const labels = useMemo(
@@ -414,7 +454,9 @@ export function ResiliencePanel({
    */
   const rootPhrase = !blast
     ? ''
-    : rootKind
+    : controlled
+      ? rootPhraseOf(roots, labelOf)
+      : rootKind
       ? `the ${blast.rootIds.length} ${kindWord(rootKind, blast.rootIds.length)}`
       : listOf([
           ...blast.rootIds.slice(0, 2).map(labelOf),
@@ -686,27 +728,34 @@ export function ResiliencePanel({
             <>
               <p className="mt-1 truncate text-sm text-ink">{blast.label}</p>
 
-              <label className="mt-1 flex items-center gap-2 text-xs">
-                <span className="shrink-0 text-muted-3">Reachable from</span>
-                <select
-                  aria-label="Reachable from"
-                  value={rootKind}
-                  onChange={(event) => {
-                    setRootKind(event.target.value)
-                    onOverlay(null)
-                  }}
-                  className="min-w-0 flex-1 rounded border border-line bg-bg px-1 py-0.5 text-xs text-ink"
-                >
-                  <option value="">Entry points in the drawing</option>
-                  {types.map(([type, count]) => (
-                    <option key={type} value={type}>
-                      any {kindWord(type)} ({count})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {controlled ? (
+                <RootSelect options={rootOptions ?? []} value={roots.key} onChange={onRootKey} />
+              ) : (
+                <label className="mt-1 flex items-center gap-2 text-xs">
+                  <span className="shrink-0 text-muted-3">Reachable from</span>
+                  <select
+                    aria-label="Reachable from"
+                    value={rootKind}
+                    onChange={(event) => {
+                      setRootKind(event.target.value)
+                      onOverlay(null)
+                    }}
+                    className="min-w-0 flex-1 rounded border border-line bg-bg px-1 py-0.5 text-xs text-ink"
+                  >
+                    <option value="">Entry points in the drawing</option>
+                    {types.map(([type, count]) => (
+                      <option key={type} value={type}>
+                        any {kindWord(type)} ({count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
-              <p className="mt-1 text-xs text-muted-3">Measured from {rootPhrase}.</p>
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-muted-3">
+                {controlled && <RootBadgeChip roots={roots} />}
+                <span>Measured from {rootPhrase}.</span>
+              </p>
 
               {blast.removedIsLogicalOnly ? (
                 <p className="mt-1 text-xs text-muted">
@@ -753,6 +802,10 @@ export function ResiliencePanel({
                                 deviceIds: [...blast.unreachableDeviceIds],
                                 severedCount: blast.unreachableCount,
                                 rootLabel: rootPhrase,
+                                ...(dependency && !dependency.notAssessed
+                                  ? { systemsStranded: strandedOf(dependency).length }
+                                  : {}),
+                                ...(dependency ? { integrationsBroken: breaksOf(dependency).length } : {}),
                               },
                         )
                       }
@@ -805,6 +858,45 @@ export function ResiliencePanel({
                 <p className="mt-1 text-xs text-muted-3">
                   This device is not itself reachable from those roots.
                 </p>
+              )}
+
+              {controlled && (
+                <div className="mt-2">
+                  <h3 className="text-[10px] font-semibold tracking-widest text-muted uppercase">
+                    What rests on it
+                  </h3>
+                  {review === 'not-reviewed' ? (
+                    <p className="mt-1 text-xs text-muted">
+                      Nobody has recorded which systems run at {siteLabel ?? 'this site'}, so no
+                      system can be said to lose anything. The count above is about the
+                      drawing alone.
+                    </p>
+                  ) : review === 'no-realized-system' ? (
+                    <p className="mt-1 text-xs text-muted">
+                      {siteLabel ?? 'This site'} records checked absences but no realized system,
+                      so there is nothing for a device to strand.
+                    </p>
+                  ) : !dependency || !namers ? (
+                    <p role="status" className="mt-1 text-xs text-muted">
+                      Working out what rests on this device.
+                    </p>
+                  ) : (
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {[
+                        ...describeDependency(
+                          dependency,
+                          namers,
+                          usableRootIds(roots).length,
+                        ),
+                        ...describeIntegrations(dependency, namers),
+                      ].map((line) => (
+                        <li key={line} className="text-xs text-muted">
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </>
           )}

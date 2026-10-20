@@ -196,6 +196,10 @@ def emit_bundles(out_dir, systems, links, desired, crosswalk, glossary, sdmap,
                 "unclaimed_devices": site.get(
                     "unclaimed_devices", {"infrastructure": []}
                 ),
+                # Passed through only when declared: absent means "not decided",
+                # and the app then measures from the drawing's entry points.
+                **({"decision_roots": site["decision_roots"]}
+                   if "decision_roots" in site else {}),
             }
             for sid, site in sdmap.get("sites", {}).items()
         },

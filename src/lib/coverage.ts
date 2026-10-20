@@ -51,6 +51,19 @@ export function shortfallSystemIds(systems: readonly System[]): SystemId[] {
   return [...new Set(systems.filter(isShortfall).map((s) => s.id))].sort()
 }
 
+/**
+ * Has anyone recorded which systems run at this site? A site with no
+ * mappings and no checked absences has not been reviewed, which is not the
+ * same as reviewed and empty: nothing there may be called unclaimed,
+ * load-bearing or safe.
+ */
+export function isReviewedSite(site: CoverageSite | undefined): boolean {
+  return (
+    !!site &&
+    (Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0)
+  )
+}
+
 /** The set the predicate tests membership against. */
 export function matrixIdSet(systems: readonly System[]): ReadonlySet<SystemId> {
   return new Set(systems.map((s) => s.id))

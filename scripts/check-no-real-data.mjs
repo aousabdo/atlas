@@ -1096,7 +1096,7 @@ export function scanPath(path, matchers) {
  * were rendered from being the synthetic one; see e2e/README.md.
  */
 export const EXPECTED_BINARIES = [
-  /^e2e\/__screenshots__\/[a-z0-9][a-z0-9.-]*\/(analytics|lossiness|map|network|reference)-(light|dark)\.png$/,
+  /^e2e\/__screenshots__\/[a-z0-9][a-z0-9.-]*\/(analytics|lossiness|map|network|network-risk|reference)-(light|dark)\.png$/,
 ]
 
 function isBinary(buffer) {

@@ -171,6 +171,82 @@ export function MethodologySection({
         </p>
       </Block>
 
+      <Block title="What rests on a device">
+        <p>
+          Each device is removed from the drawing on its own, one at a time, and the
+          questions below are asked on cable and radio only. A VLAN rides on those links
+          and is never a way round. This is arithmetic on the recorded drawing, not a
+          forecast: a drawing shows what can reach, not what does, and nothing here reads
+          ports, protocols, traffic or how likely a failure is.
+        </p>
+        <p className="mt-2">
+          Roots. Reachability is measured from a set of roots, and the set in use is
+          printed wherever a result is. The default is the site&rsquo;s declared decision
+          positions: devices where someone acts on a detection, listed in the device map
+          with a note saying who chose them and why. Some may be marked as assumptions.
+          Where a site declares none, the roots are the drawing&rsquo;s entry points, and
+          every result says so. Any one device type can be chosen instead; a device type
+          is not a decision position. Reaching any one root counts. A root joined only by
+          VLAN, or by no link at all, seeds nothing; when no root has a cable or radio
+          link, nothing is measured and nothing is called safe. Removing the only root
+          leaves nothing to measure from, so that device gets no verdict.
+        </p>
+        <p className="mt-2">
+          Strands. A realized system is stranded by a device when, with that device
+          removed, none of the system&rsquo;s devices on the drawing that reached a root
+          before reaches one after. When some do and some do not, part of it is cut off,
+          both lists are named, and it is not counted as stranded. When the removed device
+          is the only one of the system&rsquo;s devices that reached a root, the system
+          runs only there: that is the device&rsquo;s own risk, not a dependency. A system
+          with a device on a root that has a cable or radio link is never stranded by
+          another device. Of a system&rsquo;s devices, the ones with no path before the
+          removal, or joined only by VLAN, are named apart and never said to lose one. A
+          system with no path to any root before anything is removed is named once and
+          never counted against a device.
+        </p>
+        <p className="mt-2">
+          Cuts a decision position off. A root other than the removed device is cut off
+          from every system when, before the removal, it had a path to some device a
+          realized system runs on, other than itself, and after it has none.
+        </p>
+        <p className="mt-2">
+          Breaks. A documented integration that is wired, or on a shared device, breaks
+          on a device when the documented vs wired check, run again without that device,
+          finds neither a shared device nor a cable or radio path between the two
+          systems&rsquo; hardware. A path left only through a VLAN counts as broken. It
+          loses an end when the device was all of one system&rsquo;s drawn hardware.
+          Breaking does not depend on the roots: both ends can keep a path to a decision
+          position and still lose each other.
+        </p>
+        <p className="mt-2">
+          Unclaimed devices. A device is unclaimed when no realized system lists it. Each
+          one goes in one group: load-bearing, if its removal strands a system, cuts part
+          of one off, breaks an integration, or cuts a decision position off from every
+          system; cuts devices off, if devices lose their path but every system keeps
+          one; hangs off one link, if it has at most one cable or radio link; otherwise,
+          nothing loses its path. A device joined only by VLAN, a device no root reaches
+          to begin with, and the only root are not assessed, unless its removal breaks a
+          documented integration: that holds whatever the roots, so it is load-bearing.
+          The groups are not a priority order; within a group, devices are listed by
+          name. Two failures at once are not modelled.
+        </p>
+        <p className="mt-2">
+          The dashed ring. In the risk overlay, a dashed ring marks a device whose loss
+          would strand a system that does not run on it, coloured by the highest risk
+          among those systems. It is drawn apart from the device&rsquo;s own colour, and
+          only from declared decision positions. A root never carries one, and a partial
+          loss, a broken integration or a cut-off position does not colour it.
+        </p>
+        <p className="mt-2">
+          Assumptions. When some declared positions are marked as assumptions, every
+          verdict is computed again without them and each device whose verdict changes is
+          named: its group, the systems it strands or cuts part of, the devices those
+          systems lose, and the decision positions it cuts off. Broken integrations never
+          change, because they do not depend on the roots. A site that records no system as present or checked absent is not
+          reviewed, and nothing there is called unclaimed, load-bearing or safe.
+        </p>
+      </Block>
+
       <Block title="Risk overlay aggregation">
         <p>
           A device takes the highest risk of any system that lists it, in the order high,

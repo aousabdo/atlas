@@ -4,7 +4,15 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadFailed } from '../../components/LoadFailed'
 import { useAtlas } from '../../data/useAtlas'
-import { countMappings, matrixIdSet } from '../../lib/coverage'
+import { countMappings, isReviewedSite, matrixIdSet } from '../../lib/coverage'
+import {
+  choiceFromKey,
+  defaultRootChoice,
+  resolveRoots,
+  rootChoices,
+  rootKey,
+  structuralRings,
+} from '../../lib/dependency'
 import type {
   CoverageMatrix,
   Device,
@@ -30,7 +38,11 @@ import { NetworkMinimap } from './NetworkMinimap'
 import { ResiliencePanel, useResilience, type GraphOverlay } from './ResiliencePanel'
 import { ViewStrip } from '../../components/ViewStrip'
 import { deviceRisks } from './risk'
+import { breaksOf, listOf as listWords, restsOnSentence, strandedOf, type Namers } from './dependencyWords'
+import { positionWordFor, rootPhrase } from './roots'
 import { SiteSelector } from './SiteSelector'
+import { UnclaimedPanel } from './UnclaimedPanel'
+import { useDependencies } from './useDependencies'
 import { WiringPanel } from './WiringPanel'
 import { ZonePanel } from './ZonePanel'
 
@@ -352,6 +364,65 @@ function SiteTopology({
     () => deviceRisks(coverage, systems, topology.site_id),
     [coverage, systems, topology.site_id],
   )
+
+  // One root set for the whole page. Every reachability claim on it, in the
+  // panels, the banner, the rings and the tooltip, is measured from this, so
+  // the page never shows two answers from two root sets.
+  const site = coverage.sites[topology.site_id]
+  const [rootKeyChosen, setRootKeyChosen] = useState(() => rootKey(defaultRootChoice(site)))
+  const rootOptions = useMemo(() => rootChoices(topology, site), [topology, site])
+  const roots = useMemo(
+    () => resolveRoots(topology, site, choiceFromKey(rootKeyChosen)),
+    [topology, site, rootKeyChosen],
+  )
+  const dependencyInput = useMemo(
+    () => ({ topology, site, systems, links }),
+    [topology, site, systems, links],
+  )
+  const computed = useDependencies(dependencyInput, roots)
+  const deps = computed?.deps ?? null
+  const namers: Namers = useMemo(
+    () => ({
+      nameOf: (id) => systemsById.get(id)?.name ?? id,
+      riskOf: (id) => systemsById.get(id)?.risk ?? 'low',
+      labelOf: (id) => labelById.get(id) ?? id,
+      positionWord: positionWordFor(roots),
+    }),
+    [systemsById, labelById, roots],
+  )
+  const phrase = rootPhrase(roots, namers.labelOf)
+  const rings = useMemo(() => (deps ? structuralRings(deps) : new Map()), [deps])
+  const declaredRoots = roots.choice.source === 'declared' || roots.choice.source === 'declared-without-assumed'
+  const measured = deps?.review === 'reviewed'
+
+  /** Risk mode's tooltip line: what rests on the device, with the root set, or why no ring. */
+  const riskNote = useCallback(
+    (id: string): string | null => {
+      if (!measured || !deps) return null
+      if (!declaredRoots) return 'No rings: they are drawn only from declared decision positions.'
+      const dep = deps.byDevice.get(id)
+      if (!dep || dep.notAssessed) return null
+      if (dep.isRoot) return 'A decision position (root).'
+      return dep.structural
+        ? `Its loss strands ${listWords(dep.structural.systemIds.map((s) => `${namers.nameOf(s)} (${namers.riskOf(s)})`))}. From ${phrase}.`
+        : `Its loss strands no other system. From ${phrase}.`
+    },
+    [measured, deps, declaredRoots, namers, phrase],
+  )
+  const ringSuffix = useCallback(
+    (id: string): string | null => {
+      const ring = rings.get(id)
+      return ring ? `, its loss would strand ${listWords(ring.systemIds.map(namers.nameOf))}` : null
+    },
+    [rings, namers],
+  )
+  const ringHint = !measured
+    ? null
+    : !roots.usable
+      ? `No dashed rings: none of ${phrase} has a cable or radio link, so nothing is measured and nothing is called safe.`
+      : declaredRoots
+      ? `Dashed ring: its loss would strand a system of that risk, on the drawing, from ${phrase}.`
+      : `No dashed rings: they are drawn only from declared decision positions; this view measures from ${phrase}.`
   // No mappings means the overlay has nothing to say, so the original hid the
   // toggle rather than offering a button that greys the whole graph out.
   const hasRisk = riskById.size > 0
@@ -499,6 +570,37 @@ function SiteTopology({
     setDismissedFocus(false)
     setOverlay(null)
   }, [])
+
+  // A new root set asks a different question, so the canvas stops answering
+  // the old one.
+  const chooseRoots = useCallback((key: string) => {
+    setRootKeyChosen(key)
+    setOverlay(null)
+  }, [])
+
+  /** Select a device and show what its removal does, together: select() alone clears the overlay. */
+  const selectAndShow = useCallback(
+    (deviceId: string) => {
+      const dep = deps?.byDevice.get(deviceId)
+      setPicked(deviceId)
+      setDismissedFocus(false)
+      if (!dep?.blast) {
+        setOverlay(null)
+        return
+      }
+      setOverlay({
+        kind: 'what-if',
+        deviceId,
+        label: dep.label,
+        deviceIds: [...dep.blast.unreachableDeviceIds],
+        severedCount: dep.blast.unreachableCount,
+        rootLabel: phrase,
+        ...(dep.notAssessed ? {} : { systemsStranded: strandedOf(dep).length }),
+        integrationsBroken: breaksOf(dep).length,
+      })
+    },
+    [deps, phrase],
+  )
 
   const clearSelection = useCallback(() => {
     setPicked(null)
@@ -651,6 +753,9 @@ function SiteTopology({
         nodeScale={nodeScale}
         riskMode={riskMode}
         riskById={riskById}
+        rings={declaredRoots && roots.usable ? rings : undefined}
+        riskNote={riskNote}
+        ringSuffix={ringSuffix}
         transform={transform}
         onTransform={setTransform}
         onSize={setCanvasSize}
@@ -744,6 +849,29 @@ function SiteTopology({
             onSelect={select}
             overlay={overlay}
             onOverlay={setOverlay}
+            roots={roots}
+            rootOptions={rootOptions}
+            onRootKey={chooseRoots}
+            dependency={selectedId ? (deps?.byDevice.get(selectedId) ?? null) : null}
+            review={deps?.review}
+            namers={namers}
+            siteLabel={topology.meta.label}
+          />
+        </div>
+
+        <div className="shrink-0 border-b border-line">
+          <UnclaimedPanel
+            topology={topology}
+            deps={deps}
+            sensitivity={computed?.sensitivity ?? null}
+            roots={roots}
+            rootOptions={rootOptions}
+            onRootKey={chooseRoots}
+            namers={namers}
+            onSelect={select}
+            onShow={selectAndShow}
+            siteLabel={topology.meta.label}
+            reviewed={isReviewedSite(site)}
           />
         </div>
 
@@ -776,6 +904,13 @@ function SiteTopology({
             systems={selectedDevice ? (systemsByDevice.get(selectedDevice.id) ?? []) : []}
             connections={connections}
             onSelect={select}
+            restsOn={(() => {
+              const dep = selectedDevice && deps?.review === 'reviewed' ? deps.byDevice.get(selectedDevice.id) : undefined
+              if (!dep) return null
+              const claimed = dep.runsSystemIds.length > 0
+              const listedNotRealized = !claimed && (systemsByDevice.get(dep.deviceId) ?? []).length > 0
+              return restsOnSentence(dep, namers, phrase, { claimed, listedNotRealized })
+            })()}
           />
         </div>
       </aside>
@@ -913,7 +1048,14 @@ function SiteTopology({
                 <>
                   Showing what would lose its path to {overlay.rootLabel} if{' '}
                   {overlay.label} were removed: {overlay.severedCount} of{' '}
-                  {topology.devices.length}. This is not the current state.
+                  {topology.devices.length}
+                  {overlay.systemsStranded
+                    ? `, ${overlay.systemsStranded} realized ${overlay.systemsStranded === 1 ? 'system' : 'systems'} stranded`
+                    : ''}
+                  {overlay.integrationsBroken
+                    ? `, ${overlay.integrationsBroken} documented ${overlay.integrationsBroken === 1 ? 'integration' : 'integrations'} broken`
+                    : ''}
+                  . This is not the current state.
                 </>
               ) : (
                 <>
@@ -932,7 +1074,9 @@ function SiteTopology({
             </button>
           </div>
         ) : (
-          <p className="pointer-events-none mt-1 text-[11px] text-muted-3">{modeHint}</p>
+          <p className="pointer-events-none mt-1 text-[11px] text-muted-3">
+            {riskMode && ringHint ? ringHint : modeHint}
+          </p>
         )}
 
         <div
@@ -945,6 +1089,7 @@ function SiteTopology({
               deviceTypes={deviceTypes}
               linkTypes={linkTypes}
               riskMode={riskMode}
+              ringRow={measured && declaredRoots && roots.usable}
             />
           </div>
 

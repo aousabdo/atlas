@@ -24,7 +24,7 @@
  * system to itself is not an integration. Both are set aside, by the same
  * rules as the integration gap matrix, and counted by setAsideLinks.
  */
-import { isShortfall, matrixIdSet } from './coverage'
+import { isReviewedSite, isShortfall, matrixIdSet } from './coverage'
 import { carriedNames } from './requirements'
 import { wiringAtSite, type WiringVerdict } from './wiring'
 import type {
@@ -136,9 +136,7 @@ export function plannedIntegrations({
   const reviewed = new Map<SiteId, boolean>()
   for (const siteId of siteLabels.keys()) {
     const site = coverage.sites[siteId]
-    const isReviewed =
-      !!site &&
-      (Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0)
+    const isReviewed = isReviewedSite(site)
     reviewed.set(siteId, isReviewed)
     const topology = topologies[siteId]
     if (site && isReviewed && topology) {
