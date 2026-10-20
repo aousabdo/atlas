@@ -152,7 +152,9 @@ describe('what a device strands', () => {
   it('strands a system whose every device loses its path, and rings it in that risk', () => {
     const deps = siteDependencies(YARD_INPUT, resolveRoots(YARD, YARD_SITE, DECLARED))
     const hub = deps.byDevice.get('hub')!
-    expect(hub.systems).toEqual([{ kind: 'stranded', systemId: 'eff', lostDeviceIds: ['cam'], alsoRunsHere: false }])
+    expect(hub.systems).toEqual([{
+      kind: 'stranded', systemId: 'eff', lostDeviceIds: ['cam'], alsoRunsHere: false, alreadyCutOffIds: [], vlanOnlyIds: [],
+    }])
     expect(hub.structural).toEqual({ risk: 'high', systemIds: ['eff'] })
   })
 
@@ -226,6 +228,27 @@ describe('fail closed: never call something safe that was not measured', () => {
     expect(booth.notAssessed).toBe('not-reached')
     expect(deps.triage.groups['not-assessed']).toContain('booth')
     expect(deps.triage.groups['one-link']).not.toContain('booth')
+  })
+
+  it('names the devices of a stranded system that never had a path apart from the ones that lose it', () => {
+    // eff runs on cam (behind hub), farcam (a piece no root reaches) and vcam (VLAN only).
+    const mixed = topology(
+      [...YARD.devices, device('far'), device('farcam', 'sensor'), device('vcam', 'sensor')],
+      [...YARD.edges, edge('far', 'farcam'), edge('vcam', 'sw', 'vlan')],
+    )
+    const site = yardSite({ ...YARD_SITE.mappings, eff: mapping(['cam', 'farcam', 'vcam']) }, YARD_SITE.decision_roots)
+    const deps = siteDependencies({ ...YARD_INPUT, topology: mixed, site }, resolveRoots(mixed, site, DECLARED))
+    expect(deps.byDevice.get('hub')!.systems).toEqual([{
+      kind: 'stranded', systemId: 'eff', lostDeviceIds: ['cam'], alsoRunsHere: false,
+      alreadyCutOffIds: ['farcam'], vlanOnlyIds: ['vcam'],
+    }])
+  })
+
+  it('counts a device listed twice in the drawing once', () => {
+    const doubled = topology([...YARD.devices, device('sw')], YARD.edges)
+    const deps = siteDependencies({ ...YARD_INPUT, topology: doubled }, resolveRoots(doubled, YARD_SITE, DECLARED))
+    expect(deps.triage.population.filter((id) => id === 'sw')).toEqual(['sw'])
+    expect(Object.values(deps.triage.groups).flat().filter((id) => id === 'sw')).toEqual(['sw'])
   })
 
   it('does not assess a device no root reaches to begin with', () => {

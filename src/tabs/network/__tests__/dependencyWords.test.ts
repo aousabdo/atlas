@@ -89,3 +89,18 @@ describe('a device the roots never reach', () => {
     expect(lines.join(' ')).not.toMatch(/No realized system loses its path/)
   })
 })
+
+describe('a stranded system with devices that never had a path', () => {
+  it('names the ones that lose it and says the rest apart, instead of "every device"', () => {
+    const base = dep('field_house_switch')
+    const stranded = {
+      kind: 'stranded' as const, systemId: 'bastion', lostDeviceIds: ['field_house_effector'], alsoRunsHere: false,
+      alreadyCutOffIds: ['far_cam'], vlanOnlyIds: ['vlan_cam'],
+    }
+    const lines = describeDependency({ ...base, systems: [stranded], positionsCutOff: [] }, declared, 7)
+    expect(lines[0]).toBe(
+      'Strands Bastion Effector: every device it runs on that reached a root loses its path (2x Directional Effector (Pair)). far_cam had no path to begin with. vlan_cam is joined only by VLAN, so not counted.',
+    )
+    expect(lines.join(' ')).not.toMatch(/every device it runs on loses its path/)
+  })
+})

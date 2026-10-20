@@ -6,10 +6,12 @@ import type {
   RootSet,
   Sensitivity,
   SiteDependencies,
+  Triage,
   TriageGroup,
   Verdict,
   VerdictChange,
 } from '../../lib/dependency'
+import { usableRootIds } from '../../lib/dependency'
 import type { DeviceId, Topology } from '../../types/atlas'
 import { describeDependency, describeIntegrations, listOf, summarizeDependency, worstStrandedRisk, type Namers } from './dependencyWords'
 import { DeviceLinks, Disclosure } from './ResiliencePanel'
@@ -92,7 +94,9 @@ export function UnclaimedPanel({
       : triage!.status === 'no-roots'
         ? 'not measured'
         : triage!.status === 'measured'
-          ? `${triage!.groups['load-bearing'].length} of ${triage!.population.length}`
+          ? `${triage!.groups['load-bearing'].length} of ${triage!.population.length}${
+              triage!.groups['not-assessed'].length > 0 ? ` · ${triage!.groups['not-assessed'].length} not assessed` : ''
+            }`
           : undefined
 
   const rowFor = (id: DeviceId) => {
@@ -304,9 +308,7 @@ export function UnclaimedPanel({
                         {group === 'load-bearing' ? (
                           ids.length === 0 ? (
                             <p className="mt-1 text-xs text-muted">
-                              None of the {triage!.population.length} devices no system claims
-                              strands a system, cuts part of one off, breaks an integration or cuts
-                              a decision position off on its own, measured from {phrase}.
+                              {noneLoadBearing(triage!, namers, phrase)}
                             </p>
                           ) : (
                             <ul className="mt-1 flex flex-col gap-px">{ids.map(rowFor)}</ul>
@@ -346,7 +348,7 @@ export function UnclaimedPanel({
                     {(() => {
                       const onRoot = deps.standings.filter((s) => s.onRootIds.length > 0)
                       return onRoot.length > 0
-                        ? ` ${listOf(onRoot.map((s) => namers.nameOf(s.systemId)))} ${onRoot.length === 1 ? 'runs' : 'run'} on a decision position, so no other single loss can strand ${onRoot.length === 1 ? 'it' : 'them'}; a loss can still cut part of one off, and that is listed.`
+                        ? ` ${listOf(onRoot.map((s) => namers.nameOf(s.systemId)))} ${onRoot.length === 1 ? 'runs' : 'run'} on a ${namers.positionWord(1)}, so no other single loss can strand ${onRoot.length === 1 ? 'it' : 'them'}; a loss can still cut part of one off, and that is listed.`
                         : ''
                     })()}
                   </p>
@@ -374,7 +376,7 @@ function DependencyDetail({
   onShow: (id: DeviceId) => void
 }) {
   const lines = [
-    ...describeDependency(dep, namers, roots.deviceIds.length - roots.logicalOnlyIds.length),
+    ...describeDependency(dep, namers, usableRootIds(roots).length),
     ...describeIntegrations(dep, namers),
   ]
   const lost = [...new Set(dep.systems.flatMap((s) => (s.kind === 'runs-only-here' ? [] : s.lostDeviceIds)))]
@@ -404,6 +406,25 @@ function DependencyDetail({
       )}
     </div>
   )
+}
+
+/**
+ * The empty load-bearing group, in words. Only the devices that were measured
+ * are counted: a device not assessed is listed under its own heading and is
+ * never folded into "none of them".
+ */
+function noneLoadBearing(triage: Triage, namers: Namers, phrase: string): string {
+  const unassessed = triage.groups['not-assessed'].length
+  const measured = triage.population.length - unassessed
+  const pw = namers.positionWord(1)
+  const rest = unassessed === 0 ? '' : ` The other ${unassessed} ${unassessed === 1 ? 'is' : 'are'} not assessed; see below.`
+  if (measured === 0) {
+    return `None of the ${unassessed} ${unassessed === 1 ? 'device' : 'devices'} no system claims could be measured from ${phrase}, so none is called load-bearing or safe; see Not assessed below.`
+  }
+  const which = unassessed > 0 ? 'measured ' : ''
+  return measured === 1
+    ? `The one ${which}device no system claims does not strand a system, cut part of one off, break an integration or cut a ${pw} off on its own, measured from ${phrase}.${rest}`
+    : `None of the ${measured} ${which}devices no system claims strands a system, cuts part of one off, breaks an integration or cuts a ${pw} off on its own, measured from ${phrase}.${rest}`
 }
 
 function verdictWords(v: Verdict, namers: Namers): string {

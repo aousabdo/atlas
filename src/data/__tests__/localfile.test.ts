@@ -400,6 +400,15 @@ describe('crossFileFailures', () => {
         `${where}: no note; say who chose these positions and why`,
       ])
     })
+    it('fails a note of characters only one engine calls space, as validate.py does', () => {
+      // trim() and Python's strip() disagree on U+FEFF, U+001C-001F and U+0085.
+      for (const blank of ['\ufeff', '\u001c', '\u001f', '\u0085', '\u00a0\u3000']) {
+        expect(fails({ devices: ['d1'], note: blank })).toEqual([
+          `${where}: no note; say who chose these positions and why`,
+        ])
+      }
+      expect(fails({ devices: ['d1'], note: '\ufeffSite lead' })).toEqual([])
+    })
     it('fails a block that is not an object', () => {
       expect(fails(['d1'] as never)).toEqual([`${where}: must be an object with devices, assumed and note`])
     })

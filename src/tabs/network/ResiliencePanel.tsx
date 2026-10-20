@@ -15,7 +15,7 @@ import {
   type TraceReport,
 } from '../../lib/graph'
 import type { DeviceDependency, RootChoiceOption, RootSet, SiteDependencies } from '../../lib/dependency'
-import { searchRootIds } from '../../lib/dependency'
+import { searchRootIds, usableRootIds } from '../../lib/dependency'
 import { useWork } from '../../lib/ready'
 import type { DeviceId, Topology } from '../../types/atlas'
 import { describeDependency, describeIntegrations, strandedOf, breaksOf, type Namers } from './dependencyWords'
@@ -886,7 +886,7 @@ export function ResiliencePanel({
                         ...describeDependency(
                           dependency,
                           namers,
-                          roots.deviceIds.length - roots.logicalOnlyIds.length - roots.isolatedIds.length,
+                          usableRootIds(roots).length,
                         ),
                         ...describeIntegrations(dependency, namers),
                       ].map((line) => (

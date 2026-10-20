@@ -106,15 +106,30 @@ export function describeDependency(d: DeviceDependency, n: Namers, rootCount: nu
   }
   if (d.isRoot) lines.push(`This device is one of the roots; measured from the other ${rootCount - 1}.`)
   const stranded = strandedOf(d)
-  const own = stranded.filter((s) => !s.alsoRunsHere)
-  const shared = stranded.filter((s) => s.alsoRunsHere)
+  // "Every device it runs on" only when every one of them had a path to lose;
+  // otherwise the ones that did are named and the rest are said apart.
+  const plain = (s: Stranded) => s.alreadyCutOffIds.length === 0 && s.vlanOnlyIds.length === 0
+  const own = stranded.filter((s) => !s.alsoRunsHere && plain(s))
   if (own.length > 0) {
     lines.push(
       `Strands ${listOf(own.map((s) => n.nameOf(s.systemId)))}: every device ${own.length === 1 ? 'it runs' : 'each runs'} on loses its path.`,
     )
   }
-  for (const s of shared) {
-    lines.push(`Strands ${n.nameOf(s.systemId)}, which also runs on this device: every other device it runs on loses its path.`)
+  for (const s of stranded.filter((x) => x.alsoRunsHere || !plain(x))) {
+    const lead = s.alsoRunsHere
+      ? `Strands ${n.nameOf(s.systemId)}, which also runs on this device: every other device it runs on`
+      : `Strands ${n.nameOf(s.systemId)}: every device it runs on`
+    lines.push(
+      [
+        plain(s)
+          ? `${lead} loses its path.`
+          : `${lead} that reached a root loses its path (${listOf(s.lostDeviceIds.map(n.labelOf))}).`,
+        ...(s.alreadyCutOffIds.length > 0 ? [`${listOf(s.alreadyCutOffIds.map(n.labelOf))} had no path to begin with.`] : []),
+        ...(s.vlanOnlyIds.length > 0
+          ? [`${listOf(s.vlanOnlyIds.map(n.labelOf))} ${s.vlanOnlyIds.length === 1 ? 'is' : 'are'} joined only by VLAN, so not counted.`]
+          : []),
+      ].join(' '),
+    )
   }
   for (const p of partialOf(d)) {
     // Counted against every device the system runs on, so the number can be

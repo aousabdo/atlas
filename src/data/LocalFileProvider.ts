@@ -334,7 +334,9 @@ function decisionRootFailures(
       seenAssumed.add(device)
     }
   }
-  if (typeof roots.note !== 'string' || roots.note.trim() === '') {
+  // Blank as validate.py reads it: trim() and Python's strip() disagree on
+  // U+FEFF, U+001C-001F and U+0085, so both engines name the same 30 characters.
+  if (typeof roots.note !== 'string' || /^[\s\x1c-\x1f\x85]*$/.test(roots.note)) {
     fails.push(`${where}: no note; say who chose these positions and why`)
   }
   return fails

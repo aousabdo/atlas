@@ -256,6 +256,17 @@ def test_decision_roots_without_a_note_fail():
                      "chose these positions and why"]
 
 
+def test_a_note_of_characters_only_one_engine_calls_space_is_blank_in_both():
+    """str.strip() and String.trim() disagree on U+FEFF, U+001C-001F and U+0085.
+    Both engines refuse all of them, and accept a note with a real word."""
+    for blank in ["\ufeff", "\u001c", "\u001f", "\u0085", "\u00a0\u3000"]:
+        fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(note=blank)), networks=NET))
+        assert fails == ["system_device_map.sites.northgate.decision_roots: no note; say who "
+                         "chose these positions and why"], repr(blank)
+    assert validate(**_inputs(sdmap=_site(decision_roots=_roots(note="\ufeffSite lead")),
+                              networks=NET)) == []
+
+
 def test_decision_roots_are_checked_without_a_topology_except_for_existence():
     """Only the existence check needs the drawing. The rest are facts about the
     block itself, so a partial build still refuses a block that cannot be right."""

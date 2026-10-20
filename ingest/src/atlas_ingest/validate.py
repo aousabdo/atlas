@@ -6,9 +6,15 @@ and owns the exit code. That split is what makes the gates unit-testable.
 Replaces build_cuas_tool_v4.py:617-720, which warned and continued. Warning and
 continuing is how stale data shipped, so every check here is an error.
 """
+import re
 import sys
 
 from .curation import is_shortfall
+
+# Blank, as both engines read it: Python's whitespace plus U+FEFF, which is
+# exactly JavaScript's \s plus U+001C-001F and U+0085 (LocalFileProvider.ts).
+# str.strip() and String.trim() disagree on those, so neither is used.
+_BLANK = re.compile(r"[\s\ufeff]*")
 
 
 def _decision_root_failures(site_id, site, device_ids):
@@ -61,7 +67,7 @@ def _decision_root_failures(site_id, site, device_ids):
                 fails.append(f"{where}.assumed: '{device}' is not one of its devices")
             seen_assumed.add(device)
     note = roots.get("note")
-    if not isinstance(note, str) or not note.strip():
+    if not isinstance(note, str) or _BLANK.fullmatch(note):
         fails.append(f"{where}: no note; say who chose these positions and why")
     return fails
 

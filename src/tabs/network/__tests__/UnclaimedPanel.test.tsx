@@ -1,8 +1,11 @@
-import { screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { resolveRoots, rootChoices, siteDependencies } from '../../../lib/dependency'
 import { renderWithProvider } from '../../../test/renderWithProvider'
+import type { CoverageSite, Device, DeviceEdge, System, Topology } from '../../../types/atlas'
 import { NetworkTab } from '../NetworkTab'
+import { UnclaimedPanel } from '../UnclaimedPanel'
 
 async function openPanel(route?: string) {
   const rendered = await renderWithProvider(<NetworkTab />, route ? { route } : {})
@@ -98,6 +101,9 @@ describe('Unclaimed devices', () => {
     await user.selectOptions(within(region).getByLabelText('Reachable from'), '')
     expect(await within(region).findByText('DERIVED')).toBeInTheDocument()
     expect(within(region).getByText('Not assessed (1)')).toBeInTheDocument()
+    // The count says so too: one of the 52 was not measured at all.
+    expect(within(region).getByRole('button', { name: /^\W*Unclaimed devices/ }))
+      .toHaveAccessibleName(/ · 1 not assessed$/)
     expect(within(region).getByText(/^Internet is the only root, so removing it leaves nothing to measure from\./))
       .toBeInTheDocument()
   })
@@ -191,5 +197,72 @@ describe('One root set across the tab', () => {
       'Measured from the 4 declared decision positions not marked as assumptions.',
     )).toBeInTheDocument()
     expect(within(resilience).getByText('DECLARED · ASSUMPTIONS OUT')).toBeInTheDocument()
+  })
+})
+
+describe('Unclaimed devices, from roots that are not declared', () => {
+  it('never calls an endpoint picked by type a decision position', async () => {
+    const { region, user } = await openPanel()
+    await user.selectOptions(within(region).getByLabelText('Reachable from'), 'endpoint')
+    expect(await within(region).findByText('BY DEVICE TYPE')).toBeInTheDocument()
+    // Nowhere but the picker's own option for the declared set.
+    const said = within(region).queryAllByText(/decision position/).filter((el) => el.tagName !== 'OPTION')
+    expect(said.map((el) => el.textContent)).toEqual([])
+    // The closing note still names the systems that run on a root, as roots.
+    expect(within(region).getByText(/run on a root, so no other single loss can strand them/)).toBeInTheDocument()
+  })
+})
+
+describe('An empty load-bearing group', () => {
+  // desk (declared, runs fusion) reaches cam two ways, so sw strands nothing;
+  // the rail yard is a piece no root reaches, so rail_sw is not measured.
+  const device = (id: string, type = 'switch'): Device =>
+    ({ id, label: id.toUpperCase(), zone: 'yard', type, ip: null, subnet: null, description: null })
+  const edge = (source: string, target: string): DeviceEdge => ({ source, target, link_type: 'ethernet', label: null })
+  const yard: Topology = {
+    site_id: 'yard',
+    meta: {
+      label: 'Yard', name: 'yard', description: '', classification: 'UNCLASSIFIED//SAMPLE',
+      version: '1', updated: '2026-01-01', device_count: 6, edge_count: 5,
+    },
+    zones: { yard: { label: 'Yard' } },
+    devices: [device('desk', 'endpoint'), device('sw'), device('cam', 'sensor'),
+      device('rail_cam', 'sensor'), device('rail_sw'), device('rail_cam2', 'sensor')],
+    edges: [edge('desk', 'sw'), edge('sw', 'cam'), edge('desk', 'cam'), edge('rail_cam', 'rail_sw'), edge('rail_sw', 'rail_cam2')],
+  }
+  const mapping = (devices: string[]) => ({ devices, note: '', confidence: 'high' as const })
+  const site: CoverageSite = {
+    label: 'Yard', scope: '', not_deployed_at_site: {}, unclaimed_devices: { infrastructure: [] },
+    mappings: { fusion: mapping(['desk']), eff: mapping(['cam']), rail: mapping(['rail_cam', 'rail_cam2']) },
+    decision_roots: { devices: ['desk'], note: 'Test curation.' },
+  }
+  const system = (id: string): System => ({
+    id, name: id.toUpperCase(), label: id, category: 'Deployed asset record', owner_group_id: 'og',
+    owner_group: 'OG', color_key: 'a', confirmed: true, risk: 'high', risk_source: 'explicit', detail: '',
+    integrations_prose: '',
+  })
+
+  it('counts only the devices that were measured, and points to the rest', async () => {
+    const roots = resolveRoots(yard, site, { source: 'declared' })
+    const deps = siteDependencies({ topology: yard, site, systems: ['fusion', 'eff', 'rail'].map(system), links: [] }, roots)
+    expect(deps.triage.groups['not-assessed']).toEqual(['rail_sw'])
+    const namers = {
+      nameOf: (id: string) => id.toUpperCase(), riskOf: () => 'high' as const,
+      labelOf: (id: string) => id.toUpperCase(),
+      positionWord: (n: number) => (n === 1 ? 'decision position' : 'decision positions'),
+    }
+    render(
+      <UnclaimedPanel
+        topology={yard} deps={deps} sensitivity={null} roots={roots} rootOptions={rootChoices(yard, site)}
+        onRootKey={() => {}} namers={namers} onSelect={() => {}} onShow={() => {}} siteLabel="Yard" reviewed
+      />,
+    )
+    const region = screen.getByRole('region', { name: 'Unclaimed devices' })
+    const toggle = within(region).getByRole('button', { name: /^\W*Unclaimed devices/ })
+    expect(toggle).toHaveAccessibleName(/0 of 2 · 1 not assessed$/)
+    toggle.click()
+    expect(await within(region).findByText(/^The one measured device no system claims does not strand a system/))
+      .toHaveTextContent('measured from the 1 declared decision position. The other 1 is not assessed; see below.')
+    expect(within(region).queryByText(/^None of the 2 devices/)).not.toBeInTheDocument()
   })
 })

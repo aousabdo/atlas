@@ -138,6 +138,12 @@ export function searchRootIds(roots: RootSet): DeviceId[] {
   return roots.deviceIds.filter((id) => !isolated.has(id))
 }
 
+/** The roots that can carry a path: neither joined only by VLAN nor without any link. */
+export function usableRootIds(roots: RootSet): DeviceId[] {
+  const unusable = new Set([...roots.logicalOnlyIds, ...roots.isolatedIds])
+  return roots.deviceIds.filter((id) => !unusable.has(id))
+}
+
 export interface RootChoiceOption {
   choice: RootChoice
   key: string
@@ -184,8 +190,19 @@ export function topologyWithout(topology: Topology, deviceId: DeviceId): Topolog
 export type SystemEffect =
   /** The device is the only one of the system's devices that reached a root: its own risk. */
   | { kind: 'runs-only-here'; systemId: SystemId }
-  /** Every other device the system runs on loses its path. */
-  | { kind: 'stranded'; systemId: SystemId; lostDeviceIds: DeviceId[]; alsoRunsHere: boolean }
+  /**
+   * Every other device the system runs on that reached a root loses its path.
+   * The ones that had no path to begin with, or are joined only by VLAN, are
+   * named apart: nothing is said about them losing anything.
+   */
+  | {
+      kind: 'stranded'
+      systemId: SystemId
+      lostDeviceIds: DeviceId[]
+      alsoRunsHere: boolean
+      alreadyCutOffIds: DeviceId[]
+      vlanOnlyIds: DeviceId[]
+    }
   /** Some of the system's devices lose their path and some keep it. */
   | {
       kind: 'partial'
@@ -341,8 +358,7 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
   const wiring = wiringAtSite(links, site, topology, matrixIds)
 
   // Reachability before anything is removed, from the usable roots.
-  const isolatedAll = new Set(graph.anomalies.isolatedDeviceIds)
-  const usableRoots = roots.deviceIds.filter((id) => !logicalOnly.has(id) && !isolatedAll.has(id))
+  const usableRoots = usableRootIds(roots)
   const pieceOf = new Map<DeviceId, number>()
   graph.components.forEach((piece, i) => piece.deviceIds.forEach((id) => pieceOf.set(id, i)))
   const rootPieces = new Set(usableRoots.map((id) => pieceOf.get(id)))
@@ -419,7 +435,11 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
         const lost = others.filter((dev) => lostSet.has(dev))
         const kept = others.filter((dev) => !lostSet.has(dev))
         if (kept.length === 0) {
-          systemsHere.push({ kind: 'stranded', systemId: standing.systemId, lostDeviceIds: lost, alsoRunsHere })
+          systemsHere.push({
+            kind: 'stranded', systemId: standing.systemId, lostDeviceIds: lost, alsoRunsHere,
+            alreadyCutOffIds: standing.alreadyCutOffIds.filter((dev) => dev !== X),
+            vlanOnlyIds: standing.vlanOnlyIds.filter((dev) => dev !== X),
+          })
         } else if (lost.length > 0) {
           systemsHere.push({
             kind: 'partial', systemId: standing.systemId, lostDeviceIds: lost, keptDeviceIds: kept, alsoRunsHere,
@@ -487,7 +507,8 @@ export function siteDependencies(input: DependencyInput, roots: RootSet): SiteDe
   }
 
   // Triage of the devices no realized system claims.
-  const population = topology.devices.map((d) => d.id).filter((id) => !claimed.has(id)).sort(byLabel)
+  // A repeated id is one device, as the graph folds it.
+  const population = [...new Set(topology.devices.map((d) => d.id))].filter((id) => !claimed.has(id)).sort(byLabel)
   const listed = (site.unclaimed_devices?.infrastructure ?? []).filter((id) => onDrawing.has(id))
   const listedSet = new Set(listed)
   const namedBy = (id: DeviceId) =>
