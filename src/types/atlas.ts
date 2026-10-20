@@ -110,6 +110,18 @@ export interface Mapping {
   matrix_id_exists?: boolean
 }
 
+/**
+ * Where decisions are made at a site: a curated judgement about the drawing,
+ * not something the drawing says. Reachability ("does this system still reach
+ * anyone who can act?") is measured from these devices. Some may be marked as
+ * assumptions still to confirm, and the note says who chose them and why.
+ */
+export interface DecisionRoots {
+  devices: DeviceId[]
+  assumed?: DeviceId[]
+  note: string
+}
+
 export interface CoverageSite {
   label: string
   scope: string
@@ -117,6 +129,8 @@ export interface CoverageSite {
   /** Checked and genuinely absent, which is different from not yet looked at. */
   not_deployed_at_site: Record<SystemId, string>
   unclaimed_devices: { infrastructure: DeviceId[]; _comment?: string }
+  /** Absent means "not decided": measure from the drawing's entry points. */
+  decision_roots?: DecisionRoots
 }
 
 export interface CoverageMatrix {

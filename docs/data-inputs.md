@@ -286,6 +286,13 @@ Field by field:
   different from not yet looked at, and shows as such per site.
 - **`unclaimed_devices.infrastructure`** is the numerator of the orphaned
   hardware dimension.
+- **`decision_roots`** (optional) is where decisions are made at the site: the
+  devices someone acts from, as `{ "devices": [...], "assumed": [...], "note": "..." }`.
+  It is a judgement about the drawing, not something the drawing says, so it
+  carries a note saying who chose the positions and why, and any position still
+  to confirm is listed under `assumed`. The Network tab measures "what rests on a
+  device" from these positions. Absent means "not decided": reachability is then
+  measured from the drawing's entry points, and the screen says so.
 - **`pending_review`** is the open questions dimension, one entry per question.
 - **`confidence_counts`**, if present, is ignored and recomputed from the
   mappings, so the file cannot disagree with the tabs.
@@ -496,6 +503,16 @@ Each line under that heading is one of:
   resolves to nothing. Covers the links mined from the integration prose and the
   `cross_links` in the overrides file, which is the same set the ingest gate
   checks.
+- `system_device_map.sites.<site>.decision_roots: devices is empty; omit
+  decision_roots to measure from the drawing's entry points` - an empty set would
+  read as "decided: nowhere".
+- `system_device_map.sites.<site>.decision_roots: device '<id>' is not in the
+  <site> topology` - only checked when that site's topology was loaded.
+- `system_device_map.sites.<site>.decision_roots: device '<id>' is listed twice`
+- `system_device_map.sites.<site>.decision_roots.assumed: '<id>' is not one of its
+  devices` - an assumption about a position that is not declared.
+- `system_device_map.sites.<site>.decision_roots: no note; say who chose these
+  positions and why`
 - `desired link <from>-><to>: '<end>' is not a matrix system id` - a planned
   integration in the overrides file names a system the workbook does not carry.
   Planned links are curation, so they are gated like current ones.

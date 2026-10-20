@@ -425,3 +425,17 @@ def test_the_sample_never_claims_a_commit():
     hex string read as a real commit on the live site, so the sample says what
     it is instead."""
     assert read(COMMITTED, "manifest.json")["git_sha"] == "sample"
+
+
+def test_northgate_declares_its_decision_positions_and_westfield_does_not():
+    """The sample's roots are a curated judgement, so they are data with a note,
+    and three of them are marked as assumptions rather than quietly included."""
+    sites = read(COMMITTED, "coverage.json")["sites"]
+    roots = sites["northgate"]["decision_roots"]
+    assert roots["devices"] == sorted([
+        "field_client_devices", "field_house_display", "mcv_display", "ops_laptop_cart",
+        "ops_video_wall", "ops_workstation_a", "ops_workstation_b",
+    ])
+    assert roots["assumed"] == ["field_client_devices", "field_house_display", "mcv_display"]
+    assert roots["note"].strip()
+    assert "decision_roots" not in sites["westfield"]

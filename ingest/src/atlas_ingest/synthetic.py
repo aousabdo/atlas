@@ -1275,6 +1275,28 @@ PENDING_REVIEW = {
 }
 
 
+# Where decisions are made at Northgate: a curated judgement about the drawing,
+# not something the drawing says. The printer, console server and jump host
+# are endpoints too, and are deliberately not decision positions. The three
+# field positions are marked as assumptions, so the app can show what rides
+# on them instead of quietly counting them.
+DECISION_ROOTS_A = {
+    "devices": sorted([
+        "field_client_devices", "field_house_display", "mcv_display",
+        "ops_laptop_cart", "ops_video_wall", "ops_workstation_a",
+        "ops_workstation_b",
+    ]),
+    "assumed": ["field_client_devices", "field_house_display", "mcv_display"],
+    "note": (
+        "Operator positions: the four operations-room positions, the field house "
+        "display, the mobile unit displays and the field handhelds. The printer, "
+        "console server and jump host are endpoints on the drawing but not decision "
+        "positions. Sample curation; the three field positions are assumptions to "
+        "confirm with the site lead."
+    ),
+}
+
+
 def build_sdmap(networks):
     """The curated overlay, with the unclaimed rosters derived from the map.
 
@@ -1298,6 +1320,7 @@ def build_sdmap(networks):
                     sid: "checked, absent" for sid in NOT_DEPLOYED_A
                 },
                 "unclaimed_devices": {"infrastructure": unclaimed_a},
+                "decision_roots": DECISION_ROOTS_A,
             },
             SITE_B: {
                 "label": SITE_B_LABEL,
@@ -1394,6 +1417,8 @@ def emit(out_dir):
                 "mappings": site["mappings"],
                 "not_deployed_at_site": site["not_deployed_at_site"],
                 "unclaimed_devices": site["unclaimed_devices"],
+                **({"decision_roots": site["decision_roots"]}
+                   if "decision_roots" in site else {}),
             }
             for sid, site in sdmap["sites"].items()
         },

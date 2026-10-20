@@ -136,6 +136,7 @@ interface RawSiteBlock {
   not_deployed_at_site?: Record<string, string>
   not_deployed_at_northgate?: Record<string, string>
   unclaimed_devices?: { infrastructure: string[] }
+  decision_roots?: CoverageSite['decision_roots']
 }
 
 interface RawSystemDeviceMap {
@@ -184,6 +185,8 @@ function normaliseSystemDeviceMap(
       not_deployed_at_site:
         block.not_deployed_at_site ?? block.not_deployed_at_northgate ?? {},
       unclaimed_devices: block.unclaimed_devices ?? { infrastructure: [] },
+      // Copied only when declared, as the ingest does: absent means "not decided".
+      ...(block.decision_roots !== undefined ? { decision_roots: block.decision_roots } : {}),
     }
   }
 
@@ -280,6 +283,43 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
  * here does cost correctness, which is what makes the two decisions the same
  * decision rather than a contradiction.
  */
+/**
+ * The five gates on a site's declared decision positions, word for word the
+ * ingest's _decision_root_failures. Only the existence check needs the
+ * topology; the rest are facts about the block itself.
+ */
+function decisionRootFailures(
+  siteId: string,
+  site: CoverageSite,
+  deviceIds: ReadonlySet<string> | null,
+): string[] {
+  const roots = site.decision_roots
+  if (roots === undefined || roots === null) return []
+  const where = `system_device_map.sites.${siteId}.decision_roots`
+  const devices: string[] = Array.isArray(roots.devices) ? roots.devices : []
+  const fails: string[] = []
+  if (devices.length === 0) {
+    fails.push(`${where}: devices is empty; omit decision_roots to measure from the drawing's entry points`)
+  }
+  if (deviceIds) {
+    for (const device of devices) {
+      if (!deviceIds.has(device)) fails.push(`${where}: device '${device}' is not in the ${siteId} topology`)
+    }
+  }
+  const seen = new Set<string>()
+  for (const device of devices) {
+    if (seen.has(device)) fails.push(`${where}: device '${device}' is listed twice`)
+    seen.add(device)
+  }
+  for (const device of Array.isArray(roots.assumed) ? roots.assumed : []) {
+    if (!seen.has(device)) fails.push(`${where}.assumed: '${device}' is not one of its devices`)
+  }
+  if (typeof roots.note !== 'string' || roots.note.trim() === '') {
+    fails.push(`${where}: no note; say who chose these positions and why`)
+  }
+  return fails
+}
+
 export function crossFileFailures(parsed: {
   systems: readonly System[]
   /** The merged current links. Same input validate() is handed. */
@@ -346,6 +386,8 @@ export function crossFileFailures(parsed: {
         }
       }
     }
+
+    fails.push(...decisionRootFailures(siteId, site, deviceIds))
 
     for (const systemId of Object.keys(site.not_deployed_at_site)) {
       if (!matrixIds.has(systemId)) {

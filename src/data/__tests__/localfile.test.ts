@@ -367,6 +367,45 @@ describe('crossFileFailures', () => {
     expect(fails.some((f) => f.includes('matrix_id_exists:false'))).toBe(true)
   })
 
+  describe('decision_roots, the same five gates as the ingest', () => {
+    const fails = (roots: Record<string, unknown>, topologies: unknown = topology) =>
+      crossFileFailures(inputs({ coverage: site({ decision_roots: roots }), topologies } as never) as never)
+    const where = 'system_device_map.sites.northgate.decision_roots'
+
+    it('passes a declared set', () => {
+      expect(fails({ devices: ['d1'], assumed: ['d1'], note: 'Chosen by the site lead.' })).toEqual([])
+    })
+    it('fails an empty set', () => {
+      expect(fails({ devices: [], note: 'x' })).toEqual([
+        `${where}: devices is empty; omit decision_roots to measure from the drawing's entry points`,
+      ])
+    })
+    it('fails a device the topology does not have', () => {
+      expect(fails({ devices: ['d1', 'ghost'], note: 'x' })).toEqual([
+        `${where}: device 'ghost' is not in the northgate topology`,
+      ])
+    })
+    it('fails a device listed twice', () => {
+      expect(fails({ devices: ['d1', 'd1'], note: 'x' })).toEqual([
+        `${where}: device 'd1' is listed twice`,
+      ])
+    })
+    it('fails an assumed position that is not declared', () => {
+      expect(fails({ devices: ['d1'], assumed: ['d9'], note: 'x' })).toEqual([
+        `${where}.assumed: 'd9' is not one of its devices`,
+      ])
+    })
+    it('fails a set with no note', () => {
+      expect(fails({ devices: ['d1'], note: ' ' })).toEqual([
+        `${where}: no note; say who chose these positions and why`,
+      ])
+    })
+    it('checks everything but existence without a topology', () => {
+      expect(fails({ devices: ['ghost'], note: 'x' }, {})).toEqual([])
+      expect(fails({ devices: ['ghost'], note: '' }, {})).toHaveLength(1)
+    })
+  })
+
   it('fails a planned link to an unknown system, as the ingest does', () => {
     // Mirrors test_a_planned_link_to_an_unknown_system_fails.
     const desired = [{ from: 'ucop', to: 'ghost', label: 'x', extraction_method: 'override' }]
@@ -505,6 +544,19 @@ describe('a load refuses files that disagree with each other', () => {
         systemDeviceMap: jsonFile('system_device_map.json', sdmap),
       }),
     ).rejects.toThrow(/ghost_system: not a matrix system id/)
+  })
+
+  it('carries a site\'s declared decision positions through, and leaves absent absent', async () => {
+    const sdmap = readInput('system_device_map.json')
+    const p = new LocalFileProvider()
+    await p.load({
+      matrix: file('matrix.xlsx'),
+      systemDeviceMap: jsonFile('system_device_map.json', sdmap),
+      topologies: { northgate: file(join('sites', 'northgate.json')) },
+    })
+    const coverage = await p.getCoverage()
+    expect(coverage.sites.northgate.decision_roots).toEqual(sdmap.sites.northgate.decision_roots)
+    expect(coverage.sites.westfield).not.toHaveProperty('decision_roots')
   })
 
   it('reads a mapping with no devices key as naming no hardware, as the ingest does', async () => {

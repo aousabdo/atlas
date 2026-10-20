@@ -18,6 +18,23 @@
   },
   "sites": {
     "northgate": {
+      "decision_roots": {
+        "assumed": [
+          "field_client_devices",
+          "field_house_display",
+          "mcv_display"
+        ],
+        "devices": [
+          "field_client_devices",
+          "field_house_display",
+          "mcv_display",
+          "ops_laptop_cart",
+          "ops_video_wall",
+          "ops_workstation_a",
+          "ops_workstation_b"
+        ],
+        "note": "Operator positions: the four operations-room positions, the field house display, the mobile unit displays and the field handhelds. The printer, console server and jump host are endpoints on the drawing but not decision positions. Sample curation; the three field positions are assumptions to confirm with the site lead."
+      },
       "label": "Northgate Sports Campus",
       "mappings": {
         "atak": {

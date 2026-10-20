@@ -208,3 +208,58 @@ def test_a_planned_link_between_known_systems_is_fine():
     systems = _inputs()["systems"] + [{"id": "ucop2", "name": "Second", "risk": "low",
                                        "risk_source": "explicit", "soft": False}]
     assert validate(**_inputs(systems=systems), desired=desired) == []
+
+
+# --- decision_roots: where decisions are made, a curated judgement ----------
+NET = {"northgate": {"site_id": "northgate", "devices": [{"id": "d1"}, {"id": "d2"}],
+                     "edges": [], "zones": {}, "meta": {"device_count": 2}}}
+GOOD_ROOTS = {"devices": ["d1", "d2"], "assumed": ["d2"], "note": "Chosen by the site lead."}
+
+
+def _roots(**over):
+    return {**GOOD_ROOTS, **over}
+
+
+def test_declared_decision_roots_pass():
+    assert validate(**_inputs(sdmap=_site(decision_roots=GOOD_ROOTS), networks=NET)) == []
+
+
+def test_empty_decision_roots_fail():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(devices=[], assumed=[])),
+                               networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots: devices is empty; "
+                     "omit decision_roots to measure from the drawing's entry points"]
+
+
+def test_a_decision_root_not_in_the_topology_fails():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(devices=["d1", "ghost"], assumed=[])),
+                               networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots: device 'ghost' is "
+                     "not in the northgate topology"]
+
+
+def test_a_decision_root_listed_twice_fails():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(devices=["d1", "d1"], assumed=[])),
+                               networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots: device 'd1' is listed twice"]
+
+
+def test_an_assumed_root_that_is_not_declared_fails():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(assumed=["d9"])), networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots.assumed: 'd9' is not "
+                     "one of its devices"]
+
+
+def test_decision_roots_without_a_note_fail():
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(note="  ")), networks=NET))
+    assert fails == ["system_device_map.sites.northgate.decision_roots: no note; say who "
+                     "chose these positions and why"]
+
+
+def test_decision_roots_are_checked_without_a_topology_except_for_existence():
+    """Only the existence check needs the drawing. The rest are facts about the
+    block itself, so a partial build still refuses a block that cannot be right."""
+    assert validate(**_inputs(sdmap=_site(decision_roots=_roots(devices=["ghost"], assumed=[])),
+                              networks={})) == []
+    fails = validate(**_inputs(sdmap=_site(decision_roots=_roots(note="")), networks={}))
+    assert len(fails) == 1 and "no note" in fails[0]
