@@ -158,6 +158,20 @@ describe('One root set across the tab', () => {
     expect(screen.queryByRole('status', { name: /hypothetical view/i })).not.toBeInTheDocument()
   })
 
+  it('keeps a hypothetical while the assumptions are listed, and drops it without them', async () => {
+    const { region, user } = await openPanel()
+    await user.click(within(region).getByRole('button', { name: /^Core Switch/ }))
+    await user.click(within(region).getByRole('button', { name: 'Show on graph' }))
+    expect(await screen.findByRole('status', { name: /hypothetical view/i })).toBeInTheDocument()
+    // Listing names what rests on the assumptions, from the same roots: the
+    // what-if on the graph still answers the question on screen.
+    await user.click(within(region).getByRole('button', { name: 'List the 9' }))
+    expect(screen.getByRole('status', { name: /hypothetical view/i })).toBeInTheDocument()
+    // Taking the assumptions out is a different root set, so it goes.
+    await user.click(within(region).getByRole('button', { name: 'Show without them' }))
+    expect(screen.queryByRole('status', { name: /hypothetical view/i })).not.toBeInTheDocument()
+  })
+
   it('goes back to the declared positions when the site changes and comes back', async () => {
     const { region, user } = await openPanel()
     await user.selectOptions(within(region).getByLabelText('Reachable from'), '')
