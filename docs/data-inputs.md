@@ -201,9 +201,7 @@ nothing, and the map is the only file that actually names the sites.
 accepted by the Python loader's shape normaliser and named in the browser's
 `Overrides` type, but no code path reads them, in either the browser or the
 ingest. Risk is overridden from the `Risk Level` column of the workbook, and
-confirmation from the `Confirmed` column. The Reference tab's methodology text
-still describes `risk_overrides` as a step in the risk rule; that description is
-stale, and the column is the live path.
+confirmation from the `Confirmed` column.
 
 ---
 
