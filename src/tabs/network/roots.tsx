@@ -23,9 +23,13 @@ const PLURAL: Record<string, string> = {
  * A device type as prose. The raw `type` key is the handle everywhere the value
  * is used, and the legend's word for it is what the reader has already learnt,
  * so the key stays in the select values and the word goes in the sentences.
+ * Lower case mid-sentence, except an acronym: "VLAN segment", not "vlan segment".
  */
 export function kindWord(type: string, count = 1): string {
-  const word = nodeStyle(type).label.toLowerCase()
+  const word = nodeStyle(type).label
+    .split(' ')
+    .map((part) => (/^[A-Z]{2,}$/.test(part) ? part : part.toLowerCase()))
+    .join(' ')
   return count === 1 ? word : (PLURAL[word] ?? `${word}s`)
 }
 

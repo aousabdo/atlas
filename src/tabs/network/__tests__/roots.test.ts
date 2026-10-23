@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { NODE_STYLE } from '../NetworkLegend'
-import { kindWord } from '../roots'
+import { kindWord, rootOptionLabel } from '../roots'
 
 describe('kindWord', () => {
   it('says the legend word, lower case, for one device', () => {
@@ -20,7 +20,21 @@ describe('kindWord', () => {
     expect(kindWord('access_point', 6)).toBe('access points')
     expect(kindWord('radio', 4)).toBe('radio links')
     expect(kindWord('satellite_terminal', 2)).toBe('satellite terminals')
-    expect(kindWord('vlan', 3)).toBe('vlan segments')
+    expect(kindWord('vlan', 3)).toBe('VLAN segments')
+  })
+
+  it('keeps an acronym upper case mid-sentence', () => {
+    expect(kindWord('vlan')).toBe('VLAN segment')
+    expect(rootOptionLabel({ choice: { source: 'type', deviceType: 'vlan' }, key: 'vlan', count: 2 }))
+      .toBe('any VLAN segment (2)')
+    // Every all-caps word in a legend label survives; every other word is lower case.
+    for (const [type, { label }] of Object.entries(NODE_STYLE)) {
+      const acronyms = label.split(' ').filter((part) => /^[A-Z]{2,}$/.test(part))
+      for (const acronym of acronyms) expect(kindWord(type), type).toContain(acronym)
+      expect(kindWord(type).replace(/\b[A-Z]{2,}\b/g, ''), type).toBe(
+        kindWord(type).replace(/\b[A-Z]{2,}\b/g, '').toLowerCase(),
+      )
+    }
   })
 
   // A legend word added later that ends in a hiss needs its own entry, or it
