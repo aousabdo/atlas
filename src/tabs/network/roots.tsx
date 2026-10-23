@@ -12,13 +12,21 @@ import { nodeStyle } from './NetworkLegend'
  */
 
 /**
+ * The legend words a trailing "s" gets wrong. Every other word in NODE_STYLE
+ * (gateway, radio link, access point, satellite terminal) takes a plain "s".
+ */
+const PLURAL: Record<string, string> = {
+  switch: 'switches',
+}
+
+/**
  * A device type as prose. The raw `type` key is the handle everywhere the value
  * is used, and the legend's word for it is what the reader has already learnt,
  * so the key stays in the select values and the word goes in the sentences.
  */
 export function kindWord(type: string, count = 1): string {
   const word = nodeStyle(type).label.toLowerCase()
-  return count === 1 ? word : `${word}s`
+  return count === 1 ? word : (PLURAL[word] ?? `${word}s`)
 }
 
 export type RootBadge = 'DECLARED' | 'DECLARED · ASSUMPTIONS OUT' | 'DERIVED' | 'BY DEVICE TYPE'
