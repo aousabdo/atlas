@@ -126,12 +126,12 @@ and it renders emptier. That is the failure mode to watch for.
 | `Risk Level` | no | An explicit `high`, `medium` or `low`, which outranks the keyword scan. | Every risk is inferred, and the evidence gap dimension reads zero explicit. |
 | `Confirmed` | no | An explicit `yes` or `no`, which outranks the ownership keywords in both directions. | Confirmation is inferred from the owner text alone. |
 
-Two spellings of one column, because real workbooks disagree with themselves.
+Three spellings of one column, because real workbooks disagree with themselves.
 The integrations column is looked for under `Existing Interfaces`, then
 `Currrent Integrations` (the doubled letter is not a typo here: real matrices
-carry it), then `Current Integrations`. The first one present wins. If your
-workbook spells it some other way, rename the header or the column is dropped
-in silence.
+carry it), then `Current Integrations`. The first one present wins, in the
+browser and in the command-line ingest alike. If your workbook spells it some
+other way, rename the header or the column is dropped in silence.
 
 Cell values are read leniently. `Risk Level` accepts `high`, `medium` or `low`
 in any case and ignores anything else; `Confirmed` accepts `yes` or `no` in any
