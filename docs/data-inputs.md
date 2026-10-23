@@ -78,15 +78,12 @@ SheetJS:
 These four checks apply to the workbook only. The JSON inputs are read with
 `JSON.parse` and are not size capped.
 
-They also gate the load rather than the whole panel, which is worth stating
-plainly because it is the one place this page could mislead somebody thinking
-about a hostile file. The panel's sorter opens a picked file once before any of
-them run, to read its sheet names and decide which slot it belongs in, so
-SheetJS has already parsed the workbook by the time the size cap and the zip
-signature are checked. Only a name ending `.xlsx` is opened that way, so the
-`.xlsm` refusal and the HTML refusal cannot be reached around; the size cap and
-the signature check can be, and they are what stops the file **loading**, not
-what stops it being read.
+The panel's sorter runs them too. It opens a picked file once, before the load,
+to read its sheet names and decide which slot it belongs in, and it does that
+through the same four checks in the same order, so SheetJS never sees a byte of
+a file they refuse. Only a name ending `.xlsx` is opened that way. A refused
+`.xlsx` is still placed in the matrix slot, marked unsure, with the refusal as
+its reason, and the load then refuses it in the same words.
 
 ### Hard requirements
 
