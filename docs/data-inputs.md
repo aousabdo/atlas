@@ -424,10 +424,12 @@ topology messages name the **site id**, not the file, because by the time they
 run the file has already been keyed and the id is the more useful of the two.
 
 `...` below stands for a value filled in at the time: a file name, a site id, a
-list. The three tables are complete, and a test keeps them that way: it extracts
-every message `src/data/localFileParse.ts`, `src/data/LocalFileProvider.ts` and
-`src/components/LoadDataPanel.tsx` can build, and fails if one of them is
-missing here or if a row here quotes wording no code path produces.
+list. In the list of cross-file lines, `<site>`, `<system>` and the like name
+which value. The three tables and that list are complete, and a test keeps them
+that way: it extracts every message `src/data/localFileParse.ts`,
+`src/data/LocalFileProvider.ts` and `src/components/LoadDataPanel.tsx` can
+build, and fails if one of them is missing here or if a line here quotes
+wording no code path produces.
 
 ### The parser refuses
 
@@ -501,12 +503,22 @@ Each line under that heading is one of:
   resolves to nothing. Covers the links mined from the integration prose and the
   `cross_links` in the overrides file, which is the same set the ingest gate
   checks.
+- `system_device_map.sites.<site>.decision_roots: must be an object with
+  devices, assumed and note` - the block is a list, a string, a number or a
+  boolean. Nothing else about it is checked until it is an object.
+- `system_device_map.sites.<site>.decision_roots: devices must be a list of
+  device ids` - `devices` is there but is not a list of strings. The other checks
+  on `devices` wait until it is, and so does the check that each assumed id is
+  one of them.
 - `system_device_map.sites.<site>.decision_roots: devices is empty; omit
   decision_roots to measure from the drawing's entry points` - an empty set would
   read as "decided: nowhere".
 - `system_device_map.sites.<site>.decision_roots: device '<id>' is not in the
   <site> topology` - only checked when that site's topology was loaded.
 - `system_device_map.sites.<site>.decision_roots: device '<id>' is listed twice`
+- `system_device_map.sites.<site>.decision_roots.assumed: must be a list of
+  device ids` - `assumed` is there but is not a list of strings.
+- `system_device_map.sites.<site>.decision_roots.assumed: '<id>' is listed twice`
 - `system_device_map.sites.<site>.decision_roots.assumed: '<id>' is not one of its
   devices` - an assumption about a position that is not declared.
 - `system_device_map.sites.<site>.decision_roots: no note; say who chose these

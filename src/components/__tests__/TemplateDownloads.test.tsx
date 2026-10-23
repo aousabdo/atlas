@@ -517,11 +517,18 @@ const FAILURE_SOURCES = [
  * conflictMessage is neither thrown nor passed to setError: it is computed and
  * rendered into the same alert region as the rest, which makes it exactly as
  * visible to a reader and exactly as easy to leave undocumented.
+ *
+ * fails.push builds every cross-file line listed under the integrity failure,
+ * and decisionRootFailures returns its first one directly as a one-line list.
+ * Neither is thrown where it is built, so the two anchors before them never saw
+ * those lines, and four of them went undocumented.
  */
 const FAILURE_ANCHORS = [
   /new LocalFileError\(/g,
   /setError\(/g,
   /const conflictMessage = useMemo\(/g,
+  /fails\.push\(/g,
+  /return \[(?=`)/g,
 ]
 
 /** Stands where the code interpolates a value. Never occurs in real source. */
@@ -561,8 +568,17 @@ function skipInterpolation(source: string, at: number): number {
   return i
 }
 
-/** The literal text of a template, with each gap collapsed to a wildcard. */
-function readTemplate(source: string, at: number): [string, number] {
+/**
+ * The literal text of a template, with each gap collapsed to a wildcard.
+ *
+ * A gap that is only a name bound to a template in the same file is replaced
+ * by that template's text instead: see templateBindings.
+ */
+function readTemplate(
+  source: string,
+  at: number,
+  bindings: ReadonlyMap<string, string> = new Map(),
+): [string, number] {
   let out = ''
   let i = at + 1
   while (i < source.length) {
@@ -573,8 +589,9 @@ function readTemplate(source: string, at: number): [string, number] {
     }
     if (source[i] === '`') return [out, i + 1]
     if (source[i] === '$' && source[i + 1] === '{') {
-      out += WILDCARD
-      i = skipInterpolation(source, i + 1)
+      const end = skipInterpolation(source, i + 1)
+      out += bindings.get(source.slice(i + 2, end - 1).trim()) ?? WILDCARD
+      i = end
       continue
     }
     out += source[i]
@@ -600,13 +617,36 @@ function readQuoted(source: string, at: number, quote: string): [string, number]
 }
 
 /**
+ * Names bound to a template literal in the same file, mapped to its text.
+ *
+ * decisionRootFailures builds every message on one shared prefix, `where`,
+ * and a reader sees that prefix spelled out. Left as a gap, each of those
+ * shapes would start at the colon, and no documented line that spells the
+ * prefix out could describe it.
+ */
+function templateBindings(source: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const match of source.matchAll(/\bconst (\w+) = `/g)) {
+    out.set(match[1], readTemplate(source, (match.index ?? 0) + match[0].length - 1)[0])
+  }
+  return out
+}
+
+/**
  * Every literal a call builds, concatenated in source order.
  *
  * The concatenation is the point: several of these messages are split across
  * two template literals to fit a line, and they are one sentence to a reader,
- * so they have to be one string here. `at` is the call's opening paren.
+ * so they have to be one string here. `at` is the call's opening paren, or the
+ * opening bracket of a returned list, and the shape ends at its partner.
  */
-function messageShape(source: string, at: number): string {
+function messageShape(
+  source: string,
+  at: number,
+  bindings: ReadonlyMap<string, string>,
+): string {
+  const open = source[at]
+  const close = open === '[' ? ']' : ')'
   let depth = 0
   let out = ''
   let i = at
@@ -619,7 +659,7 @@ function messageShape(source: string, at: number): string {
       continue
     }
     if (c === '`') {
-      const [text, next] = readTemplate(source, i)
+      const [text, next] = readTemplate(source, i, bindings)
       out += text
       i = next
       continue
@@ -634,8 +674,8 @@ function messageShape(source: string, at: number): string {
       i = source.indexOf('*/', i) + 2
       continue
     }
-    if (c === '(') depth += 1
-    else if (c === ')') {
+    if (c === open) depth += 1
+    else if (c === close) {
       depth -= 1
       if (depth === 0) return out
     }
@@ -653,14 +693,17 @@ function codeMessages(): Array<{ file: string; shape: string }> {
   const out: Array<{ file: string; shape: string }> = []
   for (const file of FAILURE_SOURCES) {
     const source = readFileSync(join(process.cwd(), file), 'utf-8')
+    const bindings = templateBindings(source)
     for (const anchor of FAILURE_ANCHORS) {
       for (const match of source.matchAll(anchor)) {
         const shape = normalise(
-          messageShape(source, (match.index ?? 0) + match[0].length - 1),
+          messageShape(source, (match.index ?? 0) + match[0].length - 1, bindings),
         )
         // setError(null) and setError(messageOf(cause)) build no literal at
         // all. The second one repeats the parser's own message, which these
         // tables already cover; neither is wording anybody could document.
+        // fails.push(...decisionRootFailures(...)) is the same: it forwards
+        // lines built, and extracted, inside decisionRootFailures.
         if (shape.trim()) out.push({ file, shape })
       }
     }
@@ -668,15 +711,26 @@ function codeMessages(): Array<{ file: string; shape: string }> {
   return out
 }
 
-/** The message column of every table under "When a load fails". */
+/**
+ * The message column of every table under "When a load fails", and the quoted
+ * message that opens each bullet of the cross-file list there.
+ *
+ * The cross-file lines are a list rather than a table because most of them run
+ * past one line, so a quoted message may wrap; whitespace is collapsed here and
+ * again in describes.
+ */
 function documentedMessages(): string[] {
   const text = readFileSync(DOC, 'utf-8')
   const at = text.indexOf('\n## When a load fails')
   expect(at, 'docs/data-inputs.md has no "When a load fails" section').toBeGreaterThan(0)
+  const section = text.slice(at)
   const rows: string[] = []
-  for (const line of text.slice(at).split('\n')) {
+  for (const line of section.split('\n')) {
     const match = /^\|\s*`(.+?)`\s*\|\s*(.+?)\s*\|$/.exec(line)
     if (match) rows.push(match[1])
+  }
+  for (const match of section.matchAll(/^- `([^`]+)`/gm)) {
+    rows.push(match[1].replace(/\s+/g, ' '))
   }
   return rows
 }
@@ -684,14 +738,15 @@ function documentedMessages(): string[] {
 /**
  * Does a documented row describe this code shape?
  *
- * The doc writes `...` wherever the code interpolates a value, so the test is
- * that the row's literal fragments appear, in order, inside the code's. The
- * previous version of this suite compared slot names only, which is why five
- * wrong claims and a whole missing message survived in the page.
+ * The doc writes `...` wherever the code interpolates a value, or a named
+ * placeholder such as `<site>` in the cross-file list, so the test is that the
+ * row's literal fragments appear, in order, inside the code's. The previous
+ * version of this suite compared slot names only, which is why five wrong
+ * claims and a whole missing message survived in the page.
  */
 function describes(documented: string, shape: string): boolean {
   const fragments = documented
-    .split('...')
+    .split(/\.\.\.|<[a-z]+>/)
     .map((f) => f.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
   if (!fragments.length) return false
@@ -723,6 +778,14 @@ describe('the failure messages docs/data-inputs.md documents', () => {
     }
     // The one built by rendering rather than by throwing or by setError.
     expect(found.some((m) => m.shape.includes('More than one file claims'))).toBe(true)
+    // One built by fails.push, and the one decisionRootFailures returns
+    // directly, each with the prefix its `where` binding spells out.
+    for (const line of [
+      'system_device_map.sites..decision_roots.assumed: must be a list of device ids',
+      'system_device_map.sites..decision_roots: must be an object with devices, assumed and note',
+    ]) {
+      expect(found.map((m) => m.shape), `"${line}" was not extracted`).toContain(line)
+    }
   })
 
   it('documents every message the loader and the panel can build', () => {
