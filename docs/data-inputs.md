@@ -444,7 +444,7 @@ missing here or if a row here quotes wording no code path produces.
 | `...: crosswalk sheet is empty` | The sheet exists but yielded no rows with a non-empty first column. |
 | `... is not valid JSON` | One of the four JSON inputs did not parse. Note the file name is followed by a space here, not by a colon. |
 | `...: topology file is empty` | A topology file parsed, and parsed to `null`. |
-| `...: device '...' is in zone '...', which is not declared` | A topology names a zone its own `zones` object does not have. The name before the colon is the site id. |
+| `...: device '...' is in zone '...', which is not declared in zones` | A topology names a zone its own `zones` object does not have. The name before the colon is the site id. |
 | `...: edge ...->... references unknown device '...'` | A topology has an edge to a device that is not in `nodes`. Site id again, not the file name. |
 
 ### The files disagree with each other

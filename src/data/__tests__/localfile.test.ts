@@ -638,6 +638,29 @@ describe('a load refuses files that disagree with each other', () => {
   const readInput = (relative: string) =>
     JSON.parse(readFileSync(join(workspace, relative), 'utf-8'))
 
+  /**
+   * Word for word the ingest's NetworkError, pinned in
+   * ingest/tests/test_network.py. The two used to differ by their last two
+   * words.
+   */
+  it('refuses a device in a zone its own topology does not declare', async () => {
+    const bad = {
+      graph: {},
+      zones: { z: { label: 'Z' } },
+      nodes: [{
+        id: 'a', label: 'A', zone: 'nosuchzone', type: 'server',
+        ip: null, subnet: null, description: null,
+      }],
+      edges: [],
+    }
+    const p = new LocalFileProvider()
+    await expect(
+      p.load({ matrix: file('matrix.xlsx'), topologies: { bad: jsonFile('badzone.json', bad) } }),
+    ).rejects.toHaveProperty(
+      'message', "bad: device 'a' is in zone 'nosuchzone', which is not declared in zones",
+    )
+  })
+
   it('refuses an sdmap mapping naming a system the matrix lacks', async () => {
     const sdmap = readInput('system_device_map.json')
     sdmap.sites.northgate.mappings.ghost_system = {

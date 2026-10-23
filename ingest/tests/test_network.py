@@ -143,5 +143,9 @@ def test_a_device_in_an_undeclared_zone_is_fatal(tmp_path):
     path = tmp_path / "badzone.json"
     path.write_text(json.dumps(bad), encoding="utf-8")
 
-    with pytest.raises(NetworkError, match="nosuchzone"):
+    # Word for word the browser's, pinned in src/data/__tests__/localfile.test.ts.
+    with pytest.raises(NetworkError) as raised:
         load_network(path, site_id="bad")
+    assert str(raised.value) == (
+        "bad: device 'a' is in zone 'nosuchzone', which is not declared in zones"
+    )

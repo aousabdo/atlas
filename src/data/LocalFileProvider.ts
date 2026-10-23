@@ -220,7 +220,7 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
   for (const d of devices) {
     if (!zoneIds.has(d.zone)) {
       throw new LocalFileError(
-        `${siteId}: device '${d.id}' is in zone '${d.zone}', which is not declared`,
+        `${siteId}: device '${d.id}' is in zone '${d.zone}', which is not declared in zones`,
         siteId,
       )
     }
