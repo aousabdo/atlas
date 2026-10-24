@@ -63,17 +63,14 @@ export function MethodologySection({
     <div className="space-y-4">
       <Block title="Risk classification">
         <p>
-          Each system gets one of high, medium or low by a three-step rule, applied in
+          Each system gets one of high, medium or low by a two-step rule, applied in
           this order:
         </p>
         <ol className="ml-5 list-decimal space-y-1">
           <li>
             If the matrix row has an explicit <code>Risk Level</code> cell, that value
-            wins.
-          </li>
-          <li>
-            Otherwise, if the system id appears in{' '}
-            <code>overrides.json &rarr; risk_overrides</code>, the override wins.
+            wins. That cell is the only override: a <code>risk_overrides</code> block in{' '}
+            <code>overrides.json</code> is accepted and not applied.
           </li>
           <li>
             Otherwise the <code>Risk/Challenge</code> narrative is scanned for the keyword

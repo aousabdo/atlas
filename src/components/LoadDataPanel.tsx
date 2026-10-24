@@ -44,7 +44,7 @@ const SLOTS: Slot[] = [
     title: 'Curation overrides',
     inputLabel: 'Curation overrides file',
     accept: '.json,application/json',
-    hint: 'Cross links, suppressions, risk and confirmation overrides.',
+    hint: 'Cross links, suppressions and planned links.',
   },
   {
     id: 'glossary',

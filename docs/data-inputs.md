@@ -78,15 +78,12 @@ SheetJS:
 These four checks apply to the workbook only. The JSON inputs are read with
 `JSON.parse` and are not size capped.
 
-They also gate the load rather than the whole panel, which is worth stating
-plainly because it is the one place this page could mislead somebody thinking
-about a hostile file. The panel's sorter opens a picked file once before any of
-them run, to read its sheet names and decide which slot it belongs in, so
-SheetJS has already parsed the workbook by the time the size cap and the zip
-signature are checked. Only a name ending `.xlsx` is opened that way, so the
-`.xlsm` refusal and the HTML refusal cannot be reached around; the size cap and
-the signature check can be, and they are what stops the file **loading**, not
-what stops it being read.
+The panel's sorter runs them too. It opens a picked file once, before the load,
+to read its sheet names and decide which slot it belongs in, and it does that
+through the same four checks in the same order, so SheetJS never sees a byte of
+a file they refuse. Only a name ending `.xlsx` is opened that way. A refused
+`.xlsx` is still placed in the matrix slot, marked unsure, with the refusal as
+its reason, and the load then refuses it in the same words.
 
 ### Hard requirements
 
@@ -126,12 +123,12 @@ and it renders emptier. That is the failure mode to watch for.
 | `Risk Level` | no | An explicit `high`, `medium` or `low`, which outranks the keyword scan. | Every risk is inferred, and the evidence gap dimension reads zero explicit. |
 | `Confirmed` | no | An explicit `yes` or `no`, which outranks the ownership keywords in both directions. | Confirmation is inferred from the owner text alone. |
 
-Two spellings of one column, because real workbooks disagree with themselves.
+Three spellings of one column, because real workbooks disagree with themselves.
 The integrations column is looked for under `Existing Interfaces`, then
 `Currrent Integrations` (the doubled letter is not a typo here: real matrices
-carry it), then `Current Integrations`. The first one present wins. If your
-workbook spells it some other way, rename the header or the column is dropped
-in silence.
+carry it), then `Current Integrations`. The first one present wins, in the
+browser and in the command-line ingest alike. If your workbook spells it some
+other way, rename the header or the column is dropped in silence.
 
 Cell values are read leniently. `Risk Level` accepts `high`, `medium` or `low`
 in any case and ignores anything else; `Confirmed` accepts `yes` or `no` in any
@@ -201,9 +198,7 @@ nothing, and the map is the only file that actually names the sites.
 accepted by the Python loader's shape normaliser and named in the browser's
 `Overrides` type, but no code path reads them, in either the browser or the
 ingest. Risk is overridden from the `Risk Level` column of the workbook, and
-confirmation from the `Confirmed` column. The Reference tab's methodology text
-still describes `risk_overrides` as a step in the risk rule; that description is
-stale, and the column is the live path.
+confirmation from the `Confirmed` column.
 
 ---
 
@@ -426,10 +421,12 @@ topology messages name the **site id**, not the file, because by the time they
 run the file has already been keyed and the id is the more useful of the two.
 
 `...` below stands for a value filled in at the time: a file name, a site id, a
-list. The three tables are complete, and a test keeps them that way: it extracts
-every message `src/data/localFileParse.ts`, `src/data/LocalFileProvider.ts` and
-`src/components/LoadDataPanel.tsx` can build, and fails if one of them is
-missing here or if a row here quotes wording no code path produces.
+list. In the list of cross-file lines, `<site>`, `<system>` and the like name
+which value. The three tables and that list are complete, and a test keeps them
+that way: it extracts every message `src/data/localFileParse.ts`,
+`src/data/LocalFileProvider.ts` and `src/components/LoadDataPanel.tsx` can
+build, and fails if one of them is missing here or if a line here quotes
+wording no code path produces.
 
 ### The parser refuses
 
@@ -446,7 +443,7 @@ missing here or if a row here quotes wording no code path produces.
 | `...: crosswalk sheet is empty` | The sheet exists but yielded no rows with a non-empty first column. |
 | `... is not valid JSON` | One of the four JSON inputs did not parse. Note the file name is followed by a space here, not by a colon. |
 | `...: topology file is empty` | A topology file parsed, and parsed to `null`. |
-| `...: device '...' is in zone '...', which is not declared` | A topology names a zone its own `zones` object does not have. The name before the colon is the site id. |
+| `...: device '...' is in zone '...', which is not declared in zones` | A topology names a zone its own `zones` object does not have. The name before the colon is the site id. |
 | `...: edge ...->... references unknown device '...'` | A topology has an edge to a device that is not in `nodes`. Site id again, not the file name. |
 
 ### The files disagree with each other
@@ -503,12 +500,22 @@ Each line under that heading is one of:
   resolves to nothing. Covers the links mined from the integration prose and the
   `cross_links` in the overrides file, which is the same set the ingest gate
   checks.
+- `system_device_map.sites.<site>.decision_roots: must be an object with
+  devices, assumed and note` - the block is a list, a string, a number or a
+  boolean. Nothing else about it is checked until it is an object.
+- `system_device_map.sites.<site>.decision_roots: devices must be a list of
+  device ids` - `devices` is there but is not a list of strings. The other checks
+  on `devices` wait until it is, and so does the check that each assumed id is
+  one of them.
 - `system_device_map.sites.<site>.decision_roots: devices is empty; omit
   decision_roots to measure from the drawing's entry points` - an empty set would
   read as "decided: nowhere".
 - `system_device_map.sites.<site>.decision_roots: device '<id>' is not in the
   <site> topology` - only checked when that site's topology was loaded.
 - `system_device_map.sites.<site>.decision_roots: device '<id>' is listed twice`
+- `system_device_map.sites.<site>.decision_roots.assumed: must be a list of
+  device ids` - `assumed` is there but is not a list of strings.
+- `system_device_map.sites.<site>.decision_roots.assumed: '<id>' is listed twice`
 - `system_device_map.sites.<site>.decision_roots.assumed: '<id>' is not one of its
   devices` - an assumption about a position that is not declared.
 - `system_device_map.sites.<site>.decision_roots: no note; say who chose these

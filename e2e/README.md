@@ -77,7 +77,7 @@ rather than compare against it.
 
 ## Tolerance
 
-`maxDiffPixels: 100`, `threshold: 0.01`. Both are measured.
+`maxDiffPixels: 0`, `threshold: 0.01`. Both are measured.
 
 An absolute cap, never a ratio: as a ratio, tolerance scaled with page height,
 so 1% on the 1440x8256 reference tab licensed 118,886 pixels of unreviewed
@@ -90,7 +90,11 @@ dim grey moving over dark blue and the default writes that off as noise. At 0.2
 that regression passed even with the cap set to zero.
 
 Observed noise at 0.01 is zero: three consecutive full runs across two rebuilds
-produced byte-identical captures. 100 is headroom, not licence.
+produced byte-identical captures. The cap was 100 for a while, calibrated
+against that one toolbar, and it was the least representative surface to
+calibrate on. Taking the only action out of `ViewStrip` empties one grid cell
+and moves 33 pixels dark and 35 light, so under 100 that regression shipped.
+Over a noise floor of zero, headroom buys nothing.
 
 ## Waiting
 

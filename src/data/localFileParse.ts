@@ -306,9 +306,12 @@ export function readWorkbook(buffer: ArrayBuffer): XLSX.WorkBook {
  * cosmetic pass.
  *
  * A previous edit collapsed the two spellings into one string twice, which
- * read as a fallback and was not one.
+ * read as a fallback and was not one. INTEGRATION_HEADERS in
+ * ingest/src/atlas_ingest/excel.py is the same list in the same order, and the
+ * same cases are pinned in both suites: a header only one engine recognises
+ * gives the CLI bundle and the browser different links from the same file.
  */
-const INTEGRATION_HEADERS = [
+export const INTEGRATION_HEADERS = [
   'Existing Interfaces',
   'Currrent Integrations',
   'Current Integrations',
@@ -335,8 +338,8 @@ export function readMatrixRows(wb: XLSX.WorkBook, fileName = 'workbook'): System
   const rows = sheetRows(wb, 'Matrix')
   const hrow = findHeaderRow(rows)
 
-  // Header cells carry trailing spaces in the source workbook, and
-  // "Existing Interfaces" is misspelled there. Both are handled, not fixed.
+  // Header cells carry trailing spaces in the source workbook, and the
+  // integrations header is spelled several ways. Both are handled, not fixed.
   const headers = new Map<string, number>()
   rows[hrow].forEach((c, i) => {
     if (typeof c === 'string' && c.trim()) headers.set(c.trim(), i)

@@ -668,8 +668,8 @@ GLOSSARY = {
             "Treat the risk column as a working judgement rather than a score. "
             "Where the matrix states a Risk Level, that wins. Where it is "
             "blank, the ingest reads the Risk/Challenge narrative for known "
-            "phrases and picks a level from those. A curation override on an "
-            "individual system beats both."
+            "phrases and picks a level from those. To change a level, fill in "
+            "its Risk Level cell."
         ),
         "soft_ownership_note": (
             "A system is marked soft when the matrix hedges about who owns it. "

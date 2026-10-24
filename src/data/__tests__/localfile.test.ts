@@ -4,8 +4,12 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
 import { afterAll, describe, expect, it } from 'vitest'
+import * as XLSX from 'xlsx'
 
 import { crossFileFailures, LocalFileProvider } from '../LocalFileProvider'
+import {
+  extractLinks, INTEGRATION_HEADERS, readMatrixRows, readWorkbook,
+} from '../localFileParse'
 import { runProviderContract } from './contract'
 
 const GENERATOR = join(process.cwd(), 'scripts', 'make-sample-workbook.mjs')
@@ -92,6 +96,81 @@ describe('LocalFileProvider agrees with the Python ingest', () => {
     const expected = fixture('links.json')
     expect(links.current.map(key).sort()).toEqual(expected.current.map(key).sort())
     expect(links.desired.map(key).sort()).toEqual(expected.desired.map(key).sort())
+  })
+})
+
+/**
+ * The integrations column, pinned case for case with
+ * ingest/tests/test_excel_reader.py.
+ *
+ * The browser and the ingest must read the same file the same way: a header
+ * only one of them recognises gives the CLI bundle no mined links and the
+ * browser a full set, from identical bytes. That is what a workbook headed
+ * "Current Integrations" used to do. Change a case here and change it there.
+ */
+describe('the integrations column is found under every spelling the ingest accepts', () => {
+  const PROSE = 'Feeds Parity Gauge over the shared bus.'
+
+  // Every spelling the reader accepts, in the order it tries them. The column
+  // is put first on purpose: column A is index 0, which a falsy test reads as
+  // absent.
+  const INTEGRATION_CASES = [
+    'Existing Interfaces',
+    'Currrent Integrations',
+    'Current Integrations',
+  ]
+
+  /** A Matrix sheet with a title and a blank row above the header. */
+  function matrix(header: string[], rows: Array<Array<string | null>>) {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(
+      book,
+      XLSX.utils.aoa_to_sheet([['Parity fixture'], [], header, ...rows]),
+      'Matrix',
+    )
+    const bytes = XLSX.write(book, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
+    return readMatrixRows(readWorkbook(bytes))
+  }
+
+  it('tries the same list the reader uses', () => {
+    expect([...INTEGRATION_HEADERS]).toEqual(INTEGRATION_CASES)
+  })
+
+  it.each(INTEGRATION_CASES)('reads %s and mines its link', (header) => {
+    const [widget, gauge] = matrix([header, 'Project/System', 'Owner Organization'], [
+      [PROSE, 'Parity Widget', 'Fixture Org'],
+      [null, 'Parity Gauge', 'Fixture Org'],
+    ])
+
+    expect(widget.integrations_prose).toBe(PROSE)
+    expect(gauge.integrations_prose).toBe('')
+    expect(extractLinks([widget, gauge]).map((l) => [l.from, l.to])).toEqual([
+      [widget.id, gauge.id],
+    ])
+  })
+
+  it('takes the first spelling in the list, wherever its column sits', () => {
+    const systems = matrix([
+      'Current Integrations', 'Project/System', 'Currrent Integrations',
+      'Existing Interfaces',
+    ], [['from current', 'Parity Widget', 'from currrent', 'from existing']])
+    expect(systems.map((s) => s.integrations_prose)).toEqual(['from existing'])
+  })
+
+  it('ranks the doubled letter above the plain spelling', () => {
+    const systems = matrix([
+      'Current Integrations', 'Project/System', 'Currrent Integrations',
+    ], [['from current', 'Parity Widget', 'from currrent']])
+    expect(systems.map((s) => s.integrations_prose)).toEqual(['from currrent'])
+  })
+
+  it('drops a spelling outside the list and mines nothing', () => {
+    const systems = matrix(['Integrations', 'Project/System', 'Owner Organization'], [
+      [PROSE, 'Parity Widget', 'Fixture Org'],
+      [null, 'Parity Gauge', 'Fixture Org'],
+    ])
+    expect(systems.map((s) => s.integrations_prose)).toEqual(['', ''])
+    expect(extractLinks(systems)).toEqual([])
   })
 })
 
@@ -558,6 +637,29 @@ describe('a load refuses files that disagree with each other', () => {
 
   const readInput = (relative: string) =>
     JSON.parse(readFileSync(join(workspace, relative), 'utf-8'))
+
+  /**
+   * Word for word the ingest's NetworkError, pinned in
+   * ingest/tests/test_network.py. The two used to differ by their last two
+   * words.
+   */
+  it('refuses a device in a zone its own topology does not declare', async () => {
+    const bad = {
+      graph: {},
+      zones: { z: { label: 'Z' } },
+      nodes: [{
+        id: 'a', label: 'A', zone: 'nosuchzone', type: 'server',
+        ip: null, subnet: null, description: null,
+      }],
+      edges: [],
+    }
+    const p = new LocalFileProvider()
+    await expect(
+      p.load({ matrix: file('matrix.xlsx'), topologies: { bad: jsonFile('badzone.json', bad) } }),
+    ).rejects.toHaveProperty(
+      'message', "bad: device 'a' is in zone 'nosuchzone', which is not declared in zones",
+    )
+  })
 
   it('refuses an sdmap mapping naming a system the matrix lacks', async () => {
     const sdmap = readInput('system_device_map.json')
