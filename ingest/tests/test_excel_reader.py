@@ -6,6 +6,9 @@ integrations column is found under every spelling the ingest accepts". The brows
 the same file the same way: a header only one of them recognises gives the CLI
 bundle no mined links and the browser a full set, from identical bytes. Change
 a case here and change it there.
+
+The cells-that-are-not-text cases are mirrored the same way, in "a header or
+name cell that is not text is skipped as the ingest skips it".
 """
 import re
 import zipfile
@@ -129,3 +132,31 @@ def test_a_short_row_in_a_sheet_with_no_dimension_reads_as_empty_cells(tmp_path)
     widget, gauge = read_excel(bare)
     assert (widget["integ"], widget["risk"], widget["risk_source"]) == (PROSE, "high", "explicit")
     assert (gauge["integ"], gauge["risk_source"]) == ("", "inferred")
+
+
+# --- cells that are not text ---------------------------------------------------
+
+
+def test_a_number_in_the_header_row_is_skipped_and_the_next_column_still_read(tmp_path):
+    """A year typed above a column is a number, not a header. The browser maps
+    only cells that are text after trimming; this reader called .strip() on the
+    number and raised AttributeError, so the CLI refused a file the browser
+    loaded."""
+    path = _matrix(tmp_path, [
+        "Project/System", 2026, "   ", "Owner Organization", "Existing Interfaces",
+    ], [["Parity Widget", "under the year", "under the blank", "Fixture Org", PROSE]])
+    [widget] = read_excel(path)
+    assert (widget["name"], widget["integ"]) == ("Parity Widget", PROSE)
+    assert "Owner: Fixture Org" in widget["detail"]
+
+
+def test_a_row_whose_name_is_only_whitespace_is_skipped(tmp_path):
+    """The browser tests the trimmed name; this reader tested the raw cell, so
+    a name of spaces became a system with an empty name in the CLI bundle
+    only."""
+    path = _matrix(tmp_path, ["Project/System", "Owner Organization"], [
+        ["Parity Widget", "Fixture Org"],
+        ["   ", "Fixture Org"],
+        ["Parity Gauge", "Fixture Org"],
+    ])
+    assert [s["name"] for s in read_excel(path)] == ["Parity Widget", "Parity Gauge"]

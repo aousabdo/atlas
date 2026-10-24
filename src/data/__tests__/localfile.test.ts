@@ -99,6 +99,20 @@ describe('LocalFileProvider agrees with the Python ingest', () => {
   })
 })
 
+type Cell = string | number | null
+
+/** A Matrix sheet with a title and a blank row above the header. */
+function matrix(header: Cell[], rows: Cell[][]) {
+  const book = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(
+    book,
+    XLSX.utils.aoa_to_sheet([['Parity fixture'], [], header, ...rows]),
+    'Matrix',
+  )
+  const bytes = XLSX.write(book, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
+  return readMatrixRows(readWorkbook(bytes))
+}
+
 /**
  * The integrations column, pinned case for case with
  * ingest/tests/test_excel_reader.py.
@@ -119,18 +133,6 @@ describe('the integrations column is found under every spelling the ingest accep
     'Currrent Integrations',
     'Current Integrations',
   ]
-
-  /** A Matrix sheet with a title and a blank row above the header. */
-  function matrix(header: string[], rows: Array<Array<string | null>>) {
-    const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(
-      book,
-      XLSX.utils.aoa_to_sheet([['Parity fixture'], [], header, ...rows]),
-      'Matrix',
-    )
-    const bytes = XLSX.write(book, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
-    return readMatrixRows(readWorkbook(bytes))
-  }
 
   it('tries the same list the reader uses', () => {
     expect([...INTEGRATION_HEADERS]).toEqual(INTEGRATION_CASES)
@@ -171,6 +173,37 @@ describe('the integrations column is found under every spelling the ingest accep
     ])
     expect(systems.map((s) => s.integrations_prose)).toEqual(['', ''])
     expect(extractLinks(systems)).toEqual([])
+  })
+})
+
+/**
+ * Header and name cells that are not text, pinned case for case with the
+ * "cells that are not text" section of ingest/tests/test_excel_reader.py.
+ *
+ * This reader maps only header cells that are text after trimming, and skips a
+ * row whose trimmed name is empty. The ingest used to strip a numeric header
+ * and crash, and to keep a name of spaces as a system with no name. Change a
+ * case here and change it there.
+ */
+describe('a header or name cell that is not text is skipped as the ingest skips it', () => {
+  const PROSE = 'Feeds Parity Gauge over the shared bus.'
+
+  it('skips a number in the header row and still reads the column after it', () => {
+    const [widget, ...rest] = matrix([
+      'Project/System', 2026, '   ', 'Owner Organization', 'Existing Interfaces',
+    ], [['Parity Widget', 'under the year', 'under the blank', 'Fixture Org', PROSE]])
+    expect(rest).toEqual([])
+    expect([widget.name, widget.integrations_prose]).toEqual(['Parity Widget', PROSE])
+    expect(widget.detail).toContain('Owner: Fixture Org')
+  })
+
+  it('skips a row whose name is only whitespace', () => {
+    const systems = matrix(['Project/System', 'Owner Organization'], [
+      ['Parity Widget', 'Fixture Org'],
+      ['   ', 'Fixture Org'],
+      ['Parity Gauge', 'Fixture Org'],
+    ])
+    expect(systems.map((s) => s.name)).toEqual(['Parity Widget', 'Parity Gauge'])
   })
 })
 
