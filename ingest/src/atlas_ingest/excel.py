@@ -61,8 +61,13 @@ def read_excel(filepath):
         hrow, header_cells = _find_header_row(ws)
 
         # Header cells carry trailing spaces in the source workbook
-        # ("Project/System "), so strip before matching.
-        hdrs = {c.value.strip(): c.column - 1 for c in header_cells if c.value}
+        # ("Project/System "), so strip before matching. Only text is a header:
+        # a number typed above a column is skipped, as the browser skips it.
+        hdrs = {
+            c.value.strip(): c.column - 1
+            for c in header_cells
+            if isinstance(c.value, str) and c.value.strip()
+        }
         ci = {
             "cat":   hdrs.get("Capability Gap/Requirement"),
             "name":  hdrs.get("Project/System"),
@@ -78,7 +83,8 @@ def read_excel(filepath):
 
         systems = []
         for row in ws.iter_rows(min_row=hrow + 1, max_row=ws.max_row, values_only=True):
-            if not _value(row, ci["name"]):
+            # Trimmed, as the browser tests it: a name of spaces is no system.
+            if not _cell(row, ci["name"]):
                 continue
             systems.append(_build_system(row, ci, col_risk_level, col_confirmed))
         return systems
