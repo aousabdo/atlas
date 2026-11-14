@@ -113,10 +113,11 @@ describe('DataSourceBanner', () => {
     // The switch here is a stub, so the data never changes and the reviews
     // stay. With the real switch they go when the sample replaces the data,
     // which LoadDataPanel.test.tsx covers.
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { useSampleData, user } = renderBanner(LOCAL)
     act(() => curation.apply(SAMPLE_WALK[0]))
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
     expect(useSampleData).toHaveBeenCalledTimes(1)
     expect(curation.edits).toHaveLength(1)
   })

@@ -61,7 +61,8 @@ function Tab({ label, children }: { label: string; children: React.ReactNode }) 
   return <ErrorBoundary label={label}>{children}</ErrorBoundary>
 }
 
-function Shell() {
+/** Exported so a test can mount it under a provider stack it can reach into. */
+export function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const panelRef = useRef<HTMLElement>(null)
@@ -80,9 +81,7 @@ function Shell() {
         key: 'e',
         description: 'png',
         run: () => {
-          const button = document.querySelector<HTMLButtonElement>(
-            '[data-export-omit] button',
-          )
+          const button = document.querySelector<HTMLButtonElement>('button[data-export-png]')
           button?.click()
         },
       },

@@ -986,6 +986,7 @@ describe('the marking reaches the exports', () => {
       fillRect: () => calls.push('fillRect'),
       fillText: (text: string) => calls.push(`fillText:${text}`),
       drawImage: (_img: unknown, x: number, y: number) => calls.push(`drawImage:${x},${y}`),
+      measureText: (text: string) => ({ width: text.length * 8 }),
     }
     const capture = { width: 400, height: 300, getContext: () => context }
     const blank = (width: number, height: number) => ({
@@ -1139,7 +1140,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
   it('keeps the reviews, and the data, when a confirmed load then fails its gates', async () => {
     // A map naming a system the workbook does not carry: the cross-file gate
     // refuses the whole load after the reviewer has already said yes.
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { user } = renderWithReviews()
     act(() => curation.apply(SAMPLE_WALK[0]))
     const dialog = await openPanel(user)
@@ -1166,6 +1167,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       /cross-file integrity failure/i,
     )
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
     expect(curation.edits).toEqual([SAMPLE_WALK[0]])
     expect(curation.unsaved).toBe(1)
     expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')

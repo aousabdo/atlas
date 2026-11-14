@@ -1,10 +1,15 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import App from '../../App'
+import App, { Shell } from '../../App'
+import { useCuration, type Curation } from '../../curation/CurationContext'
+import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
+import { AtlasProvider } from '../../data/ProviderContext'
+import * as png from '../../export/png'
 import { ABOUT } from '../aboutContent'
+import { EditsBanner } from '../EditsBanner'
 
 function at(path: string) {
   const user = userEvent.setup()
@@ -126,6 +131,47 @@ describe('export menu', () => {
     at('/reference')
     const png = await screen.findByRole('button', { name: 'PNG' })
     expect(png.closest('[data-export-omit]')).not.toBeNull()
+  })
+})
+
+describe('the E key', () => {
+  it('saves the view as a PNG, not the reviews, while the reviews banner is showing', async () => {
+    // The reviews banner carries an Export button of its own, and it is
+    // chrome too. E must reach the export menu's PNG button whatever else
+    // the page holds and in whatever order, so a second banner is mounted
+    // ahead of the whole shell, where the old selector found it first.
+    const capture = vi.spyOn(png, 'elementToPngBlob').mockResolvedValue(new Blob(['png']))
+    const download = vi.spyOn(png, 'downloadBlob').mockImplementation(() => {})
+    let curation: Curation | null = null
+    function Probe() {
+      curation = useCuration()
+      return null
+    }
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/reference']}>
+        <AtlasProvider>
+          <EditsBanner />
+          <Shell />
+          <Probe />
+        </AtlasProvider>
+      </MemoryRouter>,
+    )
+    act(() => (curation as unknown as Curation).apply(SAMPLE_WALK[0]))
+    for (const banner of screen.getAllByRole('status', { name: /reviews/i })) {
+      expect(banner).toHaveTextContent(/1 unsaved review/)
+    }
+
+    try {
+      await user.keyboard('e')
+      await waitFor(() => expect(download).toHaveBeenCalledTimes(1))
+      expect(capture).toHaveBeenCalledTimes(1)
+      expect(download.mock.calls[0][0]).toMatch(/^atlas-reference-\d{4}-\d{2}-\d{2}\.png$/)
+      expect((curation as unknown as Curation).unsaved).toBe(1)
+    } finally {
+      vi.restoreAllMocks()
+      png.setExportEditsNote(null)
+    }
   })
 })
 

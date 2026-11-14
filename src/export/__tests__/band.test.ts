@@ -115,10 +115,15 @@ describe('the band in each export', () => {
 
   it('burns the band into a PNG, above and below', async () => {
     const fillText = vi.fn()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    const context = {
       fillStyle: '', font: '', textAlign: '', textBaseline: '',
       fillRect: () => {}, drawImage: () => {}, fillText,
-    } as never)
+      // Proportional to the characters and the font size, as png.test.ts measures.
+      measureText: (text: string) => ({
+        width: text.length * Number(/(\d+)px/.exec(context.font)?.[1]) * 0.6,
+      }),
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never)
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) => done(new Blob()))
 
     await elementToPngBlob(document.createElement('div'), { background: '#ffffff' })
