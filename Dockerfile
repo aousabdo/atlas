@@ -70,8 +70,22 @@ LABEL org.opencontainers.image.title="atlas" \
 # so that its entrypoint can edit them. Nothing here needs that, and it would
 # let the server rewrite its own configuration wherever the root filesystem is
 # not read-only (a plain `docker run`). Back to root, and not writable.
+#
+# Packages: the base ships four dynamic nginx modules (geoip, image-filter, njs,
+# xslt), the image and XML libraries they pull in, curl, and envsubst for the
+# entrypoint. nginx.conf loads no module and nothing here runs curl (the probes
+# and `helm test` use busybox wget), so they go, and their CVEs with them. What
+# is left gets the Alpine branch's security updates, because upstream rebuilds
+# lag them: the pinned digest carried fixable criticals in curl and zlib the day
+# it was pinned. That makes the package set depend on the day of the build as
+# well as the digest, which is the trade; the image SBOM CI writes records
+# exactly what each build installed.
 USER root
-RUN rm -rf /docker-entrypoint.sh /docker-entrypoint.d /etc/nginx/conf.d /usr/share/nginx/html \
+RUN apk del --no-cache --purge \
+      curl gettext-envsubst \
+      nginx-module-geoip nginx-module-image-filter nginx-module-njs nginx-module-xslt \
+ && apk upgrade --no-cache \
+ && rm -rf /docker-entrypoint.sh /docker-entrypoint.d /etc/nginx/conf.d /usr/share/nginx/html \
  && mkdir -p /usr/share/nginx/html \
  && chown -R root:root /etc/nginx /var/cache/nginx \
  && chmod -R go-w /etc/nginx /var/cache/nginx

@@ -22,7 +22,7 @@ Two things this work does not change:
 | | |
 |---|---|
 | Contents | The built app (`npm run build:dist`) and the **invented sample bundle**, seeded from `fixtures/synthetic` inside the build |
-| Server | `nginxinc/nginx-unprivileged` 1.30.6 on Alpine 3.24, pinned by digest, with our own [`deploy/nginx/nginx.conf`](../deploy/nginx/nginx.conf) |
+| Server | `nginxinc/nginx-unprivileged` 1.30.6 on Alpine 3.24, pinned by digest, with our own [`deploy/nginx/nginx.conf`](../deploy/nginx/nginx.conf). The unused dynamic modules (geoip, image-filter, njs, xslt), their libraries and `curl` are removed, and the rest gets Alpine's security updates at build time, because upstream's rebuilds lag them. That leaves about 20 packages |
 | User | uid/gid 101, never root. Listens on 8080 |
 | Filesystem | Works with a read-only root. The only path it writes is `/tmp` (nginx's pid and temp files) |
 | Configuration | **None.** The image reads no environment variables. Everything that varies between deployments is a chart value |
