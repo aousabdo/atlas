@@ -1,0 +1,244 @@
+name: Image
+
+# The container image and the Helm chart, built and tested on every push and
+# pull request, and pushed nowhere yet. See docs/kubernetes.md.
+#
+# A workflow of its own, not jobs in ci.yml, on purpose. deploy.yml publishes
+# GitHub Pages only after a run of the workflow named "CI" succeeds, so a job
+# added there would make atlas.oceansllc.com wait on a Docker Hub pull or a kind
+# cluster coming up. Nothing here can hold up, change or trigger the Pages
+# deploy: deploy.yml does not listen to this workflow, and this workflow holds
+# `contents: read` and no other permission.
+#
+# NO PUSH. The registry is an open question for the cloud platform team. When
+# it is answered, the push is one step at the end of the `image` job, on push
+# to main only, with credentials from OIDC (not a stored key), tagging the
+# image with the commit SHA it already carries. Until then the image exists as
+# a workflow artifact and nowhere else.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Every image is named for the commit it was built from, and carries that
+  # commit as its build id, the same stamp the visual suite checks.
+  IMAGE: atlas:${{ github.sha }}
+  SYFT_VERSION: v1.57.1
+  GRYPE_VERSION: v0.121.3
+  KIND_VERSION: v0.33.0
+
+jobs:
+  # Rendered and linted under both Helm majors, because which one the cluster
+  # team (or Argo CD, or Flux) runs is not ours to pick.
+  chart:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        helm: [v3.22.1, v4.3.2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ matrix.helm }}
+      # No npm ci: these tests use node and helm and nothing else.
+      - run: npm run test:chart
+      - run: npm run test:container
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm run test:image-data
+
+      # Decoys: what a developer's checkout could have lying around. public/data
+      # is where the README tells an analyst to build the real bundle, and
+      # public/ is copied into the build output wholesale. If the build context
+      # let any of these in, the build would fail (seed-data.mjs refuses a
+      # bundle that is not the sample, and check-image-data.mjs refuses the
+      # rest) or the checks on the finished image below would. A green run
+      # means none of them reached the image.
+      - name: Plant a fake real bundle, a workbook and env files
+        run: |
+          mkdir -p public/data/snapshots public/data/sites
+          echo '{"slug":"decoy-not-the-sample","name":"Decoy"}' > public/data/project.json
+          echo '{"project":"decoy-not-the-sample"}' > public/data/snapshots/2099-01-01.json
+          echo '{"id":"decoy"}' > public/data/sites/decoy.json
+          echo 'decoy' > public/matrix.xlsx
+          echo 'DECOY=1' > public/.env
+          echo 'DECOY=1' > .env
+
+      - name: Commit time, for the image's build stamp
+        id: meta
+        run: echo "built_at=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+      - name: Build (not pushed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}
+          build-args: |
+            ATLAS_BUILD_ID=${{ github.sha }}
+            ATLAS_BUILT_AT=${{ steps.meta.outputs.built_at }}
+          # The SBOM is generated below with syft, and attestations cannot be
+          # loaded into the local image store anyway.
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The Dockerfile checks its own build stage. This checks the finished
+      # image, after every stage and COPY, which is what would ship.
+      - name: The image carries the sample bundle and nothing else
+        run: |
+          cid=$(docker create "$IMAGE")
+          docker cp "$cid:/usr/share/nginx/html" image-root
+          docker rm "$cid" >/dev/null
+          node scripts/check-image-data.mjs image-root
+          node scripts/check-offline.mjs image-root
+          test ! -e image-root/matrix.xlsx
+          test ! -e image-root/.env
+
+      - name: The image runs as uid 101, names its commit, and cannot rewrite itself
+        run: |
+          user=$(docker image inspect "$IMAGE" --format '{{.Config.User}}')
+          revision=$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+          echo "user=$user revision=$revision"
+          test "$user" = "101:101"
+          test "$revision" = "${{ github.sha }}"
+          # Without --read-only, on purpose: ownership alone must stop the
+          # server rewriting its config or the files it serves.
+          for path in /etc/nginx/nginx.conf /usr/share/nginx/html/index.html; do
+            if docker run --rm --entrypoint sh "$IMAGE" -c "echo x > $path" 2>/dev/null; then
+              echo "::error::uid 101 can write $path"; exit 1
+            fi
+          done
+
+      - name: Run it the way the cluster will
+        run: |
+          docker run -d --name atlas \
+            --read-only --tmpfs /tmp:rw,size=16m \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -p 127.0.0.1:8080:8080 "$IMAGE"
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:8080/healthz >/dev/null && break
+            sleep 0.2
+          done
+
+      - name: HTTP smoke
+        run: node scripts/smoke-http.mjs http://127.0.0.1:8080 --build "${{ github.sha }}"
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Browser smoke (deep links, no console errors, no off-origin requests)
+        env:
+          ATLAS_CONTAINER_URL: http://127.0.0.1:8080
+          ATLAS_BUILD_ID: ${{ github.sha }}
+        run: npx playwright test --config playwright.container.config.ts
+
+      - name: Container logs
+        if: always()
+        run: docker logs atlas 2>&1 | tail -50 || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: container-test-results
+          path: test-results/
+
+      # Two SBOMs, because one would miss half of what ships. The image SBOM
+      # lists the Alpine and nginx packages; it cannot see the app's npm
+      # dependencies, which are bundled into /assets and leave no package
+      # metadata behind. The lockfile SBOM lists those.
+      - uses: anchore/sbom-action/download-syft@v0
+        id: syft
+        with:
+          syft-version: ${{ env.SYFT_VERSION }}
+      - name: SBOMs
+        run: |
+          mkdir -p sbom
+          "${{ steps.syft.outputs.cmd }}" scan "docker:$IMAGE" \
+            -o spdx-json=sbom/atlas-image.spdx.json \
+            -o cyclonedx-json=sbom/atlas-image.cdx.json
+          "${{ steps.syft.outputs.cmd }}" scan file:package-lock.json \
+            -o spdx-json=sbom/atlas-app.spdx.json \
+            -o cyclonedx-json=sbom/atlas-app.cdx.json
+
+      # Fails on a critical finding that has a fix available, which is a
+      # finding somebody can act on by bumping a pin. Everything else is in the
+      # report. docs/dependency-decisions.md explains the react-router advisory
+      # that npm audit reports as high and why it is not reachable here.
+      - uses: anchore/scan-action/download-grype@v7
+        id: grype
+        with:
+          grype-version: ${{ env.GRYPE_VERSION }}
+      - name: Vulnerability scan
+        run: |
+          for sbom in atlas-image atlas-app; do
+            "${{ steps.grype.outputs.cmd }}" "sbom:sbom/$sbom.spdx.json" -o table \
+              --file "sbom/$sbom.vulns.txt" || true
+            echo "--- $sbom"
+            cat "sbom/$sbom.vulns.txt"
+          done
+          for sbom in atlas-image atlas-app; do
+            "${{ steps.grype.outputs.cmd }}" "sbom:sbom/$sbom.spdx.json" --only-fixed --fail-on critical -q
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-sbom
+          path: sbom/
+      - name: Save the image for the kind job
+        run: docker save "$IMAGE" | gzip > atlas-image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-image
+          path: atlas-image.tar.gz
+          retention-days: 7
+
+  # The throwaway cluster: the chart installed with the image above, in a
+  # namespace that enforces the restricted Pod Security Standard.
+  kind:
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.2
+      - uses: helm/kind-action@v1
+        with:
+          version: ${{ env.KIND_VERSION }}
+          install_only: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-image
+      - run: gunzip -c atlas-image.tar.gz | docker load
+      - name: Install the chart in kind and smoke it
+        env:
+          ATLAS_IMAGE: ${{ env.IMAGE }}
+          ATLAS_BUILD_ID: ${{ github.sha }}
+        run: scripts/kind-smoke.sh --gateway-api
