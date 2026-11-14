@@ -13,7 +13,8 @@ const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
  * sees this strip.
  */
 export function EditsBanner() {
-  const { edits, unsaved, source, exportFileName, exportMap, confirmDiscard } = useCuration()
+  const { edits, unsaved, source, exportFileName, exportMap, discard, confirmDiscard } =
+    useCuration()
   const [error, setError] = useState<string | null>(null)
 
   if (edits.length === 0) {
@@ -43,10 +44,12 @@ export function EditsBanner() {
     >
       <span className="text-xs text-ink">
         {unsaved
-          ? `${plural(unsaved, 'unsaved review')}. Export ${exportFileName} to keep them. ` +
-            'Closing this tab discards them.'
-          : `${plural(edits.length, 'review')} exported to ${exportFileName}. They stay on ` +
-            'screen until you close this tab; load the file to work from it.'}
+          ? `${plural(unsaved, 'unsaved review')}. Export ${exportFileName} to keep ` +
+            `${unsaved === 1 ? 'it' : 'them'}. Closing this tab discards ` +
+            `${unsaved === 1 ? 'it' : 'them'}.`
+          : `${plural(edits.length, 'review')} exported to ${exportFileName}. ` +
+            `${edits.length === 1 ? 'It stays' : 'They stay'} on screen until you close ` +
+            'this tab; load the file to work from it.'}
       </span>
       {source.kind === 'sample' && (
         <span className="text-xs text-muted">
@@ -68,7 +71,9 @@ export function EditsBanner() {
         </button>
         <button
           type="button"
-          onClick={() => confirmDiscard()}
+          onClick={() => {
+            if (confirmDiscard()) discard()
+          }}
           className="rounded border border-line bg-surface px-2 py-0.5 text-xs text-muted hover:text-ink"
         >
           Discard

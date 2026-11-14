@@ -109,13 +109,16 @@ describe('DataSourceBanner', () => {
     expect(curation.edits).toHaveLength(1)
   })
 
-  it('returns to the sample, without the reviews, once the discard is confirmed', async () => {
+  it('returns to the sample once the discard is confirmed, leaving the reviews to go with the data', async () => {
+    // The switch here is a stub, so the data never changes and the reviews
+    // stay. With the real switch they go when the sample replaces the data,
+    // which LoadDataPanel.test.tsx covers.
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { useSampleData, user } = renderBanner(LOCAL)
     act(() => curation.apply(SAMPLE_WALK[0]))
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
     expect(useSampleData).toHaveBeenCalledTimes(1)
-    expect(curation.edits).toEqual([])
+    expect(curation.edits).toHaveLength(1)
   })
 
   it('says a marking the analyst stated is theirs, not the files', () => {

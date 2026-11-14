@@ -485,8 +485,10 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
       return
     }
     // Reviews describe the data on screen and go with it. Asked after the
-    // checks above, so a load that could not start costs no reviews, and
-    // before anything moves, so a reviewer who cancels keeps everything.
+    // checks above, so a load that could not start never asks, and before
+    // anything moves, so a reviewer who cancels keeps everything. A yes clears
+    // nothing: the reviews go only when the new data is adopted, so a load
+    // that fails below leaves them, and the data, as they were.
     if (!confirmDiscard()) return
     setBusy(true)
     setError(null)

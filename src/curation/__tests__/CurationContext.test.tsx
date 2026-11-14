@@ -154,6 +154,31 @@ describe('exporting the map', () => {
     expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
   })
 
+  it('counts a review reverted after the export as unsaved', async () => {
+    // The file still carries it and the screen no longer does.
+    await renderWithProvider(<Probe />, { curation: true })
+    act(() => {
+      seen.curation.apply(BEACON)
+      seen.curation.apply(SCAN)
+    })
+    await act(() => seen.curation.exportMap())
+    act(() => seen.curation.revert(editKey(BEACON)))
+    expect(seen.curation.edits).toEqual([SCAN])
+    expect(seen.curation.unsaved).toBe(1)
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+    expect(leavingIsHeld()).toBe(true)
+  })
+
+  it('counts nothing once no edit is left, since the screen is the loaded data', async () => {
+    await renderWithProvider(<Probe />, { curation: true })
+    act(() => seen.curation.apply(BEACON))
+    await act(() => seen.curation.exportMap())
+    act(() => seen.curation.revert(editKey(BEACON)))
+    expect(seen.curation.edits).toEqual([])
+    expect(seen.curation.unsaved).toBe(0)
+    expect(getExportBand()).toBeNull()
+  })
+
   it('counts a row reviewed again after the export as unsaved', async () => {
     await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(BEACON))
@@ -191,7 +216,7 @@ describe('leaving the page', () => {
 })
 
 describe('discarding', () => {
-  it('discards without asking when nothing is unsaved', async () => {
+  it('agrees without asking when nothing is unsaved', async () => {
     const confirm = vi.spyOn(window, 'confirm')
     await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(BEACON))
@@ -203,7 +228,6 @@ describe('discarding', () => {
     })
     expect(answer).toBe(true)
     expect(confirm).not.toHaveBeenCalled()
-    expect(seen.curation.edits).toEqual([])
   })
 
   it('asks before discarding unsaved reviews, and keeps them on no', async () => {
@@ -225,9 +249,10 @@ describe('discarding', () => {
     expect(getExportBand()).toBe('Includes 3 unsaved reviews, not yet exported to a file')
   })
 
-  it('clears them on yes', async () => {
+  it('only asks on yes: the reviews stay until they are discarded or new data arrives', async () => {
+    // A load can still fail after the yes, and must leave the reviews as they were.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const { provider } = await renderWithProvider(<Probe />, { curation: true })
+    await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(BEACON))
 
     let answer = false
@@ -236,9 +261,26 @@ describe('discarding', () => {
     })
     expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
     expect(answer).toBe(true)
+    expect(seen.curation.edits).toHaveLength(1)
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+  })
+
+  it('drops every edit on discard, and serves the base again', async () => {
+    const { provider } = await renderWithProvider(<Probe />, { curation: true })
+    act(() => seen.curation.apply(BEACON))
+    act(() => seen.curation.discard())
     expect(seen.curation.edits).toEqual([])
     expect(seen.provider).toBe(provider)
     expect(getExportBand()).toBeNull()
+  })
+
+  it('forgets the last export on discard', async () => {
+    await renderWithProvider(<Probe />, { curation: true })
+    act(() => seen.curation.apply(BEACON))
+    await act(() => seen.curation.exportMap())
+    act(() => seen.curation.discard())
+    act(() => seen.curation.apply(BEACON))
+    expect(seen.curation.unsaved).toBe(1)
   })
 })
 
@@ -257,6 +299,19 @@ describe('switching data', () => {
     expect(seen.provider).toBe(switched.provider)
     expect(seen.provider).not.toBeInstanceOf(CuratedProvider)
     expect(getExportBand()).toBeNull()
+  })
+
+  it('forgets the last export when the data changes', async () => {
+    render(
+      <AtlasProvider>
+        <SwitchProbe />
+      </AtlasProvider>,
+    )
+    act(() => seen.curation.apply(BEACON))
+    await act(() => seen.curation.exportMap())
+    act(() => switched.useSampleData())
+    act(() => seen.curation.apply(BEACON))
+    expect(seen.curation.unsaved).toBe(1)
   })
 
   it('keeps the note when only the marking is stated, since the edits stay', async () => {

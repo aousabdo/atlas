@@ -17,7 +17,11 @@ export interface Curation {
   base: AtlasDataProvider
   source: DataSource
   edits: readonly Edit[]
-  /** Edits made since the last export, or since the first edit if none. */
+  /**
+   * Rows where the screen and the last exported file disagree: an edit made or
+   * changed since the export, or an exported edit since reverted. Zero with no
+   * edits at all, since the screen is then the loaded data.
+   */
   unsaved: number
   /** Remembered in memory for the session only, never stored. */
   reviewer: string
@@ -25,9 +29,12 @@ export interface Curation {
   apply(edit: Edit): void
   /** Drops the edit whose editKey is `key`. */
   revert(key: string): void
-  /** Drops every edit, without asking. */
+  /** Drops every edit, and what the last export wrote, without asking. */
   discard(): void
-  /** Asks before dropping unsaved edits. True when they are gone. */
+  /**
+   * Asks before unsaved edits are lost, and clears nothing. True when they may
+   * go: the caller then discards them, or new data arriving drops them.
+   */
   confirmDiscard(): boolean
   exportMap(): Promise<void>
   exportFileName: string
@@ -44,14 +51,30 @@ export function useCuration(): Curation {
 interface State {
   base: AtlasDataProvider
   edits: readonly Edit[]
-  /** The edit objects the last export wrote. An edit replaced since is unsaved. */
-  exported: ReadonlySet<Edit>
+  /** What the last export wrote, by editKey. Empty until the first export. */
+  exported: ReadonlyMap<string, Edit>
 }
 
-const fresh = (base: AtlasDataProvider): State => ({ base, edits: [], exported: new Set() })
+const fresh = (base: AtlasDataProvider): State => ({ base, edits: [], exported: new Map() })
 
-const unsavedIn = (state: State): number =>
-  state.edits.filter((edit) => !state.exported.has(edit)).length
+const byKey = (edits: readonly Edit[]): Map<string, Edit> =>
+  new Map(edits.map((edit) => [editKey(edit), edit]))
+
+/**
+ * Rows where the screen and the exported file disagree.
+ *
+ * By object, not by content: an edit made again is a new object, so it counts
+ * until it is exported, even when it says the same thing. That can only
+ * overstate the count, never hide a change.
+ */
+function unsavedIn(state: State): number {
+  if (state.edits.length === 0) return 0
+  const current = byKey(state.edits)
+  let n = 0
+  for (const [key, edit] of current) if (state.exported.get(key) !== edit) n += 1
+  for (const key of state.exported.keys()) if (!current.has(key)) n += 1
+  return n
+}
 
 const reviews = (n: number): string => `${n} unsaved review${n === 1 ? '' : 's'}`
 
@@ -115,15 +138,16 @@ export function CurationProvider(props: {
 
   const discard = useCallback(() => {
     const current = latest.current
-    if (current.edits.length) commit(fresh(current.base))
+    if (current.edits.length || current.exported.size) commit(fresh(current.base))
   }, [commit])
 
+  // Asks and nothing more. A load that then fails must leave the reviews and
+  // the data as they were, so the edits go only when new data is adopted: the
+  // base changes and the reset above drops them.
   const confirmDiscard = useCallback(() => {
     const n = unsavedIn(latest.current)
-    if (n && !window.confirm(`Discard ${reviews(n)}?`)) return false
-    discard()
-    return true
-  }, [discard])
+    return n === 0 || window.confirm(`Discard ${reviews(n)}?`)
+  }, [])
 
   const kind = source.kind
   const exportMap = useCallback(async () => {
@@ -139,7 +163,7 @@ export function CurationProvider(props: {
     // Only what was written counts as saved. An edit made while the file was
     // being built is still unsaved, and new data has no edits to mark.
     const now = latest.current
-    if (now.base === current.base) commit({ ...now, exported: new Set(current.edits) })
+    if (now.base === current.base) commit({ ...now, exported: byKey(current.edits) })
   }, [commit, kind])
 
   useEffect(() => {

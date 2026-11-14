@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CurationProvider, useCuration, type Curation } from '../../curation/CurationContext'
 import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
+import { editKey } from '../../curation/edits'
 import type { DataSource } from '../../data/ProviderContext'
 import { StaticProvider } from '../../data/StaticProvider'
 import * as png from '../../export/png'
@@ -56,7 +57,7 @@ describe('EditsBanner', () => {
     await renderBanner()
     act(() => curation.apply(SAMPLE_WALK[0]))
     expect(banner()).toHaveTextContent(
-      `1 unsaved review. Export ${SAMPLE_FILE} to keep them. Closing this tab discards them.`,
+      `1 unsaved review. Export ${SAMPLE_FILE} to keep it. Closing this tab discards it.`,
     )
   })
 
@@ -73,7 +74,7 @@ describe('EditsBanner', () => {
     act(() => curation.apply(SAMPLE_WALK[0]))
     await user.click(screen.getByRole('button', { name: /^export$/i }))
     expect(banner()).toHaveTextContent(
-      `1 review exported to ${SAMPLE_FILE}. They stay on screen until you close this tab; ` +
+      `1 review exported to ${SAMPLE_FILE}. It stays on screen until you close this tab; ` +
         'load the file to work from it.',
     )
   })
@@ -110,7 +111,7 @@ describe('EditsBanner', () => {
       </CurationProvider>,
     )
     act(() => curation.apply(SAMPLE_WALK[0]))
-    expect(banner()).toHaveTextContent('Export system_device_map.json to keep them.')
+    expect(banner()).toHaveTextContent('Export system_device_map.json to keep it.')
     expect(banner()).not.toHaveTextContent(SAMPLE_ONLY)
   })
 
@@ -122,6 +123,19 @@ describe('EditsBanner', () => {
     expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
     expect(curation.edits).toHaveLength(1)
     expect(banner()).toBeInTheDocument()
+  })
+
+  it('names the reverted review among the unsaved ones after an export', async () => {
+    const { user } = await renderBanner()
+    act(() => {
+      curation.apply(SAMPLE_WALK[0])
+      curation.apply(SAMPLE_WALK[1])
+    })
+    await user.click(screen.getByRole('button', { name: /^export$/i }))
+    act(() => curation.revert(editKey(SAMPLE_WALK[0])))
+    expect(banner()).toHaveTextContent(
+      `1 unsaved review. Export ${SAMPLE_FILE} to keep it. Closing this tab discards it.`,
+    )
   })
 
   it('goes once Discard is confirmed', async () => {

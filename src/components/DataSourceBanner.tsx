@@ -129,7 +129,8 @@ export function DataSourceBanner() {
       )}
       {/*
         Asked first, before anything moves: a reviewer who cancels the prompt
-        keeps the reviews and the data both.
+        keeps the reviews and the data both. On yes, the reviews go with the
+        data they were made on, when the sample replaces it.
       */}
       <button
         type="button"

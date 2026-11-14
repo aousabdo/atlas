@@ -8,7 +8,9 @@ import App from '../../App'
 import { useCuration, type Curation } from '../../curation/CurationContext'
 import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
 import { AtlasProvider, UNMARKED_NOTICE } from '../../data/ProviderContext'
-import { getExportMarking, setExportEditsNote } from '../../export/png'
+import {
+  getExportBand, getExportMarking, setExportEditsNote, setExportMarking,
+} from '../../export/png'
 import { DataSourceBanner } from '../DataSourceBanner'
 import { LoadDataPanel } from '../LoadDataPanel'
 
@@ -1078,8 +1080,15 @@ describe('unsaved reviews are not lost to a data switch', () => {
     return dialog
   }
 
+  // The register is module state, and a load in an earlier test arms it.
+  beforeEach(() => {
+    setExportMarking(null)
+    setExportEditsNote(null)
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
+    setExportMarking(null)
     setExportEditsNote(null)
   })
 
@@ -1125,6 +1134,42 @@ describe('unsaved reviews are not lost to a data switch', () => {
 
     await within(banner()).findByText('TEST//SYNTHETIC')
     expect(curation.edits).toEqual([])
+  })
+
+  it('keeps the reviews, and the data, when a confirmed load then fails its gates', async () => {
+    // A map naming a system the workbook does not carry: the cross-file gate
+    // refuses the whole load after the reviewer has already said yes.
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderWithReviews()
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
+    const map = {
+      default_site: 'harbor_point',
+      sites: {
+        harbor_point: {
+          label: 'Harbor Point',
+          scope: 'Fixture scope',
+          mappings: { fixture_widget_absent: { devices: [], note: 'Fixture', confidence: 'high' } },
+          not_deployed_at_site: {},
+          unclaimed_devices: { infrastructure: [] },
+        },
+      },
+      pending_review: {},
+    }
+    await user.upload(
+      within(dialog).getByLabelText(/system to device map file/i),
+      new File([JSON.stringify(map)], 'system_device_map.json', { type: 'application/json' }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      /cross-file integrity failure/i,
+    )
+    expect(curation.edits).toEqual([SAMPLE_WALK[0]])
+    expect(curation.unsaved).toBe(1)
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+    expect(banner()).toHaveTextContent(/sample data/i)
   })
 
   it('keeps the loaded data and the reviews when Return to sample data is cancelled', async () => {
