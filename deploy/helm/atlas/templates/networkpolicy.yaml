@@ -1,0 +1,33 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "atlas.fullname" . }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "atlas.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+        # The chart's own test pod, so `helm test` still works once ingress is
+        # narrowed to the controller.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "atlas.name" $ }}-test
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+      {{- end }}
+  # No egress rule at all, not even DNS. nginx here serves files and makes no
+  # request of anything, so the container cannot phone home, and on a cluster
+  # whose CNI enforces policy that is true on the wire as well as in the config.
+  egress: []
+{{- end }}
