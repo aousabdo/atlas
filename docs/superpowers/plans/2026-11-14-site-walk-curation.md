@@ -579,7 +579,7 @@ export function getExportBand(): string | null // [marking, note].filter(Boolean
 - **Guards** (Review Focus 4). With one unsaved edit and `window.confirm` mocked to return false, clicking Return to sample data in `DataSourceBanner`, or Load in the load dialog, leaves the edits and the source unchanged. Mocked to true, the action proceeds and the edits are gone.
 - **`EditsBanner`.** Each banner sentence above for N = 1 and N = 3, the sample line, Export, and Discard.
 - **`band.test.ts`.**
-  - `setExportMarking('CUI')` plus `setExportEditsNote('Includes 1 unsaved review, not yet exported to a file')` → `getExportBand()` is `CUI · Includes 1 unsaved review, not yet exported to a file`.
+  - `setExportMarking('TEST MARKING')` plus `setExportEditsNote('Includes 1 unsaved review, not yet exported to a file')` → `getExportBand()` is `TEST MARKING · Includes 1 unsaved review, not yet exported to a file`. (Use a made-up marking: `scripts/check-no-real-data.mjs` refuses a real one written as a value.)
   - Marking null plus the note → the note alone.
   - Both null → null.
   - `stampPdfMarking` receives the band text on every page; spy on a fake doc with 2 pages.
