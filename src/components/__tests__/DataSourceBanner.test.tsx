@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { CurationProvider, useCuration, type Curation } from '../../curation/CurationContext'
+import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
 import {
   ProviderSwitchContext,
   SAMPLE_SOURCE,
@@ -9,21 +11,38 @@ import {
   type DataSource,
 } from '../../data/ProviderContext'
 import { StaticProvider } from '../../data/StaticProvider'
+import { setExportEditsNote } from '../../export/png'
 import { DataSourceBanner } from '../DataSourceBanner'
+
+let curation: Curation
+
+function Probe() {
+  curation = useCuration()
+  return null
+}
 
 function renderBanner(source: DataSource) {
   const useSampleData = vi.fn()
   const adopt = vi.fn()
   const stateMarking = vi.fn()
+  const provider = new StaticProvider('/data')
   render(
     <ProviderSwitchContext.Provider
-      value={{ provider: new StaticProvider('/data'), source, adopt, useSampleData, stateMarking }}
+      value={{ provider, source, adopt, useSampleData, stateMarking }}
     >
-      <DataSourceBanner />
+      <CurationProvider base={provider} source={source}>
+        <DataSourceBanner />
+        <Probe />
+      </CurationProvider>
     </ProviderSwitchContext.Provider>,
   )
   return { useSampleData, stateMarking, user: userEvent.setup() }
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  setExportEditsNote(null)
+})
 
 const LOCAL: DataSource = {
   kind: 'local',
@@ -77,6 +96,26 @@ describe('DataSourceBanner', () => {
     const { useSampleData, user } = renderBanner(LOCAL)
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
     expect(useSampleData).toHaveBeenCalledTimes(1)
+  })
+
+  it('changes nothing when the reviewer will not discard unsaved reviews', async () => {
+    // Review Focus 4: the edits stay and the data stays.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { useSampleData, user } = renderBanner(LOCAL)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(useSampleData).not.toHaveBeenCalled()
+    expect(curation.edits).toHaveLength(1)
+  })
+
+  it('returns to the sample, without the reviews, once the discard is confirmed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { useSampleData, user } = renderBanner(LOCAL)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(useSampleData).toHaveBeenCalledTimes(1)
+    expect(curation.edits).toEqual([])
   })
 
   it('says a marking the analyst stated is theirs, not the files', () => {

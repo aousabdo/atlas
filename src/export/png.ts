@@ -18,7 +18,7 @@ export interface PngOptions {
   background: string
   /** Elements matching this selector are omitted, e.g. the export button itself. */
   omitSelector?: string
-  /** Overrides the armed marking. Omit it and the armed one is used. */
+  /** Overrides the armed band. Omit it and the armed one is used. */
   marking?: string | null
 }
 
@@ -39,6 +39,26 @@ export function setExportMarking(marking: string | null): void {
 
 export function getExportMarking(): string | null {
   return armedMarking
+}
+
+/**
+ * The line that rides beside the marking while reviews made in this tab are
+ * not yet in a file.
+ *
+ * A figure that rests on edits nobody has saved must say so wherever it goes,
+ * and the edits banner sits outside the panel every export captures. So the
+ * note is held here, armed by the curation layer as it changes the edits, and
+ * stamped wherever the marking is.
+ */
+let editsNote: string | null = null
+
+export function setExportEditsNote(note: string | null): void {
+  editsNote = note && note.trim() ? note.trim() : null
+}
+
+/** The marking and the edits note, as one line: what every export stamps. */
+export function getExportBand(): string | null {
+  return [armedMarking, editsNote].filter(Boolean).join(' · ') || null
 }
 
 /** Height of one marking band, as a share of the capture width. */
@@ -120,7 +140,7 @@ export async function elementToPngBlob(
       ? (el) => el.matches?.(options.omitSelector as string) ?? false
       : undefined,
   })
-  const marking = options.marking === undefined ? armedMarking : options.marking
+  const marking = options.marking === undefined ? getExportBand() : options.marking
   const canvas = stampMarking(
     captured as unknown as CanvasLike, marking, options.background,
   ) as unknown as HTMLCanvasElement

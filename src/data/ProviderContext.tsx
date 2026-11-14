@@ -3,7 +3,8 @@ import {
   type ReactNode,
 } from 'react'
 
-import { setExportMarking } from '../export/png'
+import { CurationProvider } from '../curation/CurationContext'
+import { setExportEditsNote, setExportMarking } from '../export/png'
 import type { AtlasDataProvider } from './provider'
 import { StaticProvider } from './StaticProvider'
 
@@ -130,13 +131,22 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     setExportMarking(source.kind === 'local' ? source.marking ?? UNMARKED_NOTICE : null)
   }
 
-  const adopt = useCallback((provider: AtlasDataProvider, source: DataSource) => {
+  // A swap replaces the provider, and the curation layer drops every review
+  // made on the old one as soon as it renders with the new. The unsaved-reviews
+  // note on the exports goes in the same turn, for the reason above. Not on
+  // stateMarking: stating a marking keeps the data, and with it the reviews.
+  const armSwap = (source: DataSource) => {
     armMarking(source)
+    setExportEditsNote(null)
+  }
+
+  const adopt = useCallback((provider: AtlasDataProvider, source: DataSource) => {
+    armSwap(source)
     setState({ provider, source })
   }, [])
 
   const useSampleData = useCallback(() => {
-    armMarking(SAMPLE_SOURCE)
+    armSwap(SAMPLE_SOURCE)
     setState({ provider: new StaticProvider(), source: SAMPLE_SOURCE })
   }, [])
 
@@ -168,7 +178,8 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
 
   return (
     <ProviderSwitchContext.Provider value={value}>
-      <ProviderContext.Provider value={state.provider}>{children}</ProviderContext.Provider>
+      {/* Serves ProviderContext itself: the loaded provider, with any reviews laid over it. */}
+      <CurationProvider base={state.provider} source={state.source}>{children}</CurationProvider>
     </ProviderSwitchContext.Provider>
   )
 }

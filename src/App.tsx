@@ -5,6 +5,7 @@ import { ABOUT } from './components/aboutContent'
 import { AboutDrawer } from './components/AboutDrawer'
 import { CommandPalette, useCommandPaletteKey } from './components/CommandPalette'
 import { DataSourceBanner } from './components/DataSourceBanner'
+import { EditsBanner } from './components/EditsBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ExportMenu } from './components/ExportMenu'
 import { LoadDataPanel } from './components/LoadDataPanel'
@@ -131,6 +132,7 @@ function Shell() {
         }
       />
       <DataSourceBanner />
+      <EditsBanner />
       <main
         ref={panelRef}
         /* The map and the topology are full bleed; every other view gets the usual gutter. */

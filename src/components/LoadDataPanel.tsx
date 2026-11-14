@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { useCuration } from '../curation/CurationContext'
 import { LocalFileProvider, type LocalFileInputs } from '../data/LocalFileProvider'
 import { readMarking, UNMARKED_NOTICE, useProviderSwitch } from '../data/ProviderContext'
 import {
@@ -188,6 +189,7 @@ export function LoadDataPanel() {
 
 function LoadDialog({ onClose }: { onClose: () => void }) {
   const { adopt } = useProviderSwitch()
+  const { confirmDiscard } = useCuration()
   /** Files placed by hand, in the four explicit slots below. */
   const [manualFiles, setManualFiles] = useState<Partial<Record<SlotId, File>>>({})
   /** Files dropped on the one zone and sorted by inspection. */
@@ -482,6 +484,10 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
       )
       return
     }
+    // Reviews describe the data on screen and go with it. Asked after the
+    // checks above, so a load that could not start costs no reviews, and
+    // before anything moves, so a reviewer who cancels keeps everything.
+    if (!confirmDiscard()) return
     setBusy(true)
     setError(null)
 
@@ -580,6 +586,9 @@ function LoadDialog({ onClose }: { onClose: () => void }) {
             renders is the same as no control at all.
           */}
           <TemplateDownloads />
+          <p className="text-xs text-muted">
+            To keep reviews made in Site walk, use Export in the unsaved-reviews banner.
+          </p>
 
           {sorted.length > 0 && (
             <DecisionTable

@@ -1,12 +1,16 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 
 import App from '../../App'
-import { UNMARKED_NOTICE } from '../../data/ProviderContext'
-import { getExportMarking } from '../../export/png'
+import { useCuration, type Curation } from '../../curation/CurationContext'
+import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
+import { AtlasProvider, UNMARKED_NOTICE } from '../../data/ProviderContext'
+import { getExportMarking, setExportEditsNote } from '../../export/png'
+import { DataSourceBanner } from '../DataSourceBanner'
+import { LoadDataPanel } from '../LoadDataPanel'
 
 /**
  * A workbook built here rather than read from anywhere.
@@ -1038,5 +1042,107 @@ describe('the marking reaches the exports', () => {
     } finally {
       setExportMarking(null)
     }
+  })
+})
+
+describe('unsaved reviews are not lost to a data switch', () => {
+  let curation: Curation
+
+  function Probe() {
+    curation = useCuration()
+    return null
+  }
+
+  /**
+   * The app's own provider stack with a window onto the curation layer. The
+   * Site walk tab is what makes reviews in the app; this stands in for it.
+   */
+  function renderWithReviews() {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AtlasProvider>
+          <LoadDataPanel />
+          <DataSourceBanner />
+          <Probe />
+        </AtlasProvider>
+      </MemoryRouter>,
+    )
+    return { user }
+  }
+
+  async function chooseFiles(user: ReturnType<typeof userEvent.setup>) {
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
+    await user.upload(within(dialog).getByLabelText(/site topology files/i), topologyFile())
+    return dialog
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    setExportEditsNote(null)
+  })
+
+  it('says where the edited map comes from', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    expect(dialog).toHaveTextContent(
+      'To keep reviews made in Site walk, use Export in the unsaved-reviews banner.',
+    )
+  })
+
+  it('loads without asking when no review is unsaved', async () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    const { user } = renderWithReviews()
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    await within(banner()).findByText('TEST//SYNTHETIC')
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('changes nothing when Load is cancelled at the discard prompt', async () => {
+    // Review Focus 4: the edits stay and the data stays.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { user } = renderWithReviews()
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(curation.edits).toHaveLength(1)
+    expect(banner()).toHaveTextContent(/sample data/i)
+    expect(screen.getByRole('dialog', { name: /load your own data/i })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: /^load$/i })).toBeEnabled()
+  })
+
+  it('loads, without the reviews, once the discard is confirmed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderWithReviews()
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    await within(banner()).findByText('TEST//SYNTHETIC')
+    expect(curation.edits).toEqual([])
+  })
+
+  it('keeps the loaded data and the reviews when Return to sample data is cancelled', async () => {
+    const { user } = renderWithReviews()
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    await within(banner()).findByText('TEST//SYNTHETIC')
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(banner()).toHaveTextContent('fixture-matrix.xlsx')
+    expect(curation.edits).toHaveLength(1)
+
+    confirm.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(banner()).toHaveTextContent(/sample data/i)
+    expect(curation.edits).toEqual([])
   })
 })

@@ -7,7 +7,7 @@
  */
 import { jsPDF } from 'jspdf'
 
-import { elementToPngBlob, getExportMarking } from './png'
+import { elementToPngBlob, getExportBand } from './png'
 
 const MARGIN_PT = 36
 const MARKING_PT = 9
@@ -15,7 +15,7 @@ const MARKING_PT = 9
 export interface PdfOptions {
   background: string
   omitSelector?: string
-  /** Overrides the armed marking. Omit it and the armed one is used. */
+  /** Overrides the armed band. Omit it and the armed one is used. */
   marking?: string | null
 }
 
@@ -61,7 +61,7 @@ export async function elementToPdf(
   // burnt into the raster would appear once, in the middle of page two.
   const blob = await elementToPngBlob(element, { ...options, marking: null })
   const dataUrl = await blobToDataUrl(blob)
-  const marking = options.marking === undefined ? getExportMarking() : options.marking
+  const marking = options.marking === undefined ? getExportBand() : options.marking
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
