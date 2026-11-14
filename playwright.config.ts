@@ -123,7 +123,10 @@ export default defineConfig({
       // and has its own config, which builds that file inside the run.
       // Collected here it validated whichever single-file build happened to be
       // lying around, and failed outright in CI where none is built yet.
-      testIgnore: [/standalone\./, /identity\.setup\.ts/],
+      // container.spec.ts is the same shape of problem: it tests a running
+      // image, has its own config, and would fail against the preview server,
+      // which sets none of the image's headers.
+      testIgnore: [/standalone\./, /container\./, /identity\.setup\.ts/],
       dependencies: ['setup'],
     },
   ],
