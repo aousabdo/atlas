@@ -1,0 +1,44 @@
+{
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [],
+          "note": "Client software, no dedicated hardware",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        },
+        "beta": {
+          "confidence": "medium",
+          "devices": [],
+          "note": "Hardware not yet identified"
+        },
+        "gamma": {
+          "confidence": "medium",
+          "devices": [
+            "yard_radar"
+          ],
+          "note": "Radar head on the mast"
+        }
+      },
+      "not_deployed_at_site": {},
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    }
+  }
+}

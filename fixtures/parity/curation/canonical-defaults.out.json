@@ -1,0 +1,49 @@
+{
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {
+        "epsilon": "Checked: no epsilon in the annex"
+      },
+      "scope": "",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "decision_roots": {
+        "devices": [
+          "yard_gw"
+        ],
+        "note": "Site lead: the range is run from the gateway cabinet"
+      },
+      "label": "yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "Camera mast by the gate"
+        },
+        "beta": {
+          "confidence": "low",
+          "devices": [],
+          "note": "Hardware not found yet"
+        },
+        "gamma": {
+          "devices": [],
+          "note": "Hardware not found yet either"
+        }
+      },
+      "not_deployed_at_site": {},
+      "scope": "",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    }
+  }
+}

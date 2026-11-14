@@ -1,0 +1,79 @@
+{
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {
+        "beta": {
+          "confidence": "high",
+          "devices": [
+            "annex_cam"
+          ],
+          "note": "Camera over the annex door",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        },
+        "delta": {
+          "confidence": "low",
+          "devices": [
+            "annex_sensor"
+          ],
+          "note": "Sensor box; label unreadable, best guess",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        },
+        "gamma": {
+          "confidence": "medium",
+          "devices": [
+            "annex_radar"
+          ],
+          "note": "Radar head on the roof, seen from the yard",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "not_deployed_at_site": {
+        "epsilon": {
+          "reason": "No epsilon console in the annex",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "checked": {
+          "annex_gw": {
+            "note": "Building gateway; carries no matrix system",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-11-13"
+          }
+        },
+        "infrastructure": [
+          "annex_gw",
+          "annex_switch"
+        ]
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "Camera mast by the gate"
+        }
+      },
+      "not_deployed_at_site": {},
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "infrastructure": [
+          "yard_gw",
+          "yard_switch"
+        ]
+      }
+    }
+  }
+}

@@ -34,6 +34,8 @@ interface ParsedState {
   glossary: Glossary
   methodology: Methodology
   coverage: CoverageMatrix
+  /** The map file as parsed, for the export to lay the edited sites over. */
+  sourceMap: RawSystemDeviceMap | null
   lossiness: LossinessReport
   topologies: Record<SiteId, Topology>
 }
@@ -177,7 +179,9 @@ export function normaliseSystemDeviceMap(
     return { default_site: null, sites: {}, pending_review: {}, confidence_counts: {} }
   }
 
-  const blocks = (raw.sites ?? {
+  // Any sites that is not an object means the flat shape, as the ingest's
+  // isinstance(raw.get("sites"), dict) reads it, so both write one file.
+  const blocks = (isPlainObject(raw.sites) ? raw.sites : {
     northgate: {
       label: 'Northgate Sports Campus',
       scope: 'Northgate (wrapped from a legacy flat map)',
@@ -649,10 +653,8 @@ export class LocalFileProvider implements AtlasDataProvider {
     const glossary = mergeGlossary(
       await readJson<Partial<Glossary> | null>(inputs.glossary, null),
     )
-    const coverage = normaliseSystemDeviceMap(
-      await readJson<RawSystemDeviceMap | null>(inputs.systemDeviceMap, null),
-      matrixIdSet(systems),
-    )
+    const sourceMap = await readJson<RawSystemDeviceMap | null>(inputs.systemDeviceMap, null)
+    const coverage = normaliseSystemDeviceMap(sourceMap, matrixIdSet(systems))
 
     const topologies: Record<SiteId, Topology> = {}
     for (const [siteId, file] of Object.entries(inputs.topologies ?? {})) {
@@ -676,7 +678,7 @@ export class LocalFileProvider implements AtlasDataProvider {
 
     const builtAt = new Date().toISOString().replace(/\.\d+Z$/, '')
     this.state = {
-      systems, links, requirements, glossary, coverage, lossiness, topologies,
+      systems, links, requirements, glossary, coverage, sourceMap, lossiness, topologies,
       methodology: LOCAL_METHODOLOGY,
       manifest: {
         bundle_version: 1,
@@ -752,6 +754,9 @@ export class LocalFileProvider implements AtlasDataProvider {
   }
   async getLossiness() {
     return this.require().lossiness
+  }
+  async getSourceSystemDeviceMap() {
+    return this.require().sourceMap
   }
 
   async getTopology(siteId: SiteId): Promise<Topology> {

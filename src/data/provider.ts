@@ -31,6 +31,12 @@ export interface AtlasDataProvider {
   getTopology(siteId: SiteId): Promise<Topology>
   /** Empty array is a valid answer and means "no history yet", not a failure. */
   getSnapshots(): Promise<SnapshotMetrics[]>
+  /**
+   * The system to device map file exactly as it was parsed, so an export can
+   * keep the keys ATLAS does not read. Null when no map file was loaded.
+   * Optional: only a provider that reads the analyst's own files has one.
+   */
+  getSourceSystemDeviceMap?(): Promise<Record<string, unknown> | null>
 }
 
 /**

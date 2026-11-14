@@ -1,0 +1,35 @@
+{
+  "default_site": "northgate",
+  "pending_review": {},
+  "sites": {
+    "northgate": {
+      "label": "Northgate Sports Campus",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "ng_cam"
+          ],
+          "note": "Camera on the north stand",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "not_deployed_at_site": {
+        "beta": "Checked: no beta at Northgate"
+      },
+      "scope": "Northgate (wrapped from a legacy flat map)",
+      "unclaimed_devices": {
+        "checked": {
+          "ng_gw": {
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-11-13"
+          }
+        },
+        "infrastructure": [
+          "ng_gw"
+        ]
+      }
+    }
+  }
+}

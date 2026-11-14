@@ -110,6 +110,53 @@ def normalise_system_device_map(raw):
     }
 
 
+# Keys the canonical map writes itself, so the file's own copies are not kept.
+_MAP_KEYS = ("default_site", "sites", "pending_review", "confidence_counts")
+# The legacy flat map keeps one site at the top level; wrapped, they move into it.
+_FLAT_KEYS = ("mappings", "not_deployed_at_northgate", "unclaimed_devices")
+_SITE_KEYS = (
+    "label", "scope", "mappings", "not_deployed_at_site", "not_deployed_at_northgate",
+    "unclaimed_devices", "decision_roots", "confidence_counts",
+)
+
+
+def canonical_map_json(raw):
+    """The map written the one canonical way, as text.
+
+    The same bytes canonicalMapJson in src/curation/serialise.ts writes, which
+    is what lets a file the browser exported be re-serialised here unchanged;
+    fixtures/parity/curation holds both to it, case by case. Keys the loaders
+    do not know are kept, at the top level and on each site, so an analyst's
+    own notes survive. confidence_counts is never written: every reader
+    recomputes it. Each site is normalised as the browser normalises it: the
+    label defaults to the site id, the scope to '', and a mapping with no
+    devices names none. The input is not modified.
+    """
+    sdmap = normalise_system_device_map(raw)
+    dropped = _MAP_KEYS if isinstance(raw.get("sites"), dict) else _MAP_KEYS + _FLAT_KEYS
+    out = {key: value for key, value in raw.items() if key not in dropped}
+
+    sites = {}
+    for site_id, site in sdmap["sites"].items():
+        block = {key: value for key, value in site.items() if key not in _SITE_KEYS}
+        block["label"] = _or_default(site.get("label"), site_id)
+        block["scope"] = _or_default(site.get("scope"), "")
+        block["mappings"] = {
+            sys_id: {**entry, "devices": _or_default(entry.get("devices"), [])}
+            for sys_id, entry in site["mappings"].items()
+        }
+        block["not_deployed_at_site"] = site["not_deployed_at_site"]
+        block["unclaimed_devices"] = site["unclaimed_devices"]
+        if "decision_roots" in site:
+            block["decision_roots"] = site["decision_roots"]
+        sites[site_id] = block
+
+    out["default_site"] = _or_default(raw.get("default_site"), next(iter(sites), None))
+    out["sites"] = sites
+    out["pending_review"] = sdmap["pending_review"]
+    return json.dumps(out, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
 def matrix_id_set(systems):
     """The set the predicate below tests membership against."""
     return {s["id"] for s in systems}

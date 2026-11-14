@@ -1,0 +1,35 @@
+{
+  "_comment": "Kept by hand by the range team; ATLAS reads none of this key",
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "Camera mast by the gate",
+          "ticket": "RANGE-104"
+        }
+      },
+      "not_deployed_at_site": {},
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "infrastructure": []
+      },
+      "walk_notes": "Walked twice; the shed was locked the first time"
+    }
+  }
+}
