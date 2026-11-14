@@ -219,6 +219,7 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
   )
 
   const pending = Object.entries(coverage.pending_review)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   const openQuestions = dimension(
     'open_questions', pending.length, pending.length,
     countSeverity(pending.length, 1, 10),

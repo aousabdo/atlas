@@ -242,7 +242,7 @@ def _open_questions(sdmap):
     return _dimension(
         "open_questions", len(pending), len(pending),
         count_severity(len(pending), watch_at=1, critical_at=10),
-        {"questions": [{"subject": k, "question": v} for k, v in pending.items()]},
+        {"questions": [{"subject": k, "question": v} for k, v in sorted(pending.items())]},
         unit="count",
     )
 

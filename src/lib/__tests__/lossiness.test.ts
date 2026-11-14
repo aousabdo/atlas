@@ -235,3 +235,18 @@ describe('compositeIndex', () => {
 function dimension(key: string, valuePct: number) {
   return { key, unit: 'pct' as const, value_pct: valuePct }
 }
+
+describe('open questions', () => {
+  it('lists the questions by subject, by code unit', () => {
+    // Mirrors test_open_questions_are_sorted_by_subject in the ingest.
+    const base = inputs({})
+    const report = computeLossiness({
+      ...base,
+      systems: [],
+      coverage: { ...base.coverage, pending_review: { zeta: 'z?', alpha: 'a?', Mid: 'm?' } },
+    })
+    const dim = report.dimensions.find((d) => d.key === 'open_questions')!
+    const questions = dim.detail.questions as Array<{ subject: string }>
+    expect(questions.map((q) => q.subject)).toEqual(['Mid', 'alpha', 'zeta'])
+  })
+})
