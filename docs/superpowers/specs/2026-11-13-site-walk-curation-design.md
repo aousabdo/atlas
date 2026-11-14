@@ -250,9 +250,10 @@ its own to agree with:
 - Top-level keys: `_comment` and `_version` when present, then `default_site`,
   `sites` and `pending_review`. Keys are sorted at every level, as in
   `json.dumps(..., sort_keys=True, indent=2, ensure_ascii=False)`, with a
-  trailing newline. The browser sorts keys recursively before
-  `JSON.stringify(value, null, 2)`, and the two must match byte for byte,
-  non-ASCII text included.
+  trailing newline. The browser sorts keys recursively and writes the result
+  with a small writer of its own, because `JSON.stringify` always puts
+  integer-like keys first. The two must match byte for byte, non-ASCII text
+  included.
 - `confidence_counts` is never written. It is recomputed on every read.
 - Unknown keys from the file that was loaded are preserved. To make that
   possible, the LocalFileProvider keeps the raw parsed map, and the export

@@ -267,7 +267,7 @@ git commit -m "accept review stamps, checked absences and checked devices, gated
 **Interfaces:**
 - Consumes: `normaliseSystemDeviceMap` (Task 2).
 - Produces:
-  - `canonicalJson(value: unknown): string`: keys sorted recursively, then `JSON.stringify(sorted, null, 2) + '\n'`. Byte-equal to Python's `json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n"`.
+  - `canonicalJson(value: unknown): string`: keys sorted recursively, written by a small writer of its own (not `JSON.stringify`, which always puts integer-like keys such as `"9"` before `"10"`), indent 2, trailing newline. Byte-equal to Python's `json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n"`.
   - `canonicalMapObject(raw: Record<string, unknown> | null, coverage: CoverageMatrix): Record<string, unknown>`
   - `canonicalMapJson(raw: Record<string, unknown>): string`, which is `canonicalJson(canonicalMapObject(raw, normaliseSystemDeviceMap(raw, new Set())))`. The matrix ids only feed `confidence_counts`, which is never written.
   - `exportSystemDeviceMap(args: { raw: Record<string, unknown> | null; coverage: CoverageMatrix; source: 'sample' | 'local'; today: string }): { fileName: string; text: string }`
