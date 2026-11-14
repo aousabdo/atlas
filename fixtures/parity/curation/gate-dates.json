@@ -1,0 +1,128 @@
+{
+  "name": "gate-dates",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {
+          "alpha": {
+            "devices": [
+              "yard_cam"
+            ],
+            "note": "Camera mast",
+            "confidence": "high",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "13/11/2026"
+          },
+          "beta": {
+            "devices": [
+              "yard_radar"
+            ],
+            "note": "Radar on the mast",
+            "confidence": "high",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-02-30"
+          },
+          "gamma": {
+            "devices": [
+              "yard_gw"
+            ],
+            "note": "Gateway shelf",
+            "confidence": "high",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "0000-01-01"
+          },
+          "delta": {
+            "devices": [
+              "yard_switch"
+            ],
+            "note": "Switch cabinet",
+            "confidence": "high",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "٢٠٢٦-١١-١٣"
+          },
+          "epsilon": {
+            "devices": [
+              "yard_cam"
+            ],
+            "note": "Camera mast",
+            "confidence": "high",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2028-02-29"
+          }
+        },
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [
+      "system_device_map.sites.yard.mappings.alpha: reviewed_on '13/11/2026' is not a date; write it as YYYY-MM-DD",
+      "system_device_map.sites.yard.mappings.beta: reviewed_on '2026-02-30' is not a date; write it as YYYY-MM-DD",
+      "system_device_map.sites.yard.mappings.gamma: reviewed_on '0000-01-01' is not a date; write it as YYYY-MM-DD",
+      "system_device_map.sites.yard.mappings.delta: reviewed_on '٢٠٢٦-١١-١٣' is not a date; write it as YYYY-MM-DD"
+    ]
+  }
+}

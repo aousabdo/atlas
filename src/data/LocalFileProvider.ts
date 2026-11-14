@@ -1,8 +1,9 @@
+import { isCalendarDate } from '../curation/dates'
 import { matrixIdSet, realizedConfidenceCounts, shortfallSystemIds } from '../lib/coverage'
 import { computeLossiness } from '../lib/lossiness'
 import type {
-  CoverageMatrix, CoverageSite, Glossary, Link, LinkSet, LossinessReport,
-  Manifest, Methodology, Project, Requirement, SiteId, SnapshotMetrics, System,
+  CoverageMatrix, CoverageSite, DecisionRoots, Glossary, Link, LinkSet, LossinessReport,
+  Manifest, Mapping, Methodology, Project, Requirement, SiteId, SnapshotMetrics, System,
   SystemId, Topology,
 } from '../types/atlas'
 import {
@@ -129,27 +130,46 @@ async function readJson<T>(file: File | undefined, fallback: T): Promise<T> {
   }
 }
 
-interface RawSiteBlock {
-  label?: string
-  scope?: string
-  mappings?: CoverageSite['mappings']
-  not_deployed_at_site?: Record<string, string>
-  not_deployed_at_northgate?: Record<string, string>
-  unclaimed_devices?: { infrastructure: string[] }
-  decision_roots?: CoverageSite['decision_roots']
+/**
+ * One site of the system to device map, as the file holds it.
+ *
+ * Every value is unknown until it has been read: the file is kept by hand, so
+ * any key can hold anything, and the review gates exist to name what it holds.
+ * Keys a loader does not know are allowed and ignored.
+ */
+export interface RawSiteBlock {
+  label?: unknown
+  scope?: unknown
+  mappings?: unknown
+  not_deployed_at_site?: unknown
+  not_deployed_at_northgate?: unknown
+  unclaimed_devices?: unknown
+  decision_roots?: unknown
+  [key: string]: unknown
 }
 
-interface RawSystemDeviceMap {
-  default_site?: string
-  sites?: Record<string, RawSiteBlock>
-  pending_review?: Record<string, string>
-  mappings?: CoverageSite['mappings']
-  not_deployed_at_northgate?: Record<string, string>
-  unclaimed_devices?: { infrastructure: string[] }
+/** The system to device map as the file holds it, in either shape. */
+export interface RawSystemDeviceMap {
+  default_site?: unknown
+  sites?: unknown
+  pending_review?: unknown
+  /** The legacy flat single-site shape keeps these three at the top level. */
+  mappings?: unknown
+  not_deployed_at_northgate?: unknown
+  unclaimed_devices?: unknown
+  [key: string]: unknown
 }
 
-/** Accepts the legacy flat single-site shape, same as curation.py. */
-function normaliseSystemDeviceMap(
+/**
+ * The parsed map in the multi-site shape every consumer reads.
+ *
+ * Accepts the legacy flat single-site shape, and a site's absences under the
+ * legacy key not_deployed_at_northgate, the same as
+ * normalise_system_device_map in ingest/src/atlas_ingest/curation.py. The
+ * casts below only name the shape the gates in crossFileFailures then hold the
+ * values to; nothing here checks them.
+ */
+export function normaliseSystemDeviceMap(
   raw: RawSystemDeviceMap | null,
   matrixIds: ReadonlySet<SystemId>,
 ): CoverageMatrix {
@@ -157,7 +177,7 @@ function normaliseSystemDeviceMap(
     return { default_site: null, sites: {}, pending_review: {}, confidence_counts: {} }
   }
 
-  const blocks: Record<string, RawSiteBlock> = raw.sites ?? {
+  const blocks = (raw.sites ?? {
     northgate: {
       label: 'Northgate Sports Campus',
       scope: 'Northgate (wrapped from a legacy flat map)',
@@ -165,7 +185,7 @@ function normaliseSystemDeviceMap(
       not_deployed_at_site: raw.not_deployed_at_northgate,
       unclaimed_devices: raw.unclaimed_devices,
     },
-  }
+  }) as Record<string, RawSiteBlock>
 
   const sites: Record<string, CoverageSite> = {}
   for (const [id, block] of Object.entries(blocks)) {
@@ -173,27 +193,31 @@ function normaliseSystemDeviceMap(
     // ingest reads it (entry.get("devices")). Filled in here so no consumer
     // has to guard it and none can crash on it before a gate names the row.
     const mappings = Object.fromEntries(
-      Object.entries(block.mappings ?? {}).map(([sid, m]) => [
-        sid,
-        { ...m, devices: m.devices ?? [] },
-      ]),
+      Object.entries((block.mappings ?? {}) as Record<string, Partial<Mapping>>).map(
+        ([sid, m]) => [sid, { ...m, devices: m.devices ?? [] } as Mapping],
+      ),
     )
     sites[id] = {
-      label: block.label ?? id,
-      scope: block.scope ?? '',
+      label: (block.label ?? id) as string,
+      scope: (block.scope ?? '') as string,
       mappings,
-      not_deployed_at_site:
-        block.not_deployed_at_site ?? block.not_deployed_at_northgate ?? {},
-      unclaimed_devices: block.unclaimed_devices ?? { infrastructure: [] },
+      not_deployed_at_site: (block.not_deployed_at_site ??
+        block.not_deployed_at_northgate ??
+        {}) as CoverageSite['not_deployed_at_site'],
+      unclaimed_devices: (block.unclaimed_devices ?? {
+        infrastructure: [],
+      }) as CoverageSite['unclaimed_devices'],
       // Copied only when declared, as the ingest does: absent means "not decided".
-      ...(block.decision_roots !== undefined ? { decision_roots: block.decision_roots } : {}),
+      ...(block.decision_roots !== undefined
+        ? { decision_roots: block.decision_roots as DecisionRoots }
+        : {}),
     }
   }
 
   const matrix: CoverageMatrix = {
-    default_site: raw.default_site ?? Object.keys(sites)[0] ?? null,
+    default_site: (raw.default_site ?? Object.keys(sites)[0] ?? null) as SiteId | null,
     sites,
-    pending_review: raw.pending_review ?? {},
+    pending_review: (raw.pending_review ?? {}) as Record<string, string>,
     confidence_counts: {},
   }
   // The same predicate the tabs use, so the analyst's own file cannot produce
@@ -256,6 +280,13 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
     edges,
   }
 }
+
+/**
+ * Blank as validate.py reads it (_BLANK): trim() and Python's strip() disagree
+ * on U+FEFF, U+001C-001F and U+0085, so both engines name the same 30
+ * characters.
+ */
+const BLANK = /^[\s\x1c-\x1f\x85]*$/
 
 /**
  * Cross-file integrity, ported from validate() in
@@ -334,10 +365,104 @@ function decisionRootFailures(
       seenAssumed.add(device)
     }
   }
-  // Blank as validate.py reads it: trim() and Python's strip() disagree on
-  // U+FEFF, U+001C-001F and U+0085, so both engines name the same 30 characters.
-  if (typeof roots.note !== 'string' || /^[\s\x1c-\x1f\x85]*$/.test(roots.note)) {
+  if (typeof roots.note !== 'string' || BLANK.test(roots.note)) {
     fails.push(`${where}: no note; say who chose these positions and why`)
+  }
+  return fails
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** Written, in the sense the ingest's `is not None` means: null is absent. */
+const given = (value: unknown): boolean => value !== undefined && value !== null
+
+/**
+ * The checks on one review stamp, wherever it is written, word for word the
+ * ingest's _stamp_failures. `at` is the entry's path.
+ */
+function stampFailures(at: string, entry: Record<string, unknown>): string[] {
+  const by = entry.reviewed_by
+  const on = entry.reviewed_on
+  if (!given(by) && !given(on)) return []
+  if (!given(by) || !given(on)) {
+    return [`${at}: reviewed_by and reviewed_on go together; give both or neither`]
+  }
+  if (typeof by !== 'string' || typeof on !== 'string') {
+    return [`${at}: reviewed_by and reviewed_on must be text`]
+  }
+  const fails: string[] = []
+  if (BLANK.test(by)) fails.push(`${at}: reviewed_by is blank; say who reviewed it`)
+  if (!isCalendarDate(on)) {
+    fails.push(`${at}: reviewed_on '${on}' is not a date; write it as YYYY-MM-DD`)
+  }
+  return fails
+}
+
+/**
+ * The gates on a site's review fields, word for word the ingest's
+ * _review_failures: the stamps on mappings and on checked absences, the
+ * absence's own shape, and unclaimed_devices.checked, the devices someone
+ * checked and found to carry no system. Mappings first, then absences, then
+ * checked devices, each in file order. Only the drawing check needs the
+ * topology.
+ */
+function reviewFailures(
+  siteId: string,
+  site: CoverageSite,
+  deviceIds: ReadonlySet<string> | null,
+): string[] {
+  const fails: string[] = []
+  for (const [systemId, mapping] of Object.entries(site.mappings)) {
+    const mappingAt = `system_device_map.sites.${siteId}.mappings.${systemId}`
+    fails.push(...stampFailures(mappingAt, mapping as unknown as Record<string, unknown>))
+  }
+
+  const absences: Record<string, unknown> = site.not_deployed_at_site
+  for (const [systemId, value] of Object.entries(absences)) {
+    const absenceAt = `system_device_map.sites.${siteId}.not_deployed_at_site.${systemId}`
+    if (typeof value === 'string') continue
+    if (!isPlainObject(value)) {
+      fails.push(
+        `${absenceAt}: must be a reason, or an object with reason, reviewed_by ` +
+          `and reviewed_on`,
+      )
+      continue
+    }
+    fails.push(...stampFailures(absenceAt, value))
+    if (typeof value.reason !== 'string' || BLANK.test(value.reason)) {
+      fails.push(`${absenceAt}: no reason; say what was checked`)
+    }
+  }
+
+  const checked: unknown = site.unclaimed_devices?.checked
+  if (!given(checked)) return fails
+  const checkedAt = `system_device_map.sites.${siteId}.unclaimed_devices.checked`
+  if (!isPlainObject(checked)) {
+    fails.push(`${checkedAt}: must map device ids to reviews`)
+    return fails
+  }
+  for (const [device, entry] of Object.entries(checked)) {
+    const deviceAt = `system_device_map.sites.${siteId}.unclaimed_devices.checked.${device}`
+    if (!isPlainObject(entry) || !given(entry.reviewed_by) || !given(entry.reviewed_on)) {
+      fails.push(`${deviceAt}: must be an object with reviewed_by and reviewed_on`)
+    } else {
+      fails.push(...stampFailures(deviceAt, entry))
+    }
+    // A check says the device carries no system, so a mapping naming it
+    // contradicts the check. Both are kept and both are named.
+    for (const [systemId, mapping] of Object.entries(site.mappings)) {
+      const devices: unknown = mapping.devices
+      if (Array.isArray(devices) && devices.includes(device)) {
+        fails.push(
+          `${deviceAt}: mappings.${systemId} lists this device; a device checked ` +
+            `as carrying no system takes no mapping`,
+        )
+      }
+    }
+    if (deviceIds && !deviceIds.has(device)) {
+      fails.push(`${checkedAt}: device '${device}' is not in the ${siteId} topology`)
+    }
   }
   return fails
 }
@@ -430,6 +555,8 @@ export function crossFileFailures(parsed: {
         }
       }
     }
+
+    fails.push(...reviewFailures(siteId, site, deviceIds))
   }
 
   for (const link of parsed.links) {

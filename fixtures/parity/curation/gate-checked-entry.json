@@ -1,0 +1,89 @@
+{
+  "name": "gate-checked-entry",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": [
+            "yard_gw",
+            "yard_switch"
+          ],
+          "checked": {
+            "yard_gw": "yes",
+            "yard_switch": {
+              "reviewed_by": "x"
+            }
+          }
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [
+      "system_device_map.sites.yard.unclaimed_devices.checked.yard_gw: must be an object with reviewed_by and reviewed_on",
+      "system_device_map.sites.yard.unclaimed_devices.checked.yard_switch: must be an object with reviewed_by and reviewed_on"
+    ]
+  }
+}

@@ -17,7 +17,8 @@
  */
 import { CATEGORY_MAP } from '../data/generated/classifierTables'
 import type {
-  Confidence, CoverageMatrix, CoverageSite, Mapping, System, SystemId,
+  CheckedAbsence, Confidence, CoverageMatrix, CoverageSite, Mapping, ReviewStamp, System,
+  SystemId,
 } from '../types/atlas'
 
 /** The category-map branch the matrix files its gap rows under. */
@@ -62,6 +63,23 @@ export function isReviewedSite(site: CoverageSite | undefined): boolean {
     !!site &&
     (Object.keys(site.mappings).length > 0 || Object.keys(site.not_deployed_at_site).length > 0)
   )
+}
+
+/**
+ * The text of a checked absence, whichever form the file wrote it in: a bare
+ * reason, or an object carrying the reason beside its review stamp. No figure
+ * reads it; every count tests only that the key is there.
+ */
+export function absenceReason(value: string | CheckedAbsence): string {
+  return typeof value === 'string' ? value : value.reason
+}
+
+/**
+ * Does this entry carry a review stamp? Both fields must be text. The load
+ * gates refuse a file where only one is given, so a stamp is whole or absent.
+ */
+export function isReviewed(entry: Partial<ReviewStamp>): boolean {
+  return typeof entry.reviewed_by === 'string' && typeof entry.reviewed_on === 'string'
 }
 
 /** The set the predicate tests membership against. */

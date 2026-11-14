@@ -1,0 +1,102 @@
+{
+  "name": "gate-order",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {
+          "alpha": {
+            "devices": [
+              "yard_ghost"
+            ],
+            "note": "Seen on the old drawing",
+            "confidence": "high",
+            "reviewed_by": "Site lead"
+          }
+        },
+        "not_deployed_at_site": {
+          "beta": {
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-02-30"
+          }
+        },
+        "unclaimed_devices": {
+          "infrastructure": [],
+          "checked": {
+            "yard_ghost": "yes"
+          }
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [
+      "system_device_map.sites.yard.mappings.alpha: device 'yard_ghost' is not in the yard topology",
+      "system_device_map.sites.yard.mappings.alpha: reviewed_by and reviewed_on go together; give both or neither",
+      "system_device_map.sites.yard.not_deployed_at_site.beta: reviewed_on '2026-02-30' is not a date; write it as YYYY-MM-DD",
+      "system_device_map.sites.yard.not_deployed_at_site.beta: no reason; say what was checked",
+      "system_device_map.sites.yard.unclaimed_devices.checked.yard_ghost: must be an object with reviewed_by and reviewed_on",
+      "system_device_map.sites.yard.unclaimed_devices.checked.yard_ghost: mappings.alpha lists this device; a device checked as carrying no system takes no mapping",
+      "system_device_map.sites.yard.unclaimed_devices.checked: device 'yard_ghost' is not in the yard topology"
+    ]
+  }
+}

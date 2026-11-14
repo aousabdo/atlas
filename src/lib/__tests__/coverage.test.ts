@@ -9,11 +9,13 @@ import { NetworkTab } from '../../tabs/network/NetworkTab'
 import { ReferenceTab } from '../../tabs/reference/ReferenceTab'
 import type { Mapping } from '../../types/atlas'
 import {
+  absenceReason,
   confidenceGrade,
   countMappings,
   fieldableSystemIds,
   formatPercent,
   isRealizedMapping,
+  isReviewed,
   matrixIdSet,
   percentOf,
   realizedAnywhere,
@@ -87,6 +89,25 @@ describe('confidenceGrade', () => {
     expect(confidenceGrade({ confidence: ['high'] as never })).toBe('unspecified')
     expect(confidenceGrade({ confidence: 3 as never })).toBe('unspecified')
     expect(confidenceGrade({ confidence: 'Medium' as never })).toBe('medium')
+  })
+})
+
+describe('absenceReason', () => {
+  it('reads the reason from either form a checked absence takes', () => {
+    expect(absenceReason('Checked with the range lead')).toBe('Checked with the range lead')
+    expect(
+      absenceReason({ reason: 'No sonar on a dry range', reviewed_by: 'Site lead', reviewed_on: '2026-11-13' }),
+    ).toBe('No sonar on a dry range')
+  })
+})
+
+describe('isReviewed', () => {
+  it('is true only when both stamp fields are text', () => {
+    expect(isReviewed({ reviewed_by: 'Site lead', reviewed_on: '2026-11-13' })).toBe(true)
+    expect(isReviewed({})).toBe(false)
+    expect(isReviewed({ reviewed_by: 'Site lead' })).toBe(false)
+    expect(isReviewed({ reviewed_on: '2026-11-13' })).toBe(false)
+    expect(isReviewed({ reviewed_by: 5 as never, reviewed_on: '2026-11-13' })).toBe(false)
   })
 })
 

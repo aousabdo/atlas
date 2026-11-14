@@ -1,0 +1,122 @@
+{
+  "name": "plain-file",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {
+          "alpha": {
+            "devices": [
+              "yard_cam"
+            ],
+            "note": "Camera mast by the gate",
+            "confidence": "high"
+          },
+          "beta": {
+            "devices": [],
+            "note": "Hardware not yet identified",
+            "confidence": "medium"
+          }
+        },
+        "not_deployed_at_site": {
+          "gamma": "Checked with the yard lead: no gamma feed here"
+        },
+        "unclaimed_devices": {
+          "infrastructure": [
+            "yard_gw",
+            "yard_switch"
+          ]
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      }
+    },
+    "pending_review": {
+      "yard radar": "Which system does yard_radar carry?"
+    }
+  },
+  "expect": {
+    "failures": [],
+    "realization": {
+      "numerator": 1,
+      "per_site": {
+        "yard": {
+          "mapped_ids": [
+            "alpha"
+          ],
+          "checked_absent": [
+            "gamma"
+          ]
+        },
+        "annex": {
+          "mapped_ids": [],
+          "checked_absent": []
+        }
+      },
+      "by_confidence": {
+        "high": [
+          "alpha"
+        ],
+        "medium": [],
+        "low": [],
+        "unspecified": []
+      }
+    }
+  }
+}

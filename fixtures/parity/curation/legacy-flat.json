@@ -1,0 +1,93 @@
+{
+  "name": "legacy-flat",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "northgate": [
+      "ng_cam",
+      "ng_gw"
+    ]
+  },
+  "map": {
+    "mappings": {
+      "alpha": {
+        "devices": [
+          "ng_cam"
+        ],
+        "note": "Camera on the north stand",
+        "confidence": "high",
+        "reviewed_by": "Site lead",
+        "reviewed_on": "2026-11-13"
+      }
+    },
+    "not_deployed_at_northgate": {
+      "beta": "Checked: no beta at Northgate"
+    },
+    "unclaimed_devices": {
+      "infrastructure": [
+        "ng_gw"
+      ],
+      "checked": {
+        "ng_gw": {
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [],
+    "realization": {
+      "numerator": 1,
+      "per_site": {
+        "northgate": {
+          "mapped_ids": [
+            "alpha"
+          ],
+          "checked_absent": [
+            "beta"
+          ]
+        }
+      },
+      "by_confidence": {
+        "high": [
+          "alpha"
+        ],
+        "medium": [],
+        "low": [],
+        "unspecified": []
+      }
+    }
+  }
+}

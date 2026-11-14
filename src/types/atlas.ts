@@ -102,12 +102,34 @@ export interface Topology {
   edges: DeviceEdge[]
 }
 
+/** Who reviewed an entry, and the day, as YYYY-MM-DD. Given together or not at all. */
+export interface ReviewStamp {
+  reviewed_by: string
+  reviewed_on: string
+}
+
+/** A checked absence written as an object. Its reason is its note. */
+export interface CheckedAbsence extends ReviewStamp {
+  reason: string
+}
+
+/** A device checked and found to carry no system. The stamp is required. */
+export interface CheckedDevice extends ReviewStamp {
+  note?: string
+}
+
 export interface Mapping {
   devices: DeviceId[]
   note: string
   confidence: Confidence
   /** false when the mapping deliberately names something absent from the matrix. */
   matrix_id_exists?: boolean
+  /**
+   * Who reviewed the mapping and when. On a mapping with no devices, the stamp
+   * is what separates "reviewed: no dedicated hardware" from a survey gap.
+   */
+  reviewed_by?: string
+  reviewed_on?: string
 }
 
 /**
@@ -126,9 +148,17 @@ export interface CoverageSite {
   label: string
   scope: string
   mappings: Record<SystemId, Mapping>
-  /** Checked and genuinely absent, which is different from not yet looked at. */
-  not_deployed_at_site: Record<SystemId, string>
-  unclaimed_devices: { infrastructure: DeviceId[]; _comment?: string }
+  /**
+   * Checked and genuinely absent, which is different from not yet looked at.
+   * Either a bare reason or a reviewed object; read the text with absenceReason.
+   */
+  not_deployed_at_site: Record<SystemId, string | CheckedAbsence>
+  unclaimed_devices: {
+    infrastructure: DeviceId[]
+    _comment?: string
+    /** Checked and found to carry no system. Still unclaimed, so still listed above. */
+    checked?: Record<DeviceId, CheckedDevice>
+  }
   /** Absent means "not decided": measure from the drawing's entry points. */
   decision_roots?: DecisionRoots
 }

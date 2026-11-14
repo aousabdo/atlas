@@ -51,20 +51,46 @@ def load_glossary(path):
 
 
 def load_system_device_map(path):
-    """System-to-device mappings. Accepts the legacy flat single-site shape and
-    normalises it to the multi-site shape (build_cuas_tool_v4.py:526-558)."""
+    """System-to-device mappings, read from a file and normalised."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"system_device_map not found: {path}")
-    raw = _read_json(path)
+    return normalise_system_device_map(_read_json(path))
 
+
+def _or_default(value, default):
+    """`value ?? default`, as the browser reads the map: null is absent."""
+    return value if value is not None else default
+
+
+def normalise_system_device_map(raw):
+    """The parsed map in the multi-site shape (build_cuas_tool_v4.py:526-558).
+
+    Accepts the legacy flat single-site shape and wraps it as one site. A site
+    may also carry its absences under the legacy key not_deployed_at_northgate.
+    normaliseSystemDeviceMap in src/data/LocalFileProvider.ts reads the same
+    file the same way, and fixtures/parity/curation holds both to it. Every key
+    this does not fill is passed through, review fields included. The input is
+    not modified.
+    """
     if isinstance(raw.get("sites"), dict):
-        raw.setdefault("pending_review", {})
-        for site in raw["sites"].values():
-            site.setdefault("mappings", {})
-            site.setdefault("not_deployed_at_site", {})
-            site.setdefault("unclaimed_devices", {"infrastructure": []})
-        return raw
+        sites = {}
+        for site_id, block in raw["sites"].items():
+            site = dict(block)
+            site["mappings"] = _or_default(site.get("mappings"), {})
+            site["not_deployed_at_site"] = _or_default(
+                site.get("not_deployed_at_site"),
+                _or_default(site.get("not_deployed_at_northgate"), {}),
+            )
+            site["unclaimed_devices"] = _or_default(
+                site.get("unclaimed_devices"), {"infrastructure": []}
+            )
+            sites[site_id] = site
+        return {
+            **raw,
+            "sites": sites,
+            "pending_review": _or_default(raw.get("pending_review"), {}),
+        }
 
     return {
         "_version": "0.2-wrapped-from-flat",
@@ -73,14 +99,14 @@ def load_system_device_map(path):
             "northgate": {
                 "label": "Northgate Sports Campus",
                 "scope": "Northgate (wrapped from a legacy flat map)",
-                "mappings": raw.get("mappings", {}),
-                "not_deployed_at_site": raw.get("not_deployed_at_northgate", {}),
-                "unclaimed_devices": raw.get(
-                    "unclaimed_devices", {"infrastructure": []}
+                "mappings": _or_default(raw.get("mappings"), {}),
+                "not_deployed_at_site": _or_default(raw.get("not_deployed_at_northgate"), {}),
+                "unclaimed_devices": _or_default(
+                    raw.get("unclaimed_devices"), {"infrastructure": []}
                 ),
             }
         },
-        "pending_review": raw.get("pending_review", {}),
+        "pending_review": _or_default(raw.get("pending_review"), {}),
     }
 
 

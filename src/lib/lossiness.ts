@@ -123,28 +123,17 @@ export interface LossinessInputs {
   topologies: Record<string, Topology>
 }
 
-export function computeLossiness(inputs: LossinessInputs): LossinessReport {
-  const { systems, links, requirements, coverage, topologies } = inputs
-
-  const dropped = requirements.filter((r) => r.status === "Didn't keep").map((r) => r.orig)
-  const carried = requirements.length - dropped.length
-  const requirementAttrition = dimension(
-    'requirement_attrition', carried, requirements.length,
-    severityFor(pct(carried, requirements.length)),
-    { dropped, by_status: tally(requirements.map((r) => r.status)) },
-  )
-
-  const unconfirmed = systems.filter((s) => !s.confirmed).map((s) => s.id).sort()
-  const ownershipAmbiguity = dimension(
-    'ownership_ambiguity', systems.length - unconfirmed.length, systems.length,
-    severityFor(pct(systems.length - unconfirmed.length, systems.length)),
-    { unconfirmed },
-  )
-
-  // isRealizedMapping is the shared definition; see src/lib/coverage.ts for
-  // why a device-less or non-matrix mapping is a different fact from coverage.
-  // Shortfall rows record a gap, not a system that could be fielded, so they
-  // are out of the denominator and named under detail.shortfalls instead.
+/**
+ * Systems realized at one site or another, the same dimension as
+ * _realization_gap in the ingest. On its own so the shared curation cases in
+ * fixtures/parity/curation can hold both engines to one answer for one map.
+ *
+ * isRealizedMapping is the shared definition; see src/lib/coverage.ts for why
+ * a device-less or non-matrix mapping is a different fact from coverage.
+ * Shortfall rows record a gap, not a system that could be fielded, so they are
+ * out of the denominator and named under detail.shortfalls instead.
+ */
+export function realizationGap(systems: System[], coverage: CoverageMatrix): LossinessDimension {
   const matrixIds = matrixIdSet(systems)
   const shortfalls = shortfallSystemIds(systems)
   const fieldable = fieldableSystemIds(systems)
@@ -172,11 +161,32 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
       [...best].filter(([, g]) => g === grade).map(([id]) => id).sort(),
     ]),
   )
-  const realizationGap = dimension(
+  return dimension(
     'realization_gap', mappedAnywhere.size, total,
     severityFor(pct(mappedAnywhere.size, total)),
     { per_site: perSite, unmapped, shortfalls, by_confidence: byConfidence },
   )
+}
+
+export function computeLossiness(inputs: LossinessInputs): LossinessReport {
+  const { systems, links, requirements, coverage, topologies } = inputs
+
+  const dropped = requirements.filter((r) => r.status === "Didn't keep").map((r) => r.orig)
+  const carried = requirements.length - dropped.length
+  const requirementAttrition = dimension(
+    'requirement_attrition', carried, requirements.length,
+    severityFor(pct(carried, requirements.length)),
+    { dropped, by_status: tally(requirements.map((r) => r.status)) },
+  )
+
+  const unconfirmed = systems.filter((s) => !s.confirmed).map((s) => s.id).sort()
+  const ownershipAmbiguity = dimension(
+    'ownership_ambiguity', systems.length - unconfirmed.length, systems.length,
+    severityFor(pct(systems.length - unconfirmed.length, systems.length)),
+    { unconfirmed },
+  )
+
+  const realization = realizationGap(systems, coverage)
 
   const currentPairs = new Set(links.current.map((l) => pairKey(l.from, l.to)))
   const missing = links.desired.filter((d) => !currentPairs.has(pairKey(d.from, d.to)))
@@ -228,7 +238,7 @@ export function computeLossiness(inputs: LossinessInputs): LossinessReport {
   )
 
   const dimensions = [
-    requirementAttrition, ownershipAmbiguity, realizationGap,
+    requirementAttrition, ownershipAmbiguity, realization,
     integrationGap, evidenceGap, orphanedHardware, openQuestions,
   ]
 

@@ -245,11 +245,29 @@ whether the architecture is realized anywhere.
           "devices": ["device_id_one", "device_id_two"],
           "note": "Why these devices realize this system",
           "confidence": "high",
-          "matrix_id_exists": false
+          "matrix_id_exists": false,
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
         }
       },
-      "not_deployed_at_site": { "system_id": "Checked, and genuinely absent here" },
-      "unclaimed_devices": { "infrastructure": ["device_id_three"] }
+      "not_deployed_at_site": {
+        "system_id": "Checked, and genuinely absent here",
+        "other_system_id": {
+          "reason": "Checked, and genuinely absent here",
+          "reviewed_by": "Site lead",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "unclaimed_devices": {
+        "infrastructure": ["device_id_three"],
+        "checked": {
+          "device_id_three": {
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-11-13",
+            "note": "Carrier gateway; carries no matrix system"
+          }
+        }
+      }
     }
   },
   "pending_review": { "subject": "An open question about the mapping" }
@@ -266,21 +284,47 @@ Field by field:
   `Project/System` name, not the name itself. A system counts as **realized** at
   a site only when its mapping names at least one device **and** the matrix
   carries that system id. The two other cases are real facts with different
-  meanings and are labelled as such: a mapping with an empty `devices` list is a
-  survey gap, and a mapping the matrix does not carry documents hardware that no
-  matrix row explains. A shortfall row is never realized: it records that no
-  system exists, so it takes no mapping at all, not even an empty one, and the
-  load fails if it has one. Record a checked absence for it under
+  meanings and are labelled as such: a mapping with an empty `devices` list
+  names no hardware, and a mapping the matrix does not carry documents hardware
+  that no matrix row explains. A shortfall row is never realized: it records
+  that no system exists, so it takes no mapping at all, not even an empty one,
+  and the load fails if it has one. Record a checked absence for it under
   `not_deployed_at_site`.
-- **`matrix_id_exists: false`** is how you state that the second case is
-  deliberate. Omit it and it defaults to true.
+- **A mapping with an empty `devices` list** has two readings, and the review
+  fields below separate them. **With** `reviewed_by` and `reviewed_on`, it is a
+  reviewer's statement that the system has no dedicated hardware here (client
+  software, say). It is settled. **Without** them, it is a survey gap: the
+  system is recorded, but its hardware has not been identified yet. It is open.
+  Neither one counts as realized.
+- **`matrix_id_exists: false`** is how you state that a mapping the matrix does
+  not carry is deliberate. Omit it and it defaults to true.
 - **`confidence`** is `high`, `medium` or `low`. Anything else is counted as
   unspecified. Only realized mappings are graded, so the tally can never
   overstate how much is verified.
+- **`reviewed_by`** and **`reviewed_on`** (optional, on a mapping) say who
+  reviewed it and on what day. Give both or neither. `reviewed_by` must not be
+  blank, and `reviewed_on` is written `YYYY-MM-DD` in ASCII digits and must be a
+  day the calendar has, so `2026-02-30` is refused. There is no check that the
+  day has already happened, because the gate would then depend on the clock.
+  No figure counts the stamp. It settles the reading of a mapping with no
+  devices, above.
 - **`not_deployed_at_site`** records what was checked and found absent, which is
-  different from not yet looked at, and shows as such per site.
-- **`unclaimed_devices.infrastructure`** is the numerator of the orphaned
-  hardware dimension.
+  different from not yet looked at, and shows as such per site. Each value is
+  the reason as text, or, when the check was reviewed, an object holding the
+  reason beside the same two review fields:
+  `{ "reason": "...", "reviewed_by": "...", "reviewed_on": "..." }`. The reason
+  is the absence's note, so an absence takes no separate `note`. An object needs
+  a reason that is not blank, and its review fields follow the rules above.
+- **`unclaimed_devices.infrastructure`** is the devices no mapping names, and
+  the numerator of the orphaned hardware dimension.
+- **`unclaimed_devices.checked`** (optional) records devices someone checked
+  and found to carry no system, keyed by device id. Each entry is itself a
+  review, so `reviewed_by` and `reviewed_on` are required, under the rules
+  above; `note` is optional. A checked device is still unclaimed: it stays on
+  the infrastructure list, and the orphaned hardware dimension still counts it,
+  because a check does not make a device claimed. No figure reads `checked`. A
+  device a mapping names cannot also be checked, and a checked device has to
+  be on the site's drawing when that drawing is loaded.
 - **`decision_roots`** (optional) is where decisions are made at the site: the
   devices someone acts from, as `{ "devices": [...], "assumed": [...], "note": "..." }`.
   It is a judgement about the drawing, not something the drawing says, so it
@@ -294,13 +338,18 @@ Field by field:
 
 A legacy single-site file with `mappings`, `not_deployed_at_northgate` and
 `unclaimed_devices` at the top level and no `sites` object is still accepted,
-and is wrapped as one site keyed `northgate`.
+and is wrapped as one site keyed `northgate`. A site that keeps its absences
+under `not_deployed_at_northgate` rather than `not_deployed_at_site` is read
+the same way. Keys ATLAS does not know, such as a `_comment` of your own, are
+ignored.
 
 Both paths refuse the same mappings for the same reasons, listed under
 cross-file integrity failures below: a mapping naming a system the matrix has
 never heard of fails the load unless it sets `matrix_id_exists: false`, and so
 does a mapping for a shortfall row. A mapping with no `devices` key is read as
-naming no hardware.
+naming no hardware. Both also refuse the same review fields: a stamp given by
+half, a blank reviewer, a day that is not a date, an absence object with no
+reason, and a checked device that a mapping names or the drawing lacks.
 
 ---
 
@@ -526,6 +575,47 @@ Each line under that heading is one of:
 - `crosswalk '<requirement>...': current system '<name>' does not match any
   Project/System name in the matrix` - the crosswalk sheet names a current system
   by a spelling the Matrix sheet does not use.
+
+The review fields in section 4 are checked the same way wherever they are
+written. In the first four lines below, `<where>` is the entry the stamp is on:
+`system_device_map.sites.<site>.mappings.<system>`,
+`system_device_map.sites.<site>.not_deployed_at_site.<system>` or
+`system_device_map.sites.<site>.unclaimed_devices.checked.<device>`. A review
+field, or `checked` itself, written as null counts as not given.
+
+- `<where>: reviewed_by and reviewed_on go together; give both or neither` - a
+  mapping or an absence carries only one of the two. A checked device that lacks one
+  gets the shape line further down instead, because it needs both.
+- `<where>: reviewed_by and reviewed_on must be text` - both are given, and one
+  of them is not text: a number, true or false, a list or an object. The two lines after this one wait
+  until both are text.
+- `<where>: reviewed_by is blank; say who reviewed it` - blank by the same rule
+  as a `decision_roots` note, which both paths read alike.
+- `<where>: reviewed_on '<value>' is not a date; write it as YYYY-MM-DD` - four
+  ASCII digits, two and two, naming a day the calendar has. `2026-02-30` and
+  `0000-01-01` are refused and `2028-02-29` is not. It can follow the blank
+  line above for the same entry.
+- `system_device_map.sites.<site>.not_deployed_at_site.<system>: must be a
+  reason, or an object with reason, reviewed_by and reviewed_on` - the absence is
+  neither text nor an object: a number, true or false, a list, or null. Nothing
+  else about it is checked.
+- `system_device_map.sites.<site>.not_deployed_at_site.<system>: no reason; say
+  what was checked` - an absence written as an object whose `reason` is
+  missing, not text, or blank.
+- `system_device_map.sites.<site>.unclaimed_devices.checked: must map device ids
+  to reviews` - `checked` is not an object: a list, a string, a number, or true
+  or false. Nothing inside it is checked until it is an object.
+- `system_device_map.sites.<site>.unclaimed_devices.checked.<device>: must be an
+  object with reviewed_by and reviewed_on` - a checked device is itself a review,
+  so both fields are required. Once they are given, a blank reviewer or a bad
+  day gets the shared lines above.
+- `system_device_map.sites.<site>.unclaimed_devices.checked.<device>:
+  mappings.<system> lists this device; a device checked as carrying no system
+  takes no mapping` - one line for each mapping that names the device. The check
+  and the mapping contradict each other, and the file has to say which is right.
+- `system_device_map.sites.<site>.unclaimed_devices.checked: device '<device>' is
+  not in the <site> topology` - only checked when that site's topology was
+  loaded.
 
 ### The panel refuses, before the parser is called
 
