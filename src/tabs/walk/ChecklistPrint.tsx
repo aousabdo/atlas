@@ -1,4 +1,4 @@
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, type ReactNode } from 'react'
 
 import { useCuration } from '../../curation/CurationContext'
 import { localDate } from '../../curation/dates'
@@ -48,8 +48,9 @@ function DeviceLine({ row }: { row: DeviceRow }) {
 
 /**
  * What prints from the Site walk tab: the checklist for the selected site, in
- * the order the walk should take it. Hidden on screen. The rest of the page
- * carries `data-print-hide`, so this is all that reaches the paper.
+ * the order the walk should take it. Hidden on screen. While it is mounted the
+ * print sheet is on, and the rest of the page, which carries `data-print-hide`,
+ * stays off the paper, so this is all that reaches it.
  */
 export const ChecklistPrint = memo(function ChecklistPrint(props: {
   siteLabel: string
@@ -59,6 +60,14 @@ export const ChecklistPrint = memo(function ChecklistPrint(props: {
 }) {
   const { siteLabel, site, systems, topology } = props
   const { source, unsaved } = useCuration()
+  // The print sheet in index.css hides the page chrome and the data-source
+  // strip, so it is switched on here and nowhere else: every other view, and
+  // this one while it has no checklist, prints its marking as it always has.
+  useEffect(() => {
+    const html = document.documentElement
+    html.setAttribute('data-print-checklist', '')
+    return () => html.removeAttribute('data-print-checklist')
+  }, [])
   const checklist = useMemo(() => buildChecklist(site, systems, topology), [site, systems, topology])
   // Once per system, and only a system that can be fielded: one recorded both as
   // mapped and as absent stands as the mapping says, and a shortfall row is no system.

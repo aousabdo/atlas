@@ -96,6 +96,29 @@ test('walk renders for print', async ({ page }) => {
   })
 })
 
+// That print sheet belongs to the checklist alone. Every other view prints as
+// it did before the Site walk existed, so the strip that carries the marking
+// reaches the paper, and so do the page chrome and the Reference title. The
+// walk is visited first: leaving it must take its print sheet away with it.
+test('every other view still prints the data-source strip', async ({ page }) => {
+  const walk = TABS.find((tab) => tab.name === 'walk')!
+  const lossiness = TABS.find((tab) => tab.name === 'lossiness')!
+  const reference = TABS.find((tab) => tab.name === 'reference')!
+  await page.goto(walk.path)
+  await settle(page, walk)
+  await page.getByRole('tab', { name: 'Lossiness' }).click()
+  await settle(page, lossiness)
+
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.getByRole('status', { name: 'Data source' })).toBeVisible()
+  await expect(page.locator('header').first()).toBeVisible()
+
+  await page.getByRole('tab', { name: 'Reference' }).click()
+  await settle(page, reference)
+  await expect(page.getByRole('status', { name: 'Data source' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: reference.heading }).first()).toBeVisible()
+})
+
 test('the two themes are actually different', async ({ page }) => {
   const bg = async (theme: 'dark' | 'light') => {
     await page.addInitScript((t) => {

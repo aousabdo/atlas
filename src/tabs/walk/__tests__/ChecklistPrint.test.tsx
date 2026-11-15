@@ -94,4 +94,15 @@ describe('the printed checklist', () => {
     expect(document.querySelector('[data-print-hide]')).not.toBeNull()
     expect(document.querySelector('[data-export-png]')).toBeNull()
   })
+
+  it('turns the print sheet on only while it is mounted', async () => {
+    // The sheet hides the page chrome and the data-source strip. Any other
+    // view must still print its marking, so the switch goes with the checklist.
+    const html = document.documentElement
+    expect(html).not.toHaveAttribute('data-print-checklist')
+    const { unmount } = await renderPrint()
+    expect(html).toHaveAttribute('data-print-checklist')
+    unmount()
+    expect(html).not.toHaveAttribute('data-print-checklist')
+  })
 })

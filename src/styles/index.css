@@ -66,18 +66,23 @@
 }
 
 /*
- * The printed site walk checklist. The page chrome and the interactive body
- * stay off the paper, and what prints uses the light tokens whatever the
- * theme in use.
+ * The printed site walk checklist. ChecklistPrint sets data-print-checklist
+ * on <html> while it is mounted, and only then do the page chrome and the
+ * interactive body stay off the paper and what prints use the light tokens,
+ * whatever the theme in use. Every other view prints as it always has: the
+ * data-source strip, which carries the marking, the edits banner and the page
+ * headers all reach the paper. The light override is scoped too. It sets the
+ * neutral tokens only, which is all the checklist draws with; on another view
+ * it would leave the risk and accent inks at their dark-theme values on white.
  */
 @media print {
-  header,
-  [data-print-hide] {
+  [data-print-checklist] header,
+  [data-print-checklist] [data-print-hide] {
     display: none !important;
   }
 
-  :root,
-  :root[data-theme='light'] {
+  :root[data-print-checklist],
+  :root[data-print-checklist][data-theme='light'] {
     color-scheme: light;
     --color-bg: #ffffff;
     --color-surface: #ffffff;
@@ -89,12 +94,12 @@
     --color-muted-3: #333333;
   }
 
-  body {
+  [data-print-checklist] body {
     background: #ffffff;
     color: #000000;
   }
 
-  main {
+  [data-print-checklist] main {
     padding: 0;
   }
 
