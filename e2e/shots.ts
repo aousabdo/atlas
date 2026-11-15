@@ -46,6 +46,12 @@ export const TABS: Tab[] = [
     heading: /Orientation Map/i,
     proof: (page) => page.locator('[data-testid^="leaf-"]').first(),
   },
+  {
+    path: '/walk',
+    name: 'walk',
+    heading: /Site walk/i,
+    proof: (page) => page.getByTestId('walk-summary'),
+  },
 ]
 
 export const THEMES = ['dark', 'light'] as const
@@ -64,7 +70,15 @@ export const THEMES = ['dark', 'light'] as const
  */
 export const STATE_SHOTS = ['network-risk'] as const
 
+/**
+ * Shots taken under print media, one theme only: what reaches the paper is
+ * black on white whatever the theme on screen. The Site walk's checklist is
+ * the only view that prints anything of its own.
+ */
+export const PRINT_SHOTS = ['walk-print.png']
+
 export const SHOTS: string[] = [
   ...TABS.flatMap((tab) => THEMES.map((theme) => `${tab.name}-${theme}.png`)),
   ...STATE_SHOTS.flatMap((name) => THEMES.map((theme) => `${name}-${theme}.png`)),
+  ...PRINT_SHOTS,
 ]

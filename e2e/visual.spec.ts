@@ -69,6 +69,33 @@ for (const theme of THEMES) {
   })
 }
 
+// The Site walk prints a checklist that is hidden on screen, under a print
+// sheet nothing else in the app has. Whether the header, the banners and the
+// forms stay off the paper, and whether what is left is black on white, is a
+// question only print media can answer.
+test('walk renders for print', async ({ page }) => {
+  const walk = TABS.find((tab) => tab.name === 'walk')!
+  // The checklist prints the day it was printed, so the clock is pinned to
+  // keep that line from changing the baseline every midnight.
+  await page.clock.setFixedTime(new Date('2026-11-14T12:00:00Z'))
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto(walk.path)
+  // Settled on screen first: the heading and the summary it waits on are
+  // exactly what print media hides.
+  await settle(page, walk)
+
+  await page.emulateMedia({ media: 'print', colorScheme: 'light' })
+  await expect(page.getByTestId('checklist-print')).toBeVisible()
+  await expect(page.locator('header')).toBeHidden()
+  await expect(page.getByTestId('walk-summary')).toBeHidden()
+
+  await expect(page).toHaveScreenshot('walk-print.png', {
+    fullPage: true,
+    mask: [page.locator('[data-volatile]')],
+    maskColor: await maskColor(page),
+  })
+})
+
 test('the two themes are actually different', async ({ page }) => {
   const bg = async (theme: 'dark' | 'light') => {
     await page.addInitScript((t) => {
