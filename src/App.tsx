@@ -18,6 +18,7 @@ import { LossinessTab } from './tabs/lossiness/LossinessTab'
 import { MapTab } from './tabs/map/MapTab'
 import { NetworkTab } from './tabs/network/NetworkTab'
 import { ReferenceTab } from './tabs/reference/ReferenceTab'
+import { WalkTab } from './tabs/walk/WalkTab'
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
@@ -29,7 +30,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
           'Search everything: systems, devices, zones, acronyms, requirements and views',
       },
       { keys: ['?'], description: 'Show or hide this dialog' },
-      { keys: ['1', '2', '3', '4', '5'], description: 'Jump to a view' },
+      { keys: TABS.map((_, index) => String(index + 1)), description: 'Jump to a view' },
       { keys: ['E'], description: 'Save the current view as a PNG' },
       { keys: ['A'], description: 'About the current view' },
       { keys: ['Esc'], description: 'Close a dialog' },
@@ -156,6 +157,7 @@ export function Shell() {
             element={<Tab label={TABS[3].label}><NetworkTab /></Tab>}
           />
           <Route path="/map" element={<Tab label={TABS[4].label}><MapTab /></Tab>} />
+          <Route path="/walk" element={<Tab label={TABS[5].label}><WalkTab /></Tab>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

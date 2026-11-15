@@ -127,4 +127,27 @@ export const ABOUT: Record<string, AboutContent> = {
       },
     ],
   },
+
+  walk: {
+    title: 'About Site walk',
+    lead:
+      'Record what a walk of one site found, system by system and device by device, and watch the figures follow as each review is saved.',
+    sections: [
+      {
+        heading: 'Where the numbers come from',
+        body:
+          'The summary reads the system to device map as edited here, with the same predicates as the coverage panel. A system is realized when a mapping names a device for it. Recorded with no hardware, checked absent and not looked at are buckets of their own, and with realized they cover every fieldable system once. Not looked at is not a zero: nobody has said. Shortfall rows record a gap rather than a system, so they are named beside the figure and not counted.',
+      },
+      {
+        heading: 'A review stays in this tab until exported',
+        body:
+          'A review takes effect across the app as soon as it is saved, and nothing is written to the browser. Export system_device_map.json from the banner to keep the reviews; closing the tab discards them. Loading the exported file, or passing it to the ingest, gives the same figures.',
+      },
+      {
+        heading: 'Devices',
+        body:
+          'Devices are grouped by zone in the order the printed checklist takes them. A device no mapping names can be recorded as checked and carrying no system. That settles it on the walk and changes no figure: it is still unclaimed hardware.',
+      },
+    ],
+  },
 }

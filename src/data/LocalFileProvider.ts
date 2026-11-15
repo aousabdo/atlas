@@ -290,7 +290,7 @@ function loadTopology(raw: RawTopology | null, siteId: string): Topology {
  * on U+FEFF, U+001C-001F and U+0085, so both engines name the same 30
  * characters.
  */
-const BLANK = /^[\s\x1c-\x1f\x85]*$/
+export const BLANK = /^[\s\x1c-\x1f\x85]*$/
 
 /**
  * Cross-file integrity, ported from validate() in

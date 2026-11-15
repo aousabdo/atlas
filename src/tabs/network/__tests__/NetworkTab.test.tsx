@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
+import { useCuration, type Curation } from '../../../curation/CurationContext'
 import { ProviderContext } from '../../../data/ProviderContext'
+import { setExportEditsNote } from '../../../export/png'
 import { AtlasDataError } from '../../../data/provider'
 import { StaticProvider } from '../../../data/StaticProvider'
 import { renderWithProvider } from '../../../test/renderWithProvider'
@@ -207,6 +209,40 @@ describe('Network Topology', () => {
     )
     expect(await screen.findByRole('alert')).toHaveTextContent(/Could not load/)
     expect(screen.queryByRole('img', { name: /network topology/i })).not.toBeInTheDocument()
+  })
+
+  it('says who checked a device and found it carries no system', async () => {
+    let curation: Curation | null = null
+    function Probe() {
+      curation = useCuration()
+      return null
+    }
+    await renderWithProvider(
+      <>
+        <NetworkTab />
+        <Probe />
+      </>,
+      { curation: true, route: '/network?site=westfield&focus=wf_northwind_gw' },
+    )
+    const detail = await screen.findByRole('region', { name: /device detail/i })
+    expect(within(detail).getByText(/No system mapping recorded/)).toBeInTheDocument()
+    expect(within(detail).queryByText(/Checked by/)).not.toBeInTheDocument()
+
+    try {
+      act(() =>
+        (curation as unknown as Curation).apply({
+          kind: 'check', site: 'westfield', device: 'wf_northwind_gw',
+          check: { reviewed_by: 'Site lead', reviewed_on: '2026-11-13' },
+        }),
+      )
+      const checked = await screen.findByRole('region', { name: /device detail/i })
+      expect(
+        await within(checked).findByText('Checked by Site lead on 2026-11-13: carries no system.'),
+      ).toBeInTheDocument()
+      expect(within(checked).getByText(/No system mapping recorded/)).toBeInTheDocument()
+    } finally {
+      setExportEditsNote(null)
+    }
   })
 })
 

@@ -49,6 +49,16 @@ describe('shortcuts dialog', () => {
     expect(within(dialog).getByText(/ignored while you are typing/i)).toBeInTheDocument()
   })
 
+  it('lists a number key for every view', async () => {
+    const { user } = at('/reference')
+    await user.keyboard('?')
+    const dialog = await screen.findByRole('dialog', { name: /keyboard shortcuts/i })
+    const row = within(dialog).getByText('Jump to a view').parentElement as HTMLElement
+    expect(within(row).getAllByText(/^\d$/).map((key) => key.textContent)).toEqual([
+      '1', '2', '3', '4', '5', '6',
+    ])
+  })
+
   it('does not claim the network shortcuts need focus first', async () => {
     // The tool being replaced had to say "click into the network graph first".
     // One document means that caveat is gone, and it must not be reintroduced.
@@ -70,6 +80,7 @@ describe('number keys jump between views', () => {
     ['3', 'Lossiness'],
     ['4', 'Network Topology'],
     ['5', 'Orientation Map'],
+    ['6', 'Site walk'],
   ])('%s selects its tab', async (key, label) => {
     const { user } = at('/analytics')
     await user.keyboard(key)
@@ -98,7 +109,7 @@ describe('about drawer', () => {
 
   it('has content for every view', () => {
     expect(Object.keys(ABOUT).sort()).toEqual([
-      'analytics', 'lossiness', 'map', 'network', 'reference',
+      'analytics', 'lossiness', 'map', 'network', 'reference', 'walk',
     ])
   })
 

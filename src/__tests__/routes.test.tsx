@@ -26,6 +26,7 @@ describe('routes', () => {
     ['/lossiness', /Lossiness/i],
     ['/network', /Network Topology/i],
     ['/map', /Orientation Map/i],
+    ['/walk', /Site walk/i],
   ])('renders %s', async (path, heading) => {
     at(path)
     // The map and network tabs load three bundles and lay out before their
@@ -40,7 +41,7 @@ describe('routes', () => {
     expect(await screen.findByText(/not found/i)).toBeInTheDocument()
   })
 
-  it('presents the five tabs in spec order', () => {
+  it('presents the six tabs in spec order', () => {
     at('/reference')
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Reference & Methodology',
@@ -48,6 +49,7 @@ describe('routes', () => {
       'Lossiness',
       'Network Topology',
       'Orientation Map',
+      'Site walk',
     ])
   })
 
