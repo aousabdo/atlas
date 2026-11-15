@@ -351,6 +351,30 @@ naming no hardware. Both also refuse the same review fields: a stamp given by
 half, a blank reviewer, a day that is not a date, an absence object with no
 reason, and a checked device that a mapping names or the drawing lacks.
 
+### Written by the app
+
+ATLAS can write this file as well as read it. Reviews recorded in the Site
+walk tab stay in that browser tab until **Export**, in the banner the reviews
+raise, downloads the map with them in it: as `system_device_map.json` over
+loaded data, and under the sample template's name over the sample. Load the
+download back, or pass it to the ingest's `--system-device-map`, and the
+figures are the ones the tab showed.
+
+An export writes the whole file in one canonical order, whatever order it was
+loaded in:
+
+- keys sorted at every level, a two-space indent and a trailing newline, the
+  bytes Python's `json.dumps(..., sort_keys=True, indent=2, ensure_ascii=False)`
+  writes;
+- `confidence_counts` is never written, since every reader recomputes it;
+- keys of your own, such as a `_comment` at the top of the file or on a site,
+  are kept;
+- a legacy single-site file comes back wrapped under `sites`, and absences kept
+  under `not_deployed_at_northgate` come back under `not_deployed_at_site`.
+
+So a map kept in git shows one reordering diff the first time it is exported.
+After that an export changes only what the reviews changed.
+
 ---
 
 ## 5. Site topology, optional, one file per site

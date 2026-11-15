@@ -114,6 +114,32 @@ can. The cases cover today's files, every review gate, the dates the two
 calendars could read differently, non-ASCII text and a site walk that moves
 realization.
 
+**The bytes are pinned, not just the figures.** Every case both engines accept
+has a sibling `<name>.out.json` holding the exact bytes the export writes for
+it. The vitest file requires the browser's writer to produce them byte for
+byte, the pytest requires `canonical_map_json` to, and the pytest also reads
+every `.out.json` back and requires it to come out unchanged, so a file the
+browser exported survives the ingest's writer. A case the gates refuse has no
+`.out.json`, and both tests fail if one appears. The same holds for
+`fixtures/parity/sample-walk/system_device_map.json`, the export of the
+three-review Westfield walk, which `src/curation/__tests__/edits.test.ts` pins
+byte for byte and `ingest/tests/test_curation_roundtrip.py` reads back through
+the ingest. Change a writer and these files have to be regenerated on purpose,
+in both engines at once.
+
+**The whole sample, not just the cases.** `src/lib/__tests__/sampleParity.test.ts`
+recomputes the Lossiness report in the browser from the committed sample
+inputs and requires it to deep-equal the report the ingest committed
+(`fixtures/synthetic/lossiness.json`), every dimension and `top_gaps`. The
+curation layer serves the browser's report in place of the ingest's as soon as
+one review exists, so the two have to agree on the unedited sample first.
+
+**Open questions are listed by subject in both engines.** The ingest used to
+list them in the map's own order, and the browser in `coverage.json`'s, whose
+keys are sorted, so the same report read in two orders. Both now sort them by
+subject, and the committed sample report was regenerated in that order. No
+figure changed.
+
 ## The offline guarantee
 
 The previous tool's README claimed it worked air-gapped while loading D3, html2canvas,
