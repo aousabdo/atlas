@@ -14,16 +14,42 @@ import { elementToPngBlob, getExportBand, setExportEditsNote, setExportMarking }
 const NOTE = 'Includes 1 unsaved review, not yet exported to a file'
 const BAND = `TEST MARKING · ${NOTE}`
 
-const pdf = vi.hoisted(() => ({ log: [] as string[] }))
+const pdf = vi.hoisted(() => ({
+  log: [] as string[],
+  /** Every line drawn, where, and whether it fits the width it was split to. */
+  drawn: [] as { text: string; x: number; y: number; size: number }[],
+}))
+
+/** Helvetica averages about half an em a character, which is all the fake needs. */
+const fits = (text: string, size: number, width: number) => text.length * size * 0.5 <= width
 
 vi.mock('jspdf', () => ({
   jsPDF: class {
     internal = { pageSize: { getWidth: () => 612, getHeight: () => 792 } }
+    size = 16
     addPage() { pdf.log.push('page') }
     addImage() { pdf.log.push('image') }
-    setFontSize() {}
+    setFontSize(size: number) { this.size = size }
     setTextColor() {}
-    text(text: string) { pdf.log.push(`text:${text}`) }
+    /** Word by word at the current size, as jsPDF splits. */
+    splitTextToSize(text: string, width: number) {
+      const lines: string[] = []
+      let line = ''
+      for (const word of text.split(' ')) {
+        const next = line ? `${line} ${word}` : word
+        if (line && next.length * this.size * 0.5 > width) {
+          lines.push(line)
+          line = word
+        } else {
+          line = next
+        }
+      }
+      return [...lines, line]
+    }
+    text(text: string, x: number, y: number) {
+      pdf.log.push(`text:${text}`)
+      pdf.drawn.push({ text, x, y, size: this.size })
+    }
     save() {}
   },
 }))
@@ -86,6 +112,7 @@ describe('the band in each export', () => {
 
   beforeEach(() => {
     pdf.log = []
+    pdf.drawn = []
     RealImage = globalThis.Image
     globalThis.Image = LoadedImage as unknown as typeof Image
     setExportMarking('TEST MARKING')
@@ -102,6 +129,43 @@ describe('the band in each export', () => {
       'image', `text:${BAND}`, `text:${BAND}`,
       'page', 'image', `text:${BAND}`, `text:${BAND}`,
     ])
+  })
+
+  it('draws a band that fits the page exactly where it always has', async () => {
+    await elementToPdf(document.createElement('div'), 'view.pdf', { background: '#ffffff' })
+    expect(pdf.drawn.slice(0, 2)).toEqual([
+      { text: BAND, x: 306, y: 18, size: 9 },
+      { text: BAND, x: 306, y: 783, size: 9 },
+    ])
+  })
+
+  it('wraps a band too wide for the page, top and bottom, and never clips it', async () => {
+    // Letter is 612pt wide; less the two 36pt margins, a line has 540pt.
+    const long = `${Array(12).fill('TEST LONG MARKING').join(' ')} · ${NOTE}`
+    expect(fits(long, 9, 540)).toBe(false)
+    await elementToPdf(document.createElement('div'), 'view.pdf', {
+      background: '#ffffff', marking: long,
+    })
+
+    const page = pdf.drawn.slice(0, pdf.drawn.length / 2)
+    expect(page.length).toBeGreaterThanOrEqual(4)
+    const top = page.filter((line) => line.y < 396)
+    const bottom = page.filter((line) => line.y > 396)
+    for (const half of [top, bottom]) {
+      expect(half.map((line) => line.text).join(' ')).toBe(long)
+      for (const line of half) {
+        expect(fits(line.text, line.size, 540)).toBe(true)
+        expect(line.x).toBe(306)
+      }
+    }
+    // Every line on the page, the top block reading down and the bottom block up to the edge.
+    expect(top[0].y).toBe(18)
+    expect(bottom[bottom.length - 1].y).toBe(783)
+    for (const half of [top, bottom]) {
+      const ys = half.map((line) => line.y)
+      expect(ys).toEqual([...ys].sort((a, b) => a - b))
+    }
+    expect(Math.max(...top.map((line) => line.y))).toBeLessThan(Math.min(...bottom.map((line) => line.y)))
   })
 
   it('still lets an explicit marking win on the PDF', async () => {

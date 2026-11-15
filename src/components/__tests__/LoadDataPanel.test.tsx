@@ -1015,6 +1015,8 @@ describe('the marking reaches the exports', () => {
       setFontSize: vi.fn(),
       setTextColor: vi.fn(),
       text,
+      // A marking this short fits one line, as jsPDF would split it.
+      splitTextToSize: (marking: string) => [marking],
       internal: { pageSize: { getWidth: () => 612, getHeight: () => 792 } },
     }
     stampPdfMarking(doc, 'TEST//SYNTHETIC')
