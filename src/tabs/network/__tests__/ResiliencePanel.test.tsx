@@ -99,6 +99,15 @@ describe('Single points of failure', () => {
     expect(within(region).queryByText(/separate\s+pieces/)).not.toBeInTheDocument()
   })
 
+  it('counts the switches a chokepoint cuts off as switches', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await user.click(await within(region).findByRole('button', { name: /^Core Switch/ }))
+
+    expect(within(region).getByText(/\bswitches 3 of 16\b/)).toBeInTheDocument()
+    expect(within(region).queryByText(/switchs/)).not.toBeInTheDocument()
+  })
+
   it('drills a chokepoint through to the devices it would isolate', async () => {
     const { user } = await renderWithProvider(<NetworkTab />)
     const region = await panel()
@@ -366,6 +375,21 @@ describe('Blast radius', () => {
     ).toBeInTheDocument()
   })
 
+  it('counts the switches a removal strands as switches', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await user.click(within(await devices()).getByRole('button', { name: /Core Switch/ }))
+
+    expect(await within(region).findByText(/If this device is removed/i)).toBeInTheDocument()
+    expect(within(region).getByText(/Measured from the 7 declared decision positions/)).toBeInTheDocument()
+    expect(within(region).getByText(/\bswitches 2 of 16\b/)).toBeInTheDocument()
+    expect(within(region).queryByText(/switchs/)).not.toBeInTheDocument()
+
+    await user.selectOptions(within(region).getByLabelText('Reachable from'), 'switch')
+    expect(await within(region).findByText(/Measured from the 16 switches/)).toBeInTheDocument()
+    expect(within(region).queryByText(/switchs/)).not.toBeInTheDocument()
+  })
+
   // A yard on cable, with two applications joined to it by VLAN only.
   const VLAN_YARD: Topology = {
     ...SPLIT,
@@ -542,6 +566,21 @@ describe('Reach', () => {
 
     const banner = await screen.findByRole('status', { name: /path view/i })
     expect(banner).toHaveTextContent(/hops/)
+  })
+
+  it('starts from switches, not switchs', async () => {
+    const { user } = await renderWithProvider(<NetworkTab />)
+    const region = await panel()
+    await user.click(within(region).getByRole('button', { name: /^Reach/ }))
+    fireEvent.change(within(region).getByLabelText('From device type'), {
+      target: { value: 'switch' },
+    })
+    fireEvent.change(within(region).getByLabelText('To device type'), {
+      target: { value: 'server' },
+    })
+
+    expect(await within(region).findByText(/\b16 switches\b/)).toBeInTheDocument()
+    expect(within(region).queryByText(/switchs/)).not.toBeInTheDocument()
   })
 
   it('drops the traced path when either end of the question changes', async () => {
