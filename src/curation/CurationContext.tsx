@@ -30,12 +30,14 @@ export interface Curation {
   setReviewer(name: string): void
   /**
    * Records the edit. Throws a CurationError, and changes nothing, when the
-   * loaded data cannot take the list the edit would make.
+   * loaded data cannot take the list the edit would make, or has not yet been
+   * read to check it against.
    */
   apply(edit: Edit): void
   /**
    * Drops the edit whose editKey is `key`. Throws a CurationError, and changes
-   * nothing, when the list left behind would not load.
+   * nothing, when the list left behind would not load, or the loaded data has
+   * not yet been read to check it against.
    */
   revert(key: string): void
   /** Drops every edit, and what the last export wrote, without asking. */
@@ -90,7 +92,6 @@ const reviews = (n: number): string => `${n} unsaved review${n === 1 ? '' : 's'}
 
 /** What an edit list is checked against: the loaded data, read once per base. */
 interface Reference {
-  base: AtlasDataProvider
   coverage: CoverageMatrix
   systems: System[]
   /** Device labels by site, for naming a device in a refusal. */
@@ -109,8 +110,18 @@ async function readReference(base: AtlasDataProvider): Promise<Reference> {
       for (const device of topology?.devices ?? []) labels.set(`${site.id}\0${device.id}`, device.label)
     }),
   )
-  return { base, coverage, systems, labels }
+  return { coverage, systems, labels }
 }
+
+/** The read of one base: under way, done, or failed and waiting to be asked again. */
+interface Read {
+  base: AtlasDataProvider
+  reference: Reference | null
+  reading: boolean
+}
+
+/** Why an edit is refused while there is nothing yet to check it against. */
+const NOT_READ = 'The loaded data is still being read; try again in a moment.'
 
 /** With no edits there is nothing to lay over the base, so the tabs read it as before. */
 const effectiveProvider = (base: AtlasDataProvider, edits: readonly Edit[]): AtlasDataProvider =>
@@ -152,31 +163,48 @@ export function CurationProvider(props: {
 
   // The data every edit list is checked against. Held in a ref, not state:
   // nothing renders from it, and a late read must not re-render the tree.
-  const reference = useRef<Reference | null>(null)
-  useEffect(() => {
-    let live = true
-    readReference(base).then(
-      (read) => {
-        if (live) reference.current = read
+  const reading = useRef<Read | null>(null)
+
+  /**
+   * Reads `over` unless that read is under way or done. A read that failed is
+   * kept as failed, so the next apply or revert asks again: the tabs report a
+   * load that fails and offer a retry, and a transient failure must not leave
+   * the edits unchecked for the rest of the session.
+   */
+  const read = useCallback((over: AtlasDataProvider) => {
+    const now = reading.current
+    if (now?.base === over && (now.reading || now.reference)) return
+    const next: Read = { base: over, reference: null, reading: true }
+    reading.current = next
+    readReference(over).then(
+      (reference) => {
+        next.reference = reference
+        next.reading = false
       },
-      // The tabs report a load that fails; there is then nothing to check against.
-      () => {},
+      () => {
+        next.reading = false
+      },
     )
-    return () => {
-      live = false
-    }
-  }, [base])
+  }, [])
+
+  useEffect(() => read(base), [base, read])
 
   /**
    * The one place an edit list is checked: replayed over the loaded data the
    * way CuratedProvider will replay it, so a list that would fail every tab is
-   * refused before it is kept. Until the data has been read there is nothing
-   * to check against; no screen offers an edit before its data has loaded.
+   * refused before it is kept. It fails closed: until the data has been read
+   * there is nothing to check against, so the edit is refused, and a read
+   * that failed is started again.
    */
   const validate = useCallback((over: AtlasDataProvider, edits: readonly Edit[]) => {
-    const read = reference.current
-    if (read?.base === over) applyEdits(read.coverage, edits, read.systems)
-  }, [])
+    const now = reading.current
+    const reference = now?.base === over ? now.reference : null
+    if (!reference) {
+      read(over)
+      throw new CurationError(NOT_READ)
+    }
+    applyEdits(reference.coverage, edits, reference.systems)
+  }, [read])
 
   // The band is armed in the same turn as the change, as armMarking arms the
   // marking: from an effect there would be a commit in which the screen showed
@@ -205,7 +233,7 @@ export function CurationProvider(props: {
       // since still says it carries none. Say which device, and what unblocks it.
       if (error instanceof CurationError && error.checked) {
         const { site, device } = error.checked
-        const label = reference.current?.labels.get(`${site}\0${device}`) ?? device
+        const label = reading.current?.reference?.labels.get(`${site}\0${device}`) ?? device
         throw new CurationError(
           `Undo would leave ${label} checked while a mapping names it; clear its check first.`,
           error.checked,

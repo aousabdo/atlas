@@ -8,7 +8,7 @@ import type { DataSource } from '../../data/ProviderContext'
 import { StaticProvider } from '../../data/StaticProvider'
 import * as png from '../../export/png'
 import { setExportEditsNote, setExportMarking } from '../../export/png'
-import { renderWithProvider } from '../../test/renderWithProvider'
+import { renderWithProvider, settleCuration } from '../../test/renderWithProvider'
 import { EditsBanner } from '../EditsBanner'
 
 let curation: Curation
@@ -110,6 +110,7 @@ describe('EditsBanner', () => {
         <Probe />
       </CurationProvider>,
     )
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     expect(banner()).toHaveTextContent('Export system_device_map.json to keep it.')
     expect(banner()).not.toHaveTextContent(SAMPLE_ONLY)

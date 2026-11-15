@@ -1,10 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
+
+import { serveBundles } from './serveBundles'
 
 /**
  * Unmount between tests. Nothing else was doing it.
@@ -20,34 +19,8 @@ afterEach(() => {
   cleanup()
 })
 
-const DATA_DIR = join(process.cwd(), 'fixtures', 'synthetic')
-
-/**
- * Serve the committed bundles through a stubbed fetch.
- *
- * This exercises the real StaticProvider code path — URL construction,
- * response handling, error mapping — rather than reaching around it to the
- * filesystem, and it means every component test runs against the real data
- * rather than a fixture that can drift from it.
- *
- * It reads fixtures/synthetic, not public/data. public/data is a copy of it
- * that only scripts/seed-data.mjs makes, and it is also where an analyst
- * builds the real bundle. When the suite read it, npm test had to seed it
- * first, and seeding deleted the real bundle, snapshots and all.
- */
-vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
-  const url = typeof input === 'string' ? input : input.toString()
-  const relative = url.replace(/^.*\/data\//, '')
-  try {
-    const body = readFileSync(join(DATA_DIR, relative), 'utf-8')
-    return new Response(body, {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    })
-  } catch {
-    return new Response('not found', { status: 404 })
-  }
-})
+/** Serve the committed bundles through a stubbed fetch. See serveBundles. */
+serveBundles()
 
 /** jsdom has no ResizeObserver; the viz components need one to exist. */
 class ResizeObserverStub {

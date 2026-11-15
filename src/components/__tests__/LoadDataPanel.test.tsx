@@ -11,6 +11,8 @@ import { AtlasProvider, UNMARKED_NOTICE } from '../../data/ProviderContext'
 import {
   getExportBand, getExportMarking, setExportEditsNote, setExportMarking,
 } from '../../export/png'
+import { settleCuration } from '../../test/renderWithProvider'
+import { serveBundles } from '../../test/serveBundles'
 import { DataSourceBanner } from '../DataSourceBanner'
 import { LoadDataPanel } from '../LoadDataPanel'
 
@@ -1084,7 +1086,11 @@ describe('unsaved reviews are not lost to a data switch', () => {
   }
 
   // The register is module state, and a load in an earlier test arms it.
+  // The reviews are made on the sample, which the curation layer must read
+  // before it takes one, and the file's afterEach unstubbed the fetch that
+  // serves it.
   beforeEach(() => {
+    serveBundles()
     setExportMarking(null)
     setExportEditsNote(null)
   })
@@ -1116,6 +1122,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
     // Review Focus 4: the edits stay and the data stays.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const { user } = renderWithReviews()
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     const dialog = await chooseFiles(user)
     await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
@@ -1131,6 +1138,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
   it('loads, without the reviews, once the discard is confirmed', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { user } = renderWithReviews()
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     const dialog = await chooseFiles(user)
     await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
@@ -1144,6 +1152,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
     // refuses the whole load after the reviewer has already said yes.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { user } = renderWithReviews()
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     const dialog = await openPanel(user)
     await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
@@ -1184,6 +1193,7 @@ describe('unsaved reviews are not lost to a data switch', () => {
     await user.upload(within(dialog).getByLabelText(/system to device map file/i), deviceMapFile())
     await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
     await within(banner()).findByText('TEST//SYNTHETIC')
+    await settleCuration(curation.base)
 
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     act(() =>

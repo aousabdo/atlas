@@ -8,6 +8,7 @@ import { useCuration, type Curation } from '../../curation/CurationContext'
 import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
 import { AtlasProvider } from '../../data/ProviderContext'
 import * as png from '../../export/png'
+import { settleCuration } from '../../test/renderWithProvider'
 import { ABOUT } from '../aboutContent'
 import { EditsBanner } from '../EditsBanner'
 
@@ -168,6 +169,7 @@ describe('the E key', () => {
         </AtlasProvider>
       </MemoryRouter>,
     )
+    await settleCuration((curation as unknown as Curation).base)
     act(() => (curation as unknown as Curation).apply(SAMPLE_WALK[0]))
     for (const banner of screen.getAllByRole('status', { name: /reviews/i })) {
       expect(banner).toHaveTextContent(/1 unsaved review/)

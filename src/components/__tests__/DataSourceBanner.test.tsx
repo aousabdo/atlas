@@ -12,6 +12,7 @@ import {
 } from '../../data/ProviderContext'
 import { StaticProvider } from '../../data/StaticProvider'
 import { setExportEditsNote } from '../../export/png'
+import { settleCuration } from '../../test/renderWithProvider'
 import { DataSourceBanner } from '../DataSourceBanner'
 
 let curation: Curation
@@ -102,6 +103,7 @@ describe('DataSourceBanner', () => {
     // Review Focus 4: the edits stay and the data stays.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const { useSampleData, user } = renderBanner(LOCAL)
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
     expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
@@ -115,6 +117,7 @@ describe('DataSourceBanner', () => {
     // which LoadDataPanel.test.tsx covers.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { useSampleData, user } = renderBanner(LOCAL)
+    await settleCuration(curation.base)
     act(() => curation.apply(SAMPLE_WALK[0]))
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
     expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')

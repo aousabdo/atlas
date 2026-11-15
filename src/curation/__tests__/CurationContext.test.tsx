@@ -2,13 +2,13 @@ import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  AtlasProvider, useProvider, useProviderSwitch, type DataSource,
+  AtlasProvider, SAMPLE_SOURCE, useProvider, useProviderSwitch, type DataSource,
 } from '../../data/ProviderContext'
-import type { AtlasDataProvider } from '../../data/provider'
+import { AtlasDataError, type AtlasDataProvider } from '../../data/provider'
 import { StaticProvider } from '../../data/StaticProvider'
 import * as png from '../../export/png'
 import { getExportBand, setExportEditsNote, setExportMarking } from '../../export/png'
-import { renderWithProvider } from '../../test/renderWithProvider'
+import { renderWithProvider, settleCuration } from '../../test/renderWithProvider'
 import { CuratedProvider } from '../CuratedProvider'
 import { CurationProvider, useCuration, type Curation } from '../CurationContext'
 import { CurationError, editKey, type Edit } from '../edits'
@@ -328,6 +328,7 @@ describe('switching data', () => {
         <SwitchProbe />
       </AtlasProvider>,
     )
+    await settleCuration(seen.curation.base)
     act(() => seen.curation.apply(BEACON))
     expect(seen.curation.edits).toHaveLength(1)
 
@@ -344,9 +345,11 @@ describe('switching data', () => {
         <SwitchProbe />
       </AtlasProvider>,
     )
+    await settleCuration(seen.curation.base)
     act(() => seen.curation.apply(BEACON))
     await act(() => seen.curation.exportMap())
     act(() => switched.useSampleData())
+    await settleCuration(seen.curation.base)
     act(() => seen.curation.apply(BEACON))
     expect(seen.curation.unsaved).toBe(1)
   })
@@ -357,6 +360,7 @@ describe('switching data', () => {
         <SwitchProbe />
       </AtlasProvider>,
     )
+    await settleCuration(seen.curation.base)
     act(() => seen.curation.apply(BEACON))
     await act(() => seen.curation.exportMap())
     act(() => seen.curation.revert(editKey(BEACON)))
@@ -373,17 +377,106 @@ describe('switching data', () => {
         <SwitchProbe />
       </AtlasProvider>,
     )
+    await settleCuration(seen.curation.base)
     act(() =>
       switched.adopt(new StaticProvider('/data'), {
         kind: 'local', label: 'fixture-matrix.xlsx', marking: null,
       }),
     )
+    await settleCuration(seen.curation.base)
     act(() => seen.curation.apply(BEACON))
     act(() => switched.stateMarking('TEST MARKING'))
     expect(seen.curation.edits).toHaveLength(1)
     expect(getExportBand()).toBe(
       'TEST MARKING · Includes 1 unsaved review, not yet exported to a file',
     )
+  })
+})
+
+describe('checking edits against data not yet read', () => {
+  const NOT_READ = 'The loaded data is still being read; try again in a moment.'
+
+  /** The sample, whose coverage will not load the first time it is asked for. */
+  class CoverageFailsOnce extends StaticProvider {
+    failures = 1
+    async getCoverage() {
+      if (this.failures > 0) {
+        this.failures -= 1
+        throw new AtlasDataError('coverage.json returned 503', undefined, 'coverage.json')
+      }
+      return super.getCoverage()
+    }
+  }
+
+  const refusal = (change: () => void): unknown => {
+    try {
+      act(change)
+    } catch (error) {
+      return error
+    }
+    return null
+  }
+
+  it('refuses an edit, and an Undo, until the data has been read', async () => {
+    const base = new StaticProvider('/data')
+    render(
+      <CurationProvider base={base} source={SAMPLE_SOURCE}>
+        <Probe />
+      </CurationProvider>,
+    )
+    const early = refusal(() => seen.curation.apply(BEACON))
+    expect(early).toBeInstanceOf(CurationError)
+    expect((early as Error).message).toBe(NOT_READ)
+    expect((refusal(() => seen.curation.revert(editKey(BEACON))) as Error).message).toBe(NOT_READ)
+    expect(seen.curation.edits).toEqual([])
+    expect(getExportBand()).toBeNull()
+
+    await settleCuration(base)
+    act(() => seen.curation.apply(BEACON))
+    expect(seen.curation.edits).toEqual([BEACON])
+  })
+
+  it('stays closed after a failed read, and reads again on the next edit', async () => {
+    const base = new CoverageFailsOnce('/data')
+    render(
+      <CurationProvider base={base} source={SAMPLE_SOURCE}>
+        <Probe />
+      </CurationProvider>,
+    )
+    await settleCuration(base)
+    expect(base.failures).toBe(0)
+
+    // The first read failed: the edit is refused, not taken unchecked.
+    const refused = refusal(() => seen.curation.apply(BEACON))
+    expect(refused).toBeInstanceOf(CurationError)
+    expect((refused as Error).message).toBe(NOT_READ)
+    expect(seen.curation.edits).toEqual([])
+
+    // That refusal read the data again, and this time it loads.
+    await settleCuration(base)
+    act(() => seen.curation.apply(BEACON))
+    expect(seen.curation.edits).toEqual([BEACON])
+    // Checked, too: an edit the data cannot take is refused by the data's own rule.
+    expect(() =>
+      seen.curation.apply({
+        kind: 'check', site: 'westfield', device: 'wf_gate_sensor',
+        check: { reviewed_by: 'Site lead', reviewed_on: '2026-11-14' },
+      }),
+    ).toThrow('wf_gate_sensor is named by a mapping, so it cannot be checked as unclaimed')
+  })
+
+  it('reads again on an Undo after a failed read', async () => {
+    const base = new CoverageFailsOnce('/data')
+    render(
+      <CurationProvider base={base} source={SAMPLE_SOURCE}>
+        <Probe />
+      </CurationProvider>,
+    )
+    await settleCuration(base)
+    expect((refusal(() => seen.curation.revert(editKey(BEACON))) as Error).message).toBe(NOT_READ)
+    await settleCuration(base)
+    act(() => seen.curation.apply(BEACON))
+    expect(seen.curation.edits).toEqual([BEACON])
   })
 })
 
@@ -398,25 +491,8 @@ describe('validating every edit list', () => {
   })
   const CHECK_EFFECTOR: Edit = { kind: 'check', site: 'northgate', device: EFFECTOR, check: STAMP }
 
-  /**
-   * Lets the curation layer finish reading the data it checks edits against.
-   * The provider caches every bundle, so once these resolve the layer's own
-   * reads of them can only be microtasks away, and a timer drains those.
-   */
-  async function settled(provider: AtlasDataProvider) {
-    await act(async () => {
-      const project = await provider.getProject()
-      await Promise.all([
-        provider.getCoverage(), provider.getSystems(),
-        ...project.sites.map((site) => provider.getTopology(site.id)),
-      ])
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-  }
-
   it('takes a re-review after a check its first review made possible', async () => {
-    const { provider } = await renderWithProvider(<Probe />, { curation: true })
-    await settled(provider)
+    await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(bastionOn('high')))
     act(() => seen.curation.apply(CHECK_EFFECTOR))
     act(() => seen.curation.apply(bastionOn('medium')))
@@ -428,8 +504,7 @@ describe('validating every edit list', () => {
   })
 
   it('refuses an Undo that would leave a checked device named, and changes nothing', async () => {
-    const { provider } = await renderWithProvider(<Probe />, { curation: true })
-    await settled(provider)
+    await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(bastionOn('high')))
     act(() => seen.curation.apply(CHECK_EFFECTOR))
     act(() => seen.curation.apply(bastionOn('medium')))
@@ -456,8 +531,7 @@ describe('validating every edit list', () => {
   })
 
   it('refuses an edit the data cannot take, and changes nothing', async () => {
-    const { provider } = await renderWithProvider(<Probe />, { curation: true })
-    await settled(provider)
+    await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(BEACON))
     expect(() => seen.curation.apply(CHECK_EFFECTOR)).toThrow(CurationError)
     expect(() => seen.curation.apply(CHECK_EFFECTOR)).toThrow(
