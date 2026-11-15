@@ -8,12 +8,14 @@ import { localDate } from '../../curation/dates'
 import { CurationError, editKey, type Edit, type Review } from '../../curation/edits'
 import {
   buildChecklist, systemStanding, walkSummary, type Checklist, type DeviceRow,
+  type WalkSummary,
 } from '../../curation/walk'
 import type { AtlasDataProvider } from '../../data/provider'
 import { useAtlas } from '../../data/useAtlas'
 import { fieldableSystemIds, matrixIdSet, shortfallSystemIds } from '../../lib/coverage'
 import type {
-  CoverageMatrix, Device, DeviceId, Project, SiteId, SiteSummary, System, SystemId, Topology,
+  CoverageMatrix, CoverageSite, Device, DeviceId, Project, SiteId, SiteSummary, System, SystemId,
+  Topology,
 } from '../../types/atlas'
 import { SiteSelector } from '../network/SiteSelector'
 import { CheckForm } from './CheckForm'
@@ -84,6 +86,18 @@ function zoneBlocks(checklist: Checklist, topology: Topology): ZoneBlock[] {
   return [...open, ...rest.sort((a, b) => byText(a.label, b.label))]
 }
 
+/** The shortfall rows by name, which the summary leaves out and the note names. */
+function shortfallNames(systems: readonly System[]): string[] {
+  const byId = new Map<SystemId, System>()
+  for (const system of systems) if (!byId.has(system.id)) byId.set(system.id, system)
+  return shortfallSystemIds(systems).map((id) => byId.get(id)?.name ?? id)
+}
+
+/** A site block that records nothing, for counting a drawing the map has no entry for. */
+const unrecorded = (label: string): CoverageSite => ({
+  label, scope: '', mappings: {}, not_deployed_at_site: {}, unclaimed_devices: { infrastructure: [] },
+})
+
 /** The picker's zones and devices, by label, so a device is found where it is expected. */
 function pickerZones(topology: Topology): PickerZone[] {
   const byZone = new Map<string, Device[]>()
@@ -133,41 +147,118 @@ export function WalkTab() {
 
 function Walk({ data }: { data: WalkData }) {
   const [picked, setPicked] = useState<SiteId | null>(null)
-  const { project, coverage, topologies } = data
-  // A site the walk can edit has both a drawing and an entry in the map.
-  const sites = project.sites.filter((s) => own(coverage.sites, s.id) && own(topologies, s.id))
+  const { project, coverage } = data
+  // Every project site is listed, each with its drawing (the load reads one per
+  // site). Only a site with an entry in the map can take a review: an edit
+  // writes into the site's block, and the walk creates none.
+  const sites = project.sites
+  const mapped = sites.filter((s) => own(coverage.sites, s.id))
+  // The default is the one a walk could always open on: a site the map has.
   const siteId =
-    [picked, coverage.default_site, project.default_site].find(
-      (id) => id != null && sites.some((site) => site.id === id),
-    ) ?? sites[0]?.id
+    (sites.some((s) => s.id === picked) ? picked : null) ??
+    [coverage.default_site, project.default_site].find(
+      (id) => id != null && mapped.some((site) => site.id === id),
+    ) ??
+    mapped[0]?.id ??
+    sites[0]?.id
 
   if (!siteId) {
     return (
       <div data-print-hide className="mt-6">
         <EmptyState
           title="No site to walk"
-          detail="No loaded site has both a drawing and an entry in the system to device map, so there is nothing to review."
+          detail="No site drawing is loaded, so there is nothing to walk."
         />
       </div>
     )
   }
   // Keyed by site, so a form open at one site does not follow the reader to the next.
-  return <SiteWalk key={siteId} data={data} siteId={siteId} sites={sites} onSite={setPicked} />
+  const site = own(coverage.sites, siteId)
+  return site ? (
+    <SiteWalk key={siteId} data={data} siteId={siteId} site={site} sites={sites} onSite={setPicked} />
+  ) : (
+    <UnmappedSite key={siteId} data={data} siteId={siteId} sites={sites} onSite={setPicked} />
+  )
 }
 
-function SiteWalk(props: {
+/** The two summary lines: systems in four disjoint buckets, then devices in three. */
+function SummaryLines({ summary: s, when }: { summary: WalkSummary; when: string }) {
+  const lines = [
+    [
+      `${s.realized} of ${s.fieldable} realized${when}`, `${s.noHardware} recorded with no hardware`,
+      `${s.absent} checked absent`, `${s.notLookedAt} not looked at`,
+    ],
+    [
+      `${s.devices} devices`, `${s.carrying} carry a recorded system`,
+      `${s.checked} checked, carrying none`, `${s.noRecord} with no record`,
+    ],
+  ]
+  // A bucket never breaks across a line on a phone.
+  return (
+    <p data-testid="walk-summary" className="mt-4 text-sm text-ink">
+      {lines.map((buckets, line) => (
+        <span key={line} className={`block ${line ? 'text-muted' : ''}`}>
+          {buckets.map((bucket, index) => (
+            <span key={index}>
+              {index > 0 && ' · '}
+              <span className="whitespace-nowrap">{bucket}</span>
+            </span>
+          ))}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/**
+ * A site with a drawing and no block in the map. Its drawing is counted, with
+ * nothing recorded against it, and it says what the file needs before a review
+ * can be recorded. It offers no review, check or printout: every one of them
+ * writes into, or reads from, the site's block.
+ */
+function UnmappedSite(props: {
   data: WalkData
   siteId: SiteId
   sites: SiteSummary[]
   onSite: (id: SiteId) => void
 }) {
   const { data, siteId, sites, onSite } = props
+  const { systems } = data
+  const topology = data.topologies[siteId]
+  const label = sites.find((s) => s.id === siteId)?.label ?? siteId
+  const summary = useMemo(
+    () => walkSummary(unrecorded(label), systems, topology), [label, systems, topology],
+  )
+  const shortfalls = useMemo(() => shortfallNames(systems), [systems])
+
+  return (
+    <>
+      <div className="mt-4">
+        <SiteSelector sites={sites} activeId={siteId} onSelect={onSite} />
+      </div>
+      <SummaryLines summary={summary} when="" />
+      <ShortfallNote names={shortfalls} className="mt-1" />
+      <p className="mt-6 max-w-prose text-sm text-ink">
+        {label} needs an entry in the system to device map (a site block with a label, a scope and
+        mappings) before reviews can be recorded here. Add one to the file and load the data again.
+      </p>
+    </>
+  )
+}
+
+function SiteWalk(props: {
+  data: WalkData
+  siteId: SiteId
+  site: CoverageSite
+  sites: SiteSummary[]
+  onSite: (id: SiteId) => void
+}) {
+  const { data, siteId, site, sites, onSite } = props
   const { edits, apply, revert, reviewer, setReviewer } = useCuration()
   const [open, setOpen] = useState<Open | null>(null)
   /** A row action the curation layer refused, on the row it was refused for. */
   const [failed, setFailed] = useState<{ key: string; message: string } | null>(null)
-  const { systems, coverage } = data
-  const site = coverage.sites[siteId]
+  const { systems } = data
   const topology = data.topologies[siteId]
   const loadedSite = own(data.loaded.sites, siteId)
   const today = localDate(new Date())
@@ -190,7 +281,7 @@ function SiteWalk(props: {
       zones: zoneBlocks(buildChecklist(site, systems, topology), topology),
       picker: pickerZones(topology),
       labelOf: (id: DeviceId) => labels.get(id) ?? id,
-      shortfalls: shortfallSystemIds(systems).map((id) => byId.get(id)?.name ?? id),
+      shortfalls: shortfallNames(systems),
     }
   }, [systems, site, topology, loadedSite])
 
@@ -298,18 +389,7 @@ function SiteWalk(props: {
     form: deviceForm,
   }
 
-  const s = view.summary
   const when = edits.length > 0 ? ` (${view.loadedRealized} when loaded)` : ''
-  const lines = [
-    [
-      `${s.realized} of ${s.fieldable} realized${when}`, `${s.noHardware} recorded with no hardware`,
-      `${s.absent} checked absent`, `${s.notLookedAt} not looked at`,
-    ],
-    [
-      `${s.devices} devices`, `${s.carrying} carry a recorded system`,
-      `${s.checked} checked, carrying none`, `${s.noRecord} with no record`,
-    ],
-  ]
 
   return (
     <>
@@ -331,19 +411,7 @@ function SiteWalk(props: {
           </button>
         </div>
 
-        {/* Two lines of disjoint buckets. A bucket never breaks across a line on a phone. */}
-        <p data-testid="walk-summary" className="mt-4 text-sm text-ink">
-          {lines.map((buckets, line) => (
-            <span key={line} className={`block ${line ? 'text-muted' : ''}`}>
-              {buckets.map((bucket, index) => (
-                <span key={index}>
-                  {index > 0 && ' · '}
-                  <span className="whitespace-nowrap">{bucket}</span>
-                </span>
-              ))}
-            </span>
-          ))}
-        </p>
+        <SummaryLines summary={view.summary} when={when} />
         <ShortfallNote names={view.shortfalls} className="mt-1" />
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">

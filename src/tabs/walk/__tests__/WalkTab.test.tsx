@@ -1,9 +1,11 @@
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import type userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useCuration, type Curation } from '../../../curation/CurationContext'
+import { CurationProvider, useCuration, type Curation } from '../../../curation/CurationContext'
 import { localDate } from '../../../curation/dates'
+import type { DataSource } from '../../../data/ProviderContext'
+import { StaticProvider } from '../../../data/StaticProvider'
 import { setExportEditsNote } from '../../../export/png'
 import { renderWithProvider } from '../../../test/renderWithProvider'
 import { WalkTab } from '../WalkTab'
@@ -18,6 +20,10 @@ const NORTHGATE_SYSTEMS =
   '10 of 30 realized · 2 recorded with no hardware · 18 checked absent · 0 not looked at'
 const NORTHGATE_DEVICES =
   '71 devices · 20 carry a recorded system · 0 checked, carrying none · 51 with no record'
+const UNMAPPED =
+  'Westfield Proving Ground needs an entry in the system to device map (a site block with a ' +
+  'label, a scope and mappings) before reviews can be recorded here. Add one to the file and ' +
+  'load the data again.'
 
 let curation: Curation
 
@@ -410,6 +416,57 @@ describe('a check between two reviews of the system that released it', () => {
     expect(curation.edits).toEqual([])
     // Five edits and re-renders of the whole tab, printout included: slow on a loaded runner.
   }, 20_000)
+})
+
+describe('a drawn site the map has no entry for', () => {
+  /** Local data whose map has no Westfield block, though Westfield has a drawing. */
+  class UnmappedWestfield extends StaticProvider {
+    async getCoverage() {
+      const coverage = await super.getCoverage()
+      const sites = Object.fromEntries(
+        Object.entries(coverage.sites).filter(([id]) => id !== 'westfield'),
+      )
+      return { ...coverage, sites }
+    }
+  }
+  const LOCAL: DataSource = { kind: 'local', label: 'fixture-matrix.xlsx', marking: null }
+
+  async function renderUnmapped() {
+    const user = userEvent.setup()
+    render(
+      <CurationProvider base={new UnmappedWestfield('/data')} source={LOCAL}>
+        <WalkTab />
+        <Probe />
+      </CurationProvider>,
+    )
+    await waitFor(() => expect(summary()).toHaveTextContent(NORTHGATE_SYSTEMS))
+    return { user }
+  }
+
+  it('lists every project site in the project order, and opens on the default as before', async () => {
+    await renderUnmapped()
+    const selector = screen.getByRole('group', { name: 'Site' })
+    expect(within(selector).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      expect.stringContaining('Northgate Sports Campus'),
+      expect.stringContaining('Westfield Proving Ground'),
+    ])
+    expect(within(selector).getByRole('button', { name: /Northgate Sports Campus/ })).toHaveAttribute(
+      'aria-pressed', 'true',
+    )
+  })
+
+  it('says the site needs a block in the map, counts its drawing, and offers no review', async () => {
+    const { user } = await renderUnmapped()
+    await user.click(screen.getByRole('button', { name: /Westfield Proving Ground/ }))
+    await waitFor(() => expect(summary()).toHaveTextContent(WESTFIELD_DEVICES))
+    expect(summary()).toHaveTextContent(WESTFIELD_SYSTEMS)
+    expect(screen.getByText(UNMAPPED)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Assign to systems/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Checked, carries no system' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('checklist-print')).not.toBeInTheDocument()
+    expect(curation.edits).toEqual([])
+  })
 })
 
 describe('the printed checklist', () => {
