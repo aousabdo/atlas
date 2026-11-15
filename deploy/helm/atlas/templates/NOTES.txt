@@ -1,0 +1,23 @@
+ATLAS {{ .Chart.AppVersion }} is installed as {{ include "atlas.fullname" . }} in {{ .Release.Namespace }}.
+Image: {{ include "atlas.image" . }}
+
+It serves the invented sample bundle only. Analysts load real data in their
+own browser; nothing they load reaches this server.
+
+{{- if .Values.ingress.enabled }}
+
+Ingress: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}/
+{{- else if .Values.httpRoute.enabled }}
+
+HTTPRoute: attached to {{ range .Values.httpRoute.parentRefs }}{{ .name }} {{ end }}for {{ join ", " .Values.httpRoute.hostnames }}
+{{- else }}
+
+No Ingress or HTTPRoute. To look at it from here:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "atlas.fullname" . }} 8080:{{ .Values.service.port }}
+  open http://127.0.0.1:8080/
+{{- end }}
+
+Check it from inside the cluster with:
+
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}

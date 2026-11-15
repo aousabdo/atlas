@@ -1,0 +1,17 @@
+apiVersion: v2
+name: atlas
+description: >-
+  ATLAS, the static web app and its invented sample bundle, served by an
+  unprivileged nginx. No backend, no secrets, no persistent storage.
+type: application
+# The chart's own version. Bump it when anything under deploy/helm changes.
+version: 0.1.0
+# package.json's version. The image tag that actually runs is a value
+# (image.tag or image.digest): the commit the image was built from.
+appVersion: "0.1.0"
+# Pod Security Admission is GA from 1.25, and the chart is written to pass the
+# restricted standard.
+kubeVersion: ">=1.25.0-0"
+keywords:
+  - atlas
+  - static

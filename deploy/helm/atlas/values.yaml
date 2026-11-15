@@ -1,0 +1,146 @@
+# Values for the ATLAS chart.
+#
+# Everything that differs between Ocean's cluster and a client's environment
+# is here. The image itself reads no configuration at all: it is static files
+# and an nginx that serves them, so there is nothing in it to configure. See
+# docs/kubernetes.md for what each part is for and who decides it.
+#
+# values.schema.json rejects keys this file does not define, so a misspelled
+# value fails the install instead of being silently ignored.
+
+image:
+  # Which registry is an open question for the cloud platform team. Empty means
+  # the image is referenced by repository alone, which is how kind loads it.
+  registry: ""
+  repository: atlas
+  # The commit the image was built from (CI tags it with the full SHA). Empty
+  # falls back to the chart's appVersion.
+  tag: ""
+  # sha256:<64 hex>. When set it wins over the tag, so a tag that is moved
+  # cannot change what runs.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Two, so a rolling update and a node drain each leave one serving.
+replicaCount: 2
+revisionHistoryLimit: 5
+
+serviceAccount:
+  create: true
+  # Defaults to the release's full name.
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+
+# Matches the image: nginx-unprivileged runs as uid and gid 101. Numeric, so
+# runAsNonRoot can be verified by the kubelet.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+# Off until the cluster's ingress controller is known. Set host (required when
+# enabled) and, for TLS, the name of a Secret the cluster provides, for
+# example one cert-manager issues. The chart never creates the certificate.
+ingress:
+  enabled: false
+  # Empty leaves the choice to the cluster's default IngressClass.
+  className: ""
+  annotations: {}
+  host: ""
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ""
+
+# The Gateway API alternative to an Ingress, for a cluster that runs a
+# Gateway. TLS then lives on the Gateway's listener, which the platform owns.
+httpRoute:
+  enabled: false
+  annotations: {}
+  # Required when enabled, e.g. [{name: shared, namespace: gateways, sectionName: https}]
+  parentRefs: []
+  hostnames: []
+
+# Measured idle at under 5Mi with one nginx worker. The limits leave room for a
+# burst of first loads (the app is about 3.4 MB of assets, served gzipped).
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+# nginx writes its pid and temp files to /tmp, the only writable path.
+tmpSizeLimit: 16Mi
+
+probes:
+  startup:
+    periodSeconds: 2
+    timeoutSeconds: 2
+    failureThreshold: 15
+  liveness:
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 2
+
+# Seconds to keep serving after the pod is marked for deletion, while the
+# endpoint removal reaches every ingress. nginx then drains on SIGQUIT.
+preStopSleepSeconds: 5
+terminationGracePeriodSeconds: 30
+
+# Only rendered when replicaCount is above 1; with one replica, minAvailable 1
+# would block every node drain.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Denies all egress: nothing in the pod makes a request, not even DNS, so a
+# cluster whose CNI enforces policy proves "no phone-home" on the wire.
+# Ingress is allowed on the http port; ingressFrom narrows it, for example to
+# the ingress controller's namespace:
+#   ingressFrom:
+#     - namespaceSelector:
+#         matchLabels:
+#           kubernetes.io/metadata.name: <controller namespace>
+networkPolicy:
+  enabled: true
+  ingressFrom: []
+
+# Spread replicas across nodes when the scheduler can, without refusing to
+# schedule when it cannot (a single-node cluster, kind).
+spreadAcrossNodes: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

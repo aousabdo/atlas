@@ -1,0 +1,32 @@
+{{- if .Values.httpRoute.enabled }}
+{{- if not .Values.httpRoute.parentRefs }}
+{{- fail "httpRoute.parentRefs is required when httpRoute.enabled is true. Name the Gateway the cluster runs; TLS lives on its listener." }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "atlas.fullname" . }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  {{- with .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- range . }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "atlas.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

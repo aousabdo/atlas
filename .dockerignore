@@ -1,0 +1,52 @@
+# An allowlist. Everything is excluded first and only what the image build
+# needs is let back in, so a file nobody thought about (a real bundle, a
+# workbook, an .env) never reaches the build at all, rather than relying on
+# someone to have listed it here.
+#
+# scripts/__tests__/container.test.mjs asserts the shape of this file, and the
+# Image workflow plants decoys in public/data before building to prove it.
+*
+
+!package.json
+!package-lock.json
+!index.html
+!tsconfig.json
+!vite.config.ts
+!vitest.config.ts
+!playwright.config.ts
+!playwright.standalone.config.ts
+!src/
+!e2e/
+!public/
+!fixtures/synthetic/
+!deploy/nginx/
+
+# The scripts the build runs, one by one, rather than the directory.
+!scripts/seed-data.mjs
+!scripts/write-notice.mjs
+!scripts/check-offline.mjs
+!scripts/check-image-data.mjs
+
+# write-notice.mjs --check reads the notice blocks in these two.
+!README.md
+!docs/data-inputs.md
+
+# The bundle directory. public/ is needed for the favicon; the bundle inside it
+# is generated, gitignored, and where a real one gets built. The image seeds
+# its own from fixtures/synthetic instead.
+public/data/
+
+# tsc type-checks e2e/, but it does not need 13 MB of baseline screenshots.
+e2e/__screenshots__/
+
+# The same raw-material and secrets rules as .gitignore, applied inside the
+# directories let back in above.
+**/*.xlsx
+**/*.xlsm
+**/*.xls
+**/*.gexf
+**/*.graphml
+**/.env
+**/.env.*
+**/.DS_Store
+**/node_modules/

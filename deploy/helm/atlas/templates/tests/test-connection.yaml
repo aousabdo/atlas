@@ -1,0 +1,49 @@
+# `helm test <release>`: ask the Service for the health endpoint, a deep link
+# and the data bundle, from inside the cluster.
+#
+# It runs the ATLAS image itself (busybox wget is in the Alpine base), so an
+# air-gapped registry needs no second image mirrored for it, and it carries the
+# same restricted security context as the app. Its labels deliberately differ
+# from the app's selector, so the app's egress-deny policy does not apply to it.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "atlas.fullname" . }}-test
+  labels:
+    app.kubernetes.io/name: {{ include "atlas.name" . }}-test
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: chart-test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    {{- toYaml .Values.podSecurityContext | nindent 4 }}
+  containers:
+    - name: check
+      image: {{ include "atlas.image" . | quote }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          base="http://{{ include "atlas.fullname" . }}:{{ .Values.service.port }}"
+          wget -q -O - "$base/healthz" | grep -qx ok
+          wget -q -O - "$base/network?site=northgate&focus=cloud_tak_server" | grep -q '<div id="root"></div>'
+          wget -q -O - "$base/data/project.json" | grep -q '"slug"'
+          echo "ATLAS answered in-cluster: health, a deep link, and the data bundle."
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 32Mi

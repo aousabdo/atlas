@@ -214,6 +214,21 @@ on, because a fallback that loads the app at the wrong address looks fine in a s
 The standalone file gets none of this. It is opened from `file://`, so it uses hash
 routing and has no host to ask.
 
+## Runs as a container too
+
+ATLAS is headed for Ocean's Kubernetes cluster. The `Dockerfile` builds the same app with
+the invented sample bundle only, served by an unprivileged nginx with a read-only root
+filesystem, and `deploy/helm/atlas` is the chart. That host knows which paths are views,
+so a deep link gets the application with a 200 rather than Pages' 404. Nothing is pushed
+anywhere yet, and the GitHub Pages deploy above is unchanged.
+
+```bash
+scripts/kind-smoke.sh   # build the image, install the chart in a throwaway kind cluster, test it
+```
+
+See [docs/kubernetes.md](docs/kubernetes.md) for what the image does, how to deploy it,
+what the cluster needs to provide, and the open questions.
+
 ## Regenerating the data
 
 The classification logic lives in `ingest/`, a Python package lifted from the previous
