@@ -7,17 +7,19 @@ const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 /**
  * The reviews made in this tab, under the data-source strip on every view.
  *
- * Shown only while edits exist. Nothing keeps them but this tab, so the strip
- * says how many are not yet in a file and offers the export that keeps them.
- * Every export says so as well, because a reader of an exported file never
- * sees this strip.
+ * Shown while edits exist, or while the screen and the last exported file
+ * disagree: an Undo of every exported review leaves no edit, and the file
+ * still holds them. Nothing keeps the reviews but this tab, so the strip says
+ * how many are not yet in a file and offers the export that keeps them. Every
+ * export says so as well, because a reader of an exported file never sees
+ * this strip.
  */
 export function EditsBanner() {
   const { edits, unsaved, source, exportFileName, exportMap, discard, confirmDiscard } =
     useCuration()
   const [error, setError] = useState<string | null>(null)
 
-  if (edits.length === 0) {
+  if (edits.length === 0 && unsaved === 0) {
     // A failed export belongs to the edits it failed on, not to the next ones.
     if (error) setError(null)
     return null

@@ -144,14 +144,23 @@ describe('exporting the map', () => {
   })
 
   it('counts one further review as one, not as every review on screen', async () => {
-    // Review Focus 5.
+    // Review Focus 5: after an export the count is 0, the band is gone and
+    // leaving is not held; one further edit makes the count 1, not the total.
     await renderWithProvider(<Probe />, { curation: true })
-    act(() => seen.curation.apply(BEACON))
+    act(() => {
+      seen.curation.apply(BEACON)
+      seen.curation.apply(TRACKWELL)
+    })
     await act(() => seen.curation.exportMap())
+    expect(seen.curation.unsaved).toBe(0)
+    expect(getExportBand()).toBeNull()
+    expect(leavingIsHeld()).toBe(false)
+
     act(() => seen.curation.apply(SCAN))
-    expect(seen.curation.edits).toHaveLength(2)
+    expect(seen.curation.edits).toHaveLength(3)
     expect(seen.curation.unsaved).toBe(1)
     expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+    expect(leavingIsHeld()).toBe(true)
   })
 
   it('counts a review reverted after the export as unsaved', async () => {
@@ -169,14 +178,42 @@ describe('exporting the map', () => {
     expect(leavingIsHeld()).toBe(true)
   })
 
-  it('counts nothing once no edit is left, since the screen is the loaded data', async () => {
+  it('counts the Undo of the only exported review, since the file still holds it', async () => {
     await renderWithProvider(<Probe />, { curation: true })
     act(() => seen.curation.apply(BEACON))
     await act(() => seen.curation.exportMap())
     act(() => seen.curation.revert(editKey(BEACON)))
     expect(seen.curation.edits).toEqual([])
+    expect(seen.curation.unsaved).toBe(1)
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+    expect(leavingIsHeld()).toBe(true)
+
+    // Exporting the screen as it now is leaves nothing unsaved.
+    await act(() => seen.curation.exportMap())
     expect(seen.curation.unsaved).toBe(0)
     expect(getExportBand()).toBeNull()
+    expect(leavingIsHeld()).toBe(false)
+  })
+
+  it('counts nothing for an empty list with no export, since the screen is the loaded data', async () => {
+    await renderWithProvider(<Probe />, { curation: true })
+    act(() => seen.curation.apply(BEACON))
+    act(() => seen.curation.revert(editKey(BEACON)))
+    expect(seen.curation.edits).toEqual([])
+    expect(seen.curation.unsaved).toBe(0)
+    expect(getExportBand()).toBeNull()
+    expect(leavingIsHeld()).toBe(false)
+  })
+
+  it('clears an exported and undone review on discard', async () => {
+    await renderWithProvider(<Probe />, { curation: true })
+    act(() => seen.curation.apply(BEACON))
+    await act(() => seen.curation.exportMap())
+    act(() => seen.curation.revert(editKey(BEACON)))
+    act(() => seen.curation.discard())
+    expect(seen.curation.unsaved).toBe(0)
+    expect(getExportBand()).toBeNull()
+    expect(leavingIsHeld()).toBe(false)
   })
 
   it('counts a row reviewed again after the export as unsaved', async () => {
@@ -312,6 +349,22 @@ describe('switching data', () => {
     act(() => switched.useSampleData())
     act(() => seen.curation.apply(BEACON))
     expect(seen.curation.unsaved).toBe(1)
+  })
+
+  it('forgets an exported and undone review when the data changes', async () => {
+    render(
+      <AtlasProvider>
+        <SwitchProbe />
+      </AtlasProvider>,
+    )
+    act(() => seen.curation.apply(BEACON))
+    await act(() => seen.curation.exportMap())
+    act(() => seen.curation.revert(editKey(BEACON)))
+    expect(seen.curation.unsaved).toBe(1)
+    act(() => switched.useSampleData())
+    expect(seen.curation.unsaved).toBe(0)
+    expect(getExportBand()).toBeNull()
+    expect(leavingIsHeld()).toBe(false)
   })
 
   it('keeps the note when only the marking is stated, since the edits stay', async () => {

@@ -138,6 +138,22 @@ describe('EditsBanner', () => {
     )
   })
 
+  it('stays after an export and an Undo of the only review, since the file still holds it', async () => {
+    const { user } = await renderBanner()
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    await user.click(screen.getByRole('button', { name: /^export$/i }))
+    act(() => curation.revert(editKey(SAMPLE_WALK[0])))
+    expect(curation.edits).toEqual([])
+    expect(banner()).toHaveTextContent(
+      `1 unsaved review. Export ${SAMPLE_FILE} to keep it. Closing this tab discards it.`,
+    )
+
+    // Exporting again writes the file the screen shows, and the banner goes.
+    await user.click(screen.getByRole('button', { name: /^export$/i }))
+    expect(download).toHaveBeenCalledTimes(2)
+    expect(queryBanner()).toBeNull()
+  })
+
   it('goes once Discard is confirmed', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { user } = await renderBanner()

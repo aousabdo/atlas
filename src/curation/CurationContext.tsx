@@ -20,8 +20,9 @@ export interface Curation {
   edits: readonly Edit[]
   /**
    * Rows where the screen and the last exported file disagree: an edit made or
-   * changed since the export, or an exported edit since reverted. Zero with no
-   * edits at all, since the screen is then the loaded data.
+   * changed since the export, or an exported edit since reverted, even when no
+   * edit is left. Zero with no edits and no export, since the screen is then
+   * the loaded data.
    */
   unsaved: number
   /** Remembered in memory for the session only, never stored. */
@@ -73,10 +74,11 @@ const byKey = (edits: readonly Edit[]): Map<string, Edit> =>
  *
  * By object, not by content: an edit made again is a new object, so it counts
  * until it is exported, even when it says the same thing. That can only
- * overstate the count, never hide a change.
+ * overstate the count, never hide a change. An exported edit undone counts
+ * even when it was the last one: the file still holds it and the screen no
+ * longer does. With no export, an empty list counts nothing.
  */
 function unsavedIn(state: State): number {
-  if (state.edits.length === 0) return 0
   const current = byKey(state.edits)
   let n = 0
   for (const [key, edit] of current) if (state.exported.get(key) !== edit) n += 1
