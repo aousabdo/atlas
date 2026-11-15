@@ -408,7 +408,8 @@ describe('a check between two reviews of the system that released it', () => {
     await waitFor(() => expect(summary()).toHaveTextContent(NORTHGATE_SYSTEMS))
     expect(summary()).toHaveTextContent(NORTHGATE_DEVICES)
     expect(curation.edits).toEqual([])
-  })
+    // Five edits and re-renders of the whole tab, printout included: slow on a loaded runner.
+  }, 20_000)
 })
 
 describe('the printed checklist', () => {

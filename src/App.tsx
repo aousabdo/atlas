@@ -131,8 +131,10 @@ export function Shell() {
           </>
         }
       />
-      <DataSourceBanner />
-      <EditsBanner />
+      <div data-print-hide>
+        <DataSourceBanner />
+        <EditsBanner />
+      </div>
       <main
         ref={panelRef}
         /* The map and the topology are full bleed; every other view gets the usual gutter. */

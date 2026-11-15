@@ -17,6 +17,7 @@ import type {
 } from '../../types/atlas'
 import { SiteSelector } from '../network/SiteSelector'
 import { CheckForm } from './CheckForm'
+import { ChecklistPrint } from './ChecklistPrint'
 import { AssignChooser, DeviceList, type DeviceActions, type ZoneBlock } from './DeviceList'
 import { ReviewForm, type PickerZone } from './ReviewForm'
 import { SystemList, type SystemItem } from './SystemList'
@@ -110,19 +111,19 @@ export function WalkTab() {
 
   return (
     <section>
-      <h1 className="text-xl font-semibold text-ink">Site walk</h1>
-      <p className="mt-1 text-sm text-muted">
+      <h1 data-print-hide className="text-xl font-semibold text-ink">Site walk</h1>
+      <p data-print-hide className="mt-1 text-sm text-muted">
         Record what a walk of one site found, system by system and device by device. A review
         takes effect across the app as soon as it is saved.
       </p>
       {state.status === 'failed' ? (
-        <div className="mt-6">
+        <div data-print-hide className="mt-6">
           <LoadFailed resource="the site walk" message={state.error.message} onRetry={state.retry} />
         </div>
       ) : data ? (
         <Walk data={data} />
       ) : (
-        <p role="status" className="mt-6 text-sm text-muted">
+        <p role="status" data-print-hide className="mt-6 text-sm text-muted">
           Loading the site walk.
         </p>
       )}
@@ -142,7 +143,7 @@ function Walk({ data }: { data: WalkData }) {
 
   if (!siteId) {
     return (
-      <div className="mt-6">
+      <div data-print-hide className="mt-6">
         <EmptyState
           title="No site to walk"
           detail="No loaded site has both a drawing and an entry in the system to device map, so there is nothing to review."
@@ -312,47 +313,55 @@ function SiteWalk(props: {
 
   return (
     <>
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-        <SiteSelector sites={sites} activeId={siteId} onSelect={onSite} />
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded border border-line bg-surface px-3 py-2 text-sm text-ink hover:bg-surface-2"
-        >
-          Print checklist
-        </button>
-      </div>
+      <ChecklistPrint
+        siteLabel={sites.find((s) => s.id === siteId)?.label ?? siteId}
+        site={site}
+        systems={systems}
+        topology={topology}
+      />
+      <div data-print-hide>
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+          <SiteSelector sites={sites} activeId={siteId} onSelect={onSite} />
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded border border-line bg-surface px-3 py-2 text-sm text-ink hover:bg-surface-2"
+          >
+            Print checklist
+          </button>
+        </div>
 
-      {/* Two lines of disjoint buckets. A bucket never breaks across a line on a phone. */}
-      <p data-testid="walk-summary" className="mt-4 text-sm text-ink">
-        {lines.map((buckets, line) => (
-          <span key={line} className={`block ${line ? 'text-muted' : ''}`}>
-            {buckets.map((bucket, index) => (
-              <span key={index}>
-                {index > 0 && ' · '}
-                <span className="whitespace-nowrap">{bucket}</span>
-              </span>
-            ))}
-          </span>
-        ))}
-      </p>
-      <ShortfallNote names={view.shortfalls} className="mt-1" />
+        {/* Two lines of disjoint buckets. A bucket never breaks across a line on a phone. */}
+        <p data-testid="walk-summary" className="mt-4 text-sm text-ink">
+          {lines.map((buckets, line) => (
+            <span key={line} className={`block ${line ? 'text-muted' : ''}`}>
+              {buckets.map((bucket, index) => (
+                <span key={index}>
+                  {index > 0 && ' · '}
+                  <span className="whitespace-nowrap">{bucket}</span>
+                </span>
+              ))}
+            </span>
+          ))}
+        </p>
+        <ShortfallNote names={view.shortfalls} className="mt-1" />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <SystemList
-          items={view.items}
-          labelOf={view.labelOf}
-          isEdited={(id) => editKeys.has(reviewKey(siteId, id))}
-          openId={open?.kind === 'system' ? open.systemId : null}
-          onReview={(systemId) => toggle({ kind: 'system', systemId })}
-          onUndo={(id) => {
-            const key = reviewKey(siteId, id)
-            onRow(key, () => revert(key))
-          }}
-          errorFor={(id) => (failed?.key === reviewKey(siteId, id) ? failed.message : null)}
-          form={(item) => reviewForm(item)}
-        />
-        <DeviceList zones={view.zones} actions={actions} />
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <SystemList
+            items={view.items}
+            labelOf={view.labelOf}
+            isEdited={(id) => editKeys.has(reviewKey(siteId, id))}
+            openId={open?.kind === 'system' ? open.systemId : null}
+            onReview={(systemId) => toggle({ kind: 'system', systemId })}
+            onUndo={(id) => {
+              const key = reviewKey(siteId, id)
+              onRow(key, () => revert(key))
+            }}
+            errorFor={(id) => (failed?.key === reviewKey(siteId, id) ? failed.message : null)}
+            form={(item) => reviewForm(item)}
+          />
+          <DeviceList zones={view.zones} actions={actions} />
+        </div>
       </div>
     </>
   )
