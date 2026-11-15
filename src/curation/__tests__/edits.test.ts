@@ -133,6 +133,24 @@ describe('applyEdit on devices', () => {
     expect(next.sites.s.mappings.alpha).toMatchObject({ extra_key: 'keep', note: 'seen', ...STAMP })
   })
 
+  it('leaves a hand-kept list that disagrees with its mappings as the analyst wrote it', () => {
+    // d1 is mapped and still listed: the file disagrees with itself before any edit.
+    const start = matrix({
+      mappings: { alpha: mapping(['d1']) },
+      unclaimed_devices: { infrastructure: ['d1', 'd3'] },
+    })
+    const unrelated = applyEdit(start, review('beta', { status: 'absent', reason: 'Not here', ...STAMP }), SYSTEMS)
+    expect(unrelated.sites.s.unclaimed_devices.infrastructure).toEqual(['d1', 'd3'])
+    const elsewhere = applyEdit(start, found('gamma', ['d2']), SYSTEMS)
+    expect(elsewhere.sites.s.unclaimed_devices.infrastructure).toEqual(['d1', 'd3'])
+    // A second mapping on d1 is not its first, so the list keeps it too.
+    const shared = applyEdit(start, found('beta', ['d1']), SYSTEMS)
+    expect(shared.sites.s.unclaimed_devices.infrastructure).toEqual(['d1', 'd3'])
+    // Its first mapping takes d3 off the list, and nothing else moves.
+    const first = applyEdit(start, found('beta', ['d3']), SYSTEMS)
+    expect(first.sites.s.unclaimed_devices.infrastructure).toEqual(['d1'])
+  })
+
   it('releases the devices of a no-hardware review and writes an empty stamped mapping', () => {
     const start = matrix({ mappings: { alpha: mapping(['d1']) } })
     const next = applyEdit(start, review('alpha', { status: 'no-hardware', confidence: 'low', note: 'none', ...STAMP }), SYSTEMS)

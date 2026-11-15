@@ -90,9 +90,14 @@ function reviewSite(site: CoverageSite, system: SystemId, review: Review): Cover
       break
   }
 
+  // The list moves only where this review moved a device: one it names for the
+  // first time leaves, one it let go of last joins. Every other entry stays as
+  // the file has it, so a hand-kept list that already disagrees with its
+  // mappings is left as the analyst wrote it (spec section 1).
   const claimed = mappedDevices(mappings)
+  const before = new Set(namedBefore)
   const released = namedBefore.filter((id) => !claimed.has(id))
-  const kept = site.unclaimed_devices.infrastructure.filter((id) => !claimed.has(id))
+  const kept = site.unclaimed_devices.infrastructure.filter((id) => before.has(id) || !claimed.has(id))
   const infrastructure = [...kept]
   for (const id of released) if (!infrastructure.includes(id)) infrastructure.push(id)
 
