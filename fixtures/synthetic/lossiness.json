@@ -438,32 +438,32 @@
       "detail": {
         "questions": [
           {
-            "question": "Does the cloud relay server also count under ucop, or strictly under eventrel?",
-            "subject": "ucop"
-          },
-          {
-            "question": "Does Jetty run on the operations fusion server, or on hardware that is not drawn yet?",
-            "subject": "jetty"
+            "question": "The matrix has no 'atak' system id. Should handhelds get a row of their own, or hang off the relay rows that issue them?",
+            "subject": "atak"
           },
           {
             "question": "Perimeter radar on the campus boundary: is there any CBP Sentinel integration?",
             "subject": "cbpsen"
           },
           {
+            "question": "Does Jetty run on the operations fusion server, or on hardware that is not drawn yet?",
+            "subject": "jetty"
+          },
+          {
             "question": "Establish which sensors sit under the ISR programme and which were added ad hoc",
             "subject": "recon"
           },
           {
-            "question": "Which of the operator laptops actually run the WinRelay desktop client?",
-            "subject": "winrel"
-          },
-          {
-            "question": "The matrix has no 'atak' system id. Should handhelds get a row of their own, or hang off the relay rows that issue them?",
-            "subject": "atak"
+            "question": "Does the cloud relay server also count under ucop, or strictly under eventrel?",
+            "subject": "ucop"
           },
           {
             "question": "Nothing is mapped at Westfield Proving Ground yet. Walk the range with the site lead and fill the site in",
             "subject": "westfield_all"
+          },
+          {
+            "question": "Which of the operator laptops actually run the WinRelay desktop client?",
+            "subject": "winrel"
           }
         ]
       },

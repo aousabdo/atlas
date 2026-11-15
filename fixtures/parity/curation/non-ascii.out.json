@@ -1,0 +1,49 @@
+{
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "現場確認 — ok",
+          "reviewed_by": "Zoë Ångström",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "not_deployed_at_site": {
+        "beta": {
+          "reason": "Ölçüm yok",
+          "reviewed_by": "Zoë Ångström",
+          "reviewed_on": "2026-11-13"
+        }
+      },
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "checked": {
+          "yard_gw": {
+            "note": "現場確認 — ok",
+            "reviewed_by": "Zoë Ångström",
+            "reviewed_on": "2026-11-13"
+          }
+        },
+        "infrastructure": [
+          "yard_gw"
+        ]
+      }
+    }
+  }
+}

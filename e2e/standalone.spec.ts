@@ -44,7 +44,8 @@ test.describe('single-file standalone build', () => {
       page.getByRole('heading', { name: /Reference & Methodology/i }).first(),
     ).toBeVisible({ timeout: 15_000 })
 
-    for (const name of ['Analytics', 'Lossiness', 'Network Topology', 'Orientation Map']) {
+    const tabs = ['Analytics', 'Lossiness', 'Network Topology', 'Orientation Map', 'Site walk']
+    for (const name of tabs) {
       await page.getByRole('tab', { name }).click()
       await expect(page.getByRole('heading', { name }).first()).toBeVisible({
         timeout: 15_000,

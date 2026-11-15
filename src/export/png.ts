@@ -18,7 +18,7 @@ export interface PngOptions {
   background: string
   /** Elements matching this selector are omitted, e.g. the export button itself. */
   omitSelector?: string
-  /** Overrides the armed marking. Omit it and the armed one is used. */
+  /** Overrides the armed band. Omit it and the armed one is used. */
   marking?: string | null
 }
 
@@ -41,9 +41,41 @@ export function getExportMarking(): string | null {
   return armedMarking
 }
 
+/**
+ * The line that rides beside the marking while reviews made in this tab are
+ * not yet in a file.
+ *
+ * A figure that rests on edits nobody has saved must say so wherever it goes,
+ * and the edits banner sits outside the panel every export captures. So the
+ * note is held here, armed by the curation layer as it changes the edits, and
+ * stamped wherever the marking is.
+ */
+let editsNote: string | null = null
+
+export function setExportEditsNote(note: string | null): void {
+  editsNote = note && note.trim() ? note.trim() : null
+}
+
+/** The marking and the edits note, as one line: what every export stamps. */
+export function getExportBand(): string | null {
+  return [armedMarking, editsNote].filter(Boolean).join(' · ') || null
+}
+
 /** Height of one marking band, as a share of the capture width. */
 const BAND_RATIO = 0.035
 const MIN_BAND_PX = 28
+/** The marking's size when it fits, as a share of the band height. */
+const FONT_RATIO = 0.5
+/**
+ * The smallest size the marking is drawn at, in pixels.
+ *
+ * Below it a control marking stops being reliably legible. A band that still
+ * does not fit at this size wraps onto more lines, and the band grows to hold
+ * them, rather than shrinking further or losing the words that run off.
+ */
+export const MIN_MARKING_FONT_PX = 12
+/** Line spacing of a wrapped band, as a multiple of the font size. */
+const LINE_RATIO = 1.25
 
 interface Context2dLike {
   fillStyle: string
@@ -53,6 +85,7 @@ interface Context2dLike {
   fillRect: (x: number, y: number, width: number, height: number) => void
   fillText: (text: string, x: number, y: number) => void
   drawImage: (image: never, x: number, y: number) => void
+  measureText: (text: string) => { width: number }
 }
 
 export interface CanvasLike {
@@ -68,6 +101,64 @@ function blankCanvas(width: number, height: number): CanvasLike {
   return canvas as unknown as CanvasLike
 }
 
+const markingFont = (px: number) => `bold ${px}px sans-serif`
+
+/** Greedy by words; a word wider than a line on its own is broken where it must be. */
+function wrapToFit(text: string, fits: (line: string) => boolean): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(' ')) {
+    const joined = line ? `${line} ${word}` : word
+    if (fits(joined)) {
+      line = joined
+      continue
+    }
+    if (line) lines.push(line)
+    let rest = word
+    while (rest.length > 1 && !fits(rest)) {
+      let cut = rest.length - 1
+      while (cut > 1 && !fits(rest.slice(0, cut))) cut -= 1
+      lines.push(rest.slice(0, cut))
+      rest = rest.slice(cut)
+    }
+    line = rest
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+interface BandLayout {
+  /** Height of each of the two bands. */
+  height: number
+  font: number
+  lines: string[]
+  lineHeight: number
+}
+
+/**
+ * The largest size, down to the floor, at which the band text fits between
+ * the side padding on one line. Past the floor it wraps instead.
+ */
+function layoutBand(context: Context2dLike, text: string, width: number): BandLayout {
+  const band = Math.max(MIN_BAND_PX, Math.round(width * BAND_RATIO))
+  const padding = Math.round(band / 2)
+  const room = Math.max(1, width - padding * 2)
+  const widthAt = (line: string, px: number) => {
+    context.font = markingFont(px)
+    return context.measureText(line).width
+  }
+
+  let font = Math.round(band * FONT_RATIO)
+  const natural = widthAt(text, font)
+  if (natural > room) font = Math.max(MIN_MARKING_FONT_PX, Math.floor((font * room) / natural))
+  while (font > MIN_MARKING_FONT_PX && widthAt(text, font) > room) font -= 1
+  const lineHeight = Math.ceil(font * LINE_RATIO)
+  if (widthAt(text, font) <= room) return { height: band, font, lines: [text], lineHeight }
+
+  const lines = wrapToFit(text, (line) => widthAt(line, font) <= room)
+  return { height: Math.max(band, lines.length * lineHeight + padding), font, lines, lineHeight }
+}
+
 /**
  * Burns the marking into the image itself, above and below the capture.
  *
@@ -75,6 +166,9 @@ function blankCanvas(width: number, height: number): CanvasLike {
  * stripped by every paste into a document and a marking that survives being
  * pasted is the only kind worth having. Two bands so a crop of either half
  * still carries it.
+ *
+ * Fitted to the capture's width, never clipped: a long band on a narrow
+ * capture is drawn smaller, and past MIN_MARKING_FONT_PX on more lines.
  *
  * The blank-canvas factory is a parameter so the geometry can be tested
  * without a canvas implementation; jsdom has none.
@@ -86,10 +180,15 @@ export function stampMarking<T extends CanvasLike>(
   blank: (width: number, height: number) => T = blankCanvas as (w: number, h: number) => T,
 ): T {
   if (!marking) return capture
-  const band = Math.max(MIN_BAND_PX, Math.round(capture.width * BAND_RATIO))
-  const stamped = blank(capture.width, capture.height + band * 2)
+  const stamped = blank(capture.width, capture.height)
   const context = stamped.getContext('2d')
   if (!context) return capture
+
+  const layout = layoutBand(context, marking, capture.width)
+  const band = layout.height
+  // Sized once the band is known. Resizing a canvas clears it, and nothing is
+  // drawn on it yet.
+  stamped.height = capture.height + band * 2
 
   context.fillStyle = background
   context.fillRect(0, 0, stamped.width, stamped.height)
@@ -99,11 +198,15 @@ export function stampMarking<T extends CanvasLike>(
   context.fillRect(0, 0, stamped.width, band)
   context.fillRect(0, stamped.height - band, stamped.width, band)
   context.fillStyle = '#b3341f'
-  context.font = `bold ${Math.round(band * 0.5)}px sans-serif`
+  context.font = markingFont(layout.font)
   context.textAlign = 'center'
   context.textBaseline = 'middle'
-  context.fillText(marking, stamped.width / 2, band / 2)
-  context.fillText(marking, stamped.width / 2, stamped.height - band / 2)
+  const first = (band - layout.lines.length * layout.lineHeight) / 2 + layout.lineHeight / 2
+  layout.lines.forEach((line, index) => {
+    const y = first + index * layout.lineHeight
+    context.fillText(line, stamped.width / 2, y)
+    context.fillText(line, stamped.width / 2, stamped.height - band + y)
+  })
   return stamped
 }
 
@@ -120,7 +223,7 @@ export async function elementToPngBlob(
       ? (el) => el.matches?.(options.omitSelector as string) ?? false
       : undefined,
   })
-  const marking = options.marking === undefined ? armedMarking : options.marking
+  const marking = options.marking === undefined ? getExportBand() : options.marking
   const canvas = stampMarking(
     captured as unknown as CanvasLike, marking, options.background,
   ) as unknown as HTMLCanvasElement

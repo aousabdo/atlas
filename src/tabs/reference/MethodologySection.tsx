@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { CHECKLIST_RULE } from '../../curation/walk'
 import { EmptyState } from '../../components/EmptyState'
 import type { Glossary, Methodology } from '../../types/atlas'
 
@@ -166,6 +167,10 @@ export function MethodologySection({
           any weighting of these facts would be a judgement presented as a finding; the
           table sorts by one fact at a time and keeps the listed order for ties.
         </p>
+      </Block>
+
+      <Block title="Printed site walk checklist">
+        <p>{CHECKLIST_RULE}</p>
       </Block>
 
       <Block title="What rests on a device">

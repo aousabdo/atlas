@@ -1,12 +1,20 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 
 import App from '../../App'
-import { UNMARKED_NOTICE } from '../../data/ProviderContext'
-import { getExportMarking } from '../../export/png'
+import { useCuration, type Curation } from '../../curation/CurationContext'
+import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
+import { AtlasProvider, UNMARKED_NOTICE } from '../../data/ProviderContext'
+import {
+  getExportBand, getExportMarking, setExportEditsNote, setExportMarking,
+} from '../../export/png'
+import { settleCuration } from '../../test/renderWithProvider'
+import { serveBundles } from '../../test/serveBundles'
+import { DataSourceBanner } from '../DataSourceBanner'
+import { LoadDataPanel } from '../LoadDataPanel'
 
 /**
  * A workbook built here rather than read from anywhere.
@@ -980,6 +988,7 @@ describe('the marking reaches the exports', () => {
       fillRect: () => calls.push('fillRect'),
       fillText: (text: string) => calls.push(`fillText:${text}`),
       drawImage: (_img: unknown, x: number, y: number) => calls.push(`drawImage:${x},${y}`),
+      measureText: (text: string) => ({ width: text.length * 8 }),
     }
     const capture = { width: 400, height: 300, getContext: () => context }
     const blank = (width: number, height: number) => ({
@@ -1008,6 +1017,8 @@ describe('the marking reaches the exports', () => {
       setFontSize: vi.fn(),
       setTextColor: vi.fn(),
       text,
+      // A marking this short fits one line, as jsPDF would split it.
+      splitTextToSize: (marking: string) => [marking],
       internal: { pageSize: { getWidth: () => 612, getHeight: () => 792 } },
     }
     stampPdfMarking(doc, 'TEST//SYNTHETIC')
@@ -1038,5 +1049,170 @@ describe('the marking reaches the exports', () => {
     } finally {
       setExportMarking(null)
     }
+  })
+})
+
+describe('unsaved reviews are not lost to a data switch', () => {
+  let curation: Curation
+
+  function Probe() {
+    curation = useCuration()
+    return null
+  }
+
+  /**
+   * The app's own provider stack with a window onto the curation layer. The
+   * Site walk tab is what makes reviews in the app; this stands in for it.
+   */
+  function renderWithReviews() {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AtlasProvider>
+          <LoadDataPanel />
+          <DataSourceBanner />
+          <Probe />
+        </AtlasProvider>
+      </MemoryRouter>,
+    )
+    return { user }
+  }
+
+  async function chooseFiles(user: ReturnType<typeof userEvent.setup>) {
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
+    await user.upload(within(dialog).getByLabelText(/site topology files/i), topologyFile())
+    return dialog
+  }
+
+  // The register is module state, and a load in an earlier test arms it.
+  // The reviews are made on the sample, which the curation layer must read
+  // before it takes one, and the file's afterEach unstubbed the fetch that
+  // serves it.
+  beforeEach(() => {
+    serveBundles()
+    setExportMarking(null)
+    setExportEditsNote(null)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    setExportMarking(null)
+    setExportEditsNote(null)
+  })
+
+  it('says where the edited map comes from', async () => {
+    const { user } = renderApp()
+    const dialog = await openPanel(user)
+    expect(dialog).toHaveTextContent(
+      'To keep reviews made in Site walk, use Export in the unsaved-reviews banner.',
+    )
+  })
+
+  it('loads without asking when no review is unsaved', async () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    const { user } = renderWithReviews()
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    await within(banner()).findByText('TEST//SYNTHETIC')
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('changes nothing when Load is cancelled at the discard prompt', async () => {
+    // Review Focus 4: the edits stay and the data stays.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { user } = renderWithReviews()
+    await settleCuration(curation.base)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(curation.edits).toHaveLength(1)
+    expect(banner()).toHaveTextContent(/sample data/i)
+    expect(screen.getByRole('dialog', { name: /load your own data/i })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: /^load$/i })).toBeEnabled()
+  })
+
+  it('loads, without the reviews, once the discard is confirmed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderWithReviews()
+    await settleCuration(curation.base)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await chooseFiles(user)
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    await within(banner()).findByText('TEST//SYNTHETIC')
+    expect(curation.edits).toEqual([])
+  })
+
+  it('keeps the reviews, and the data, when a confirmed load then fails its gates', async () => {
+    // A map naming a system the workbook does not carry: the cross-file gate
+    // refuses the whole load after the reviewer has already said yes.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderWithReviews()
+    await settleCuration(curation.base)
+    act(() => curation.apply(SAMPLE_WALK[0]))
+    const dialog = await openPanel(user)
+    await user.upload(within(dialog).getByLabelText(/traceability matrix file/i), fixtureMatrix())
+    const map = {
+      default_site: 'harbor_point',
+      sites: {
+        harbor_point: {
+          label: 'Harbor Point',
+          scope: 'Fixture scope',
+          mappings: { fixture_widget_absent: { devices: [], note: 'Fixture', confidence: 'high' } },
+          not_deployed_at_site: {},
+          unclaimed_devices: { infrastructure: [] },
+        },
+      },
+      pending_review: {},
+    }
+    await user.upload(
+      within(dialog).getByLabelText(/system to device map file/i),
+      new File([JSON.stringify(map)], 'system_device_map.json', { type: 'application/json' }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      /cross-file integrity failure/i,
+    )
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(curation.edits).toEqual([SAMPLE_WALK[0]])
+    expect(curation.unsaved).toBe(1)
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
+    expect(banner()).toHaveTextContent(/sample data/i)
+  })
+
+  it('keeps the loaded data and the reviews when Return to sample data is cancelled', async () => {
+    const { user } = renderWithReviews()
+    const dialog = await chooseFiles(user)
+    // A map, so the loaded data has a site a review can be made at. The
+    // curation layer refuses a review of a site the data does not have.
+    await user.upload(within(dialog).getByLabelText(/system to device map file/i), deviceMapFile())
+    await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
+    await within(banner()).findByText('TEST//SYNTHETIC')
+    await settleCuration(curation.base)
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    act(() =>
+      curation.apply({
+        kind: 'review', site: 'harbor_point', system: 'fixture_widget_two',
+        review: {
+          status: 'absent', reason: 'Not fielded here',
+          reviewed_by: 'Site lead', reviewed_on: '2026-11-13',
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
+    expect(banner()).toHaveTextContent('fixture-matrix.xlsx')
+    expect(curation.edits).toHaveLength(1)
+
+    confirm.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: /return to sample/i }))
+    expect(banner()).toHaveTextContent(/sample data/i)
+    expect(curation.edits).toEqual([])
   })
 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { useCuration } from '../curation/CurationContext'
 import { UNMARKED_NOTICE, useProviderSwitch } from '../data/ProviderContext'
 
 /**
@@ -26,6 +27,7 @@ const EXAMPLE_MARKING = 'UNCLASSIFIED//SAMPLE'
  */
 export function DataSourceBanner() {
   const { source, useSampleData, stateMarking } = useProviderSwitch()
+  const { confirmDiscard } = useCuration()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
 
@@ -125,9 +127,16 @@ export function DataSourceBanner() {
             : 'Marking stated by the analyst. The loaded files state none.'}
         </span>
       )}
+      {/*
+        Asked first, before anything moves: a reviewer who cancels the prompt
+        keeps the reviews and the data both. On yes, the reviews go with the
+        data they were made on, when the sample replaces it.
+      */}
       <button
         type="button"
-        onClick={useSampleData}
+        onClick={() => {
+          if (confirmDiscard()) useSampleData()
+        }}
         className="ml-auto rounded border border-line bg-surface px-2 py-0.5 text-xs text-muted hover:text-ink"
       >
         Return to sample data

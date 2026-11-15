@@ -7,15 +7,17 @@
  */
 import { jsPDF } from 'jspdf'
 
-import { elementToPngBlob, getExportMarking } from './png'
+import { elementToPngBlob, getExportBand } from './png'
 
 const MARGIN_PT = 36
 const MARKING_PT = 9
+/** jsPDF's own line height for a font size, so a wrapped band reads as one block. */
+const LINE_HEIGHT = 1.15
 
 export interface PdfOptions {
   background: string
   omitSelector?: string
-  /** Overrides the armed marking. Omit it and the armed one is used. */
+  /** Overrides the armed band. Omit it and the armed one is used. */
   marking?: string | null
 }
 
@@ -24,6 +26,7 @@ export interface MarkableDoc {
   setFontSize: (size: number) => void
   setTextColor: (color: string) => void
   text: (text: string, x: number, y: number, options?: { align?: string }) => void
+  splitTextToSize: (text: string, maxWidth: number) => string[]
   internal: { pageSize: { getWidth: () => number; getHeight: () => number } }
 }
 
@@ -32,6 +35,11 @@ export interface MarkableDoc {
  *
  * Called after the image is placed, because the sliced capture overruns the
  * bottom margin on every page but the last and would otherwise cover it.
+ *
+ * Never clipped (R12, as the PNG band): a band wider than the page between its
+ * margins wraps, the top block reading down from where one line has always
+ * sat and the bottom block up to it. A band that fits is one line, drawn
+ * exactly where it always was.
  */
 export function stampPdfMarking(doc: MarkableDoc, marking: string | null): void {
   if (!marking) return
@@ -39,8 +47,16 @@ export function stampPdfMarking(doc: MarkableDoc, marking: string | null): void 
   const height = doc.internal.pageSize.getHeight()
   doc.setFontSize(MARKING_PT)
   doc.setTextColor('#b3341f')
-  doc.text(marking, width / 2, MARKING_PT * 2, { align: 'center' })
-  doc.text(marking, width / 2, height - MARKING_PT, { align: 'center' })
+  const lines = doc.splitTextToSize(marking, width - MARGIN_PT * 2)
+  const step = MARKING_PT * LINE_HEIGHT
+  const top = MARKING_PT * 2
+  const bottom = height - MARKING_PT - (lines.length - 1) * step
+  lines.forEach((line, index) => {
+    doc.text(line, width / 2, top + index * step, { align: 'center' })
+  })
+  lines.forEach((line, index) => {
+    doc.text(line, width / 2, bottom + index * step, { align: 'center' })
+  })
 }
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
@@ -61,7 +77,7 @@ export async function elementToPdf(
   // burnt into the raster would appear once, in the middle of page two.
   const blob = await elementToPngBlob(element, { ...options, marking: null })
   const dataUrl = await blobToDataUrl(blob)
-  const marking = options.marking === undefined ? getExportMarking() : options.marking
+  const marking = options.marking === undefined ? getExportBand() : options.marking
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()

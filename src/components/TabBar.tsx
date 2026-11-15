@@ -10,6 +10,7 @@ export const TABS = [
   { path: '/lossiness', label: 'Lossiness' },
   { path: '/network', label: 'Network Topology' },
   { path: '/map', label: 'Orientation Map' },
+  { path: '/walk', label: 'Site walk' },
 ] as const
 
 export function TabBar({ actions }: { actions?: React.ReactNode }) {

@@ -69,6 +69,56 @@ for (const theme of THEMES) {
   })
 }
 
+// The Site walk prints a checklist that is hidden on screen, under a print
+// sheet nothing else in the app has. Whether the header, the banners and the
+// forms stay off the paper, and whether what is left is black on white, is a
+// question only print media can answer.
+test('walk renders for print', async ({ page }) => {
+  const walk = TABS.find((tab) => tab.name === 'walk')!
+  // The checklist prints the day it was printed, so the clock is pinned to
+  // keep that line from changing the baseline every midnight.
+  await page.clock.setFixedTime(new Date('2026-11-14T12:00:00Z'))
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto(walk.path)
+  // Settled on screen first: the heading and the summary it waits on are
+  // exactly what print media hides.
+  await settle(page, walk)
+
+  await page.emulateMedia({ media: 'print', colorScheme: 'light' })
+  await expect(page.getByTestId('checklist-print')).toBeVisible()
+  await expect(page.locator('header')).toBeHidden()
+  await expect(page.getByTestId('walk-summary')).toBeHidden()
+
+  await expect(page).toHaveScreenshot('walk-print.png', {
+    fullPage: true,
+    mask: [page.locator('[data-volatile]')],
+    maskColor: await maskColor(page),
+  })
+})
+
+// That print sheet belongs to the checklist alone. Every other view prints as
+// it did before the Site walk existed, so the strip that carries the marking
+// reaches the paper, and so do the page chrome and the Reference title. The
+// walk is visited first: leaving it must take its print sheet away with it.
+test('every other view still prints the data-source strip', async ({ page }) => {
+  const walk = TABS.find((tab) => tab.name === 'walk')!
+  const lossiness = TABS.find((tab) => tab.name === 'lossiness')!
+  const reference = TABS.find((tab) => tab.name === 'reference')!
+  await page.goto(walk.path)
+  await settle(page, walk)
+  await page.getByRole('tab', { name: 'Lossiness' }).click()
+  await settle(page, lossiness)
+
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.getByRole('status', { name: 'Data source' })).toBeVisible()
+  await expect(page.locator('header').first()).toBeVisible()
+
+  await page.getByRole('tab', { name: 'Reference' }).click()
+  await settle(page, reference)
+  await expect(page.getByRole('status', { name: 'Data source' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: reference.heading }).first()).toBeVisible()
+})
+
 test('the two themes are actually different', async ({ page }) => {
   const bg = async (theme: 'dark' | 'light') => {
     await page.addInitScript((t) => {

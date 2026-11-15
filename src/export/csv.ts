@@ -5,7 +5,7 @@
  * formula, which turns an exported note into code execution on the machine of
  * whoever opens it. Every value is checked, not just the ones that look risky.
  */
-import { getExportMarking } from './png'
+import { getExportBand } from './png'
 
 const FORMULA_PREFIXES = ['=', '+', '-', '@', '\t', '\r']
 
@@ -58,7 +58,7 @@ export function markedCsv(
   rows: Array<Record<string, unknown>>,
   columns?: string[],
 ): string {
-  return toCsv(rows, columns, { marking: getExportMarking() })
+  return toCsv(rows, columns, { marking: getExportBand() })
 }
 
 /**
@@ -70,7 +70,7 @@ export function markedCsv(
  * alone rather than banded twice.
  */
 export function downloadCsv(filename: string, csv: string): void {
-  const marking = getExportMarking()?.trim()
+  const marking = getExportBand()?.trim()
   const band = marking ? `"${marking.replace(/"/g, '""')}"` : ''
   const text =
     band && !csv.startsWith(`${band}\n`) ? [band, csv, band].join('\n') : csv

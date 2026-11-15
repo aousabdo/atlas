@@ -7,7 +7,8 @@ import pytest
 
 from atlas_ingest.curation import mapping_confidence_counts, matrix_id_set
 from atlas_ingest.lossiness import (
-    _pct, composite_index, compute_lossiness, count_severity, severity_for, top_gaps,
+    _open_questions, _pct, composite_index, compute_lossiness, count_severity,
+    severity_for, top_gaps,
 )
 
 @pytest.fixture(scope="module")
@@ -398,3 +399,9 @@ def test_the_sample_realization_rests_on_five_verified_systems(report):
     assert {k: len(v) for k, v in by.items()} == {
         "high": 5, "medium": 3, "low": 2, "unspecified": 0,
     }
+
+
+def test_open_questions_are_sorted_by_subject():
+    sdmap = {"sites": {}, "pending_review": {"zeta": "z?", "alpha": "a?", "Mid": "m?"}}
+    dim = _open_questions(sdmap)
+    assert [q["subject"] for q in dim["detail"]["questions"]] == ["Mid", "alpha", "zeta"]

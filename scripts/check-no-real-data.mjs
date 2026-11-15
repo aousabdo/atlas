@@ -1089,14 +1089,15 @@ export function scanPath(path, matchers) {
  * that matters, because the risk is a workbook or an export arriving in a
  * commit and nobody noticing.
  *
- * The baseline pattern enumerates the five views and the two themes rather than
- * allowing the directory wholesale, so a new rendering environment brings the
- * same ten known images and anything else, an extra screenshot, a stray export,
- * a font, fails. Whoever refreshes these is responsible for the bundle they
- * were rendered from being the synthetic one; see e2e/README.md.
+ * The baseline pattern enumerates the views and the two themes rather than
+ * allowing the directory wholesale, plus the Site walk's one print shot, so a
+ * new rendering environment brings the same known images (e2e/shots.ts lists
+ * them) and anything else, an extra screenshot, a stray export, a font, fails.
+ * Whoever refreshes these is responsible for the bundle they were rendered
+ * from being the synthetic one; see e2e/README.md.
  */
 export const EXPECTED_BINARIES = [
-  /^e2e\/__screenshots__\/[a-z0-9][a-z0-9.-]*\/(analytics|lossiness|map|network|network-risk|reference)-(light|dark)\.png$/,
+  /^e2e\/__screenshots__\/[a-z0-9][a-z0-9.-]*\/((analytics|lossiness|map|network|network-risk|reference|walk)-(light|dark)|walk-print)\.png$/,
 ]
 
 function isBinary(buffer) {

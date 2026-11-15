@@ -57,8 +57,13 @@ export function ExportMenu({
 
   return (
     <div data-export-omit className="flex items-center gap-1">
+      {/*
+        data-export-png is what the E key presses. A hook of its own, because
+        other chrome carries data-export-omit and an Export button too.
+      */}
       <button
         type="button"
+        data-export-png
         onClick={() => run('png')}
         disabled={busy !== null}
         title="Save this view as a PNG (E)"

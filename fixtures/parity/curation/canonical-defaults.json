@@ -1,0 +1,128 @@
+{
+  "name": "canonical-defaults",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": null,
+    "confidence_counts": {
+      "high": 9,
+      "total": 9
+    },
+    "sites": {
+      "yard": {
+        "label": null,
+        "mappings": {
+          "alpha": {
+            "devices": [
+              "yard_cam"
+            ],
+            "note": "Camera mast by the gate",
+            "confidence": "high"
+          },
+          "beta": {
+            "note": "Hardware not found yet",
+            "confidence": "low"
+          },
+          "gamma": {
+            "devices": null,
+            "note": "Hardware not found yet either"
+          }
+        },
+        "decision_roots": {
+          "devices": [
+            "yard_gw"
+          ],
+          "note": "Site lead: the range is run from the gateway cabinet"
+        },
+        "confidence_counts": {
+          "high": 1,
+          "total": 1
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": null,
+        "mappings": null,
+        "not_deployed_at_site": null,
+        "not_deployed_at_northgate": {
+          "epsilon": "Checked: no epsilon in the annex"
+        },
+        "unclaimed_devices": null
+      }
+    },
+    "pending_review": null
+  },
+  "expect": {
+    "failures": [],
+    "realization": {
+      "numerator": 1,
+      "per_site": {
+        "yard": {
+          "mapped_ids": [
+            "alpha"
+          ],
+          "checked_absent": []
+        },
+        "annex": {
+          "mapped_ids": [],
+          "checked_absent": [
+            "epsilon"
+          ]
+        }
+      },
+      "by_confidence": {
+        "high": [
+          "alpha"
+        ],
+        "medium": [],
+        "low": [],
+        "unspecified": []
+      }
+    }
+  }
+}

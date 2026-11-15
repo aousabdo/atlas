@@ -147,15 +147,16 @@ describe('command palette', () => {
     await waitFor(() => expect(box()).toHaveFocus())
   })
 
-  it('offers the five views before anything is typed', async () => {
+  it('offers the six views before anything is typed', async () => {
     renderPalette()
-    await waitFor(() => expect(options()).toHaveLength(5))
+    await waitFor(() => expect(options()).toHaveLength(6))
     expect(options().map((option) => option.textContent)).toEqual([
       expect.stringContaining('Reference & Methodology'),
       expect.stringContaining('Analytics'),
       expect.stringContaining('Lossiness'),
       expect.stringContaining('Network Topology'),
       expect.stringContaining('Orientation Map'),
+      expect.stringContaining('Site walk'),
     ])
   })
 

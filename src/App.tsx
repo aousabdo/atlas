@@ -5,6 +5,7 @@ import { ABOUT } from './components/aboutContent'
 import { AboutDrawer } from './components/AboutDrawer'
 import { CommandPalette, useCommandPaletteKey } from './components/CommandPalette'
 import { DataSourceBanner } from './components/DataSourceBanner'
+import { EditsBanner } from './components/EditsBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ExportMenu } from './components/ExportMenu'
 import { LoadDataPanel } from './components/LoadDataPanel'
@@ -17,6 +18,7 @@ import { LossinessTab } from './tabs/lossiness/LossinessTab'
 import { MapTab } from './tabs/map/MapTab'
 import { NetworkTab } from './tabs/network/NetworkTab'
 import { ReferenceTab } from './tabs/reference/ReferenceTab'
+import { WalkTab } from './tabs/walk/WalkTab'
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
@@ -28,7 +30,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
           'Search everything: systems, devices, zones, acronyms, requirements and views',
       },
       { keys: ['?'], description: 'Show or hide this dialog' },
-      { keys: ['1', '2', '3', '4', '5'], description: 'Jump to a view' },
+      { keys: TABS.map((_, index) => String(index + 1)), description: 'Jump to a view' },
       { keys: ['E'], description: 'Save the current view as a PNG' },
       { keys: ['A'], description: 'About the current view' },
       { keys: ['Esc'], description: 'Close a dialog' },
@@ -60,7 +62,8 @@ function Tab({ label, children }: { label: string; children: React.ReactNode }) 
   return <ErrorBoundary label={label}>{children}</ErrorBoundary>
 }
 
-function Shell() {
+/** Exported so a test can mount it under a provider stack it can reach into. */
+export function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const panelRef = useRef<HTMLElement>(null)
@@ -79,9 +82,7 @@ function Shell() {
         key: 'e',
         description: 'png',
         run: () => {
-          const button = document.querySelector<HTMLButtonElement>(
-            '[data-export-omit] button',
-          )
+          const button = document.querySelector<HTMLButtonElement>('button[data-export-png]')
           button?.click()
         },
       },
@@ -130,7 +131,10 @@ function Shell() {
           </>
         }
       />
-      <DataSourceBanner />
+      <div data-print-hide>
+        <DataSourceBanner />
+        <EditsBanner />
+      </div>
       <main
         ref={panelRef}
         /* The map and the topology are full bleed; every other view gets the usual gutter. */
@@ -155,6 +159,7 @@ function Shell() {
             element={<Tab label={TABS[3].label}><NetworkTab /></Tab>}
           />
           <Route path="/map" element={<Tab label={TABS[4].label}><MapTab /></Tab>} />
+          <Route path="/walk" element={<Tab label={TABS[5].label}><WalkTab /></Tab>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

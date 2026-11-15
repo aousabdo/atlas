@@ -6,6 +6,7 @@ and owns the exit code. That split is what makes the gates unit-testable.
 Replaces build_cuas_tool_v4.py:617-720, which warned and continued. Warning and
 continuing is how stale data shipped, so every check here is an error.
 """
+import datetime
 import re
 import sys
 
@@ -15,6 +16,26 @@ from .curation import is_shortfall
 # exactly JavaScript's \s plus U+001C-001F and U+0085 (LocalFileProvider.ts).
 # str.strip() and String.trim() disagree on those, so neither is used.
 _BLANK = re.compile(r"[\s\ufeff]*")
+
+# ASCII digits only: \d also matches other scripts' digits, which JavaScript's
+# does not, so the two engines would disagree about the same text.
+_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def _is_calendar_date(value):
+    """A real calendar day written YYYY-MM-DD, year 1 or later.
+
+    Mirrors isCalendarDate in src/curation/dates.ts. datetime.date refuses year
+    0 and a day the month does not have, which the browser checks by hand.
+    """
+    if not isinstance(value, str) or not _DATE.fullmatch(value):
+        return False
+    year, month, day = (int(part) for part in value.split("-"))
+    try:
+        datetime.date(year, month, day)
+    except ValueError:
+        return False
+    return True
 
 
 def _decision_root_failures(site_id, site, device_ids):
@@ -69,6 +90,79 @@ def _decision_root_failures(site_id, site, device_ids):
     note = roots.get("note")
     if not isinstance(note, str) or _BLANK.fullmatch(note):
         fails.append(f"{where}: no note; say who chose these positions and why")
+    return fails
+
+
+def _stamp_failures(at, entry):
+    """The checks on one review stamp, wherever it is written. `at` is the
+    entry's path. A null field is the same omission as a missing one."""
+    by, on = entry.get("reviewed_by"), entry.get("reviewed_on")
+    if by is None and on is None:
+        return []
+    if by is None or on is None:
+        return [f"{at}: reviewed_by and reviewed_on go together; give both or neither"]
+    if not isinstance(by, str) or not isinstance(on, str):
+        return [f"{at}: reviewed_by and reviewed_on must be text"]
+    fails = []
+    if _BLANK.fullmatch(by):
+        fails.append(f"{at}: reviewed_by is blank; say who reviewed it")
+    if not _is_calendar_date(on):
+        fails.append(f"{at}: reviewed_on '{on}' is not a date; write it as YYYY-MM-DD")
+    return fails
+
+
+def _review_failures(site_id, site, device_ids):
+    """The gates on a site's review fields.
+
+    The stamps on mappings and on checked absences, the absence's own shape,
+    and unclaimed_devices.checked: devices someone checked and found to carry
+    no system. Mappings first, then absences, then checked devices, each in
+    file order. Only the drawing check needs the topology. Mirrored word for
+    word in crossFileFailures.
+    """
+    fails = []
+    mappings = site.get("mappings") or {}
+    for sys_id, entry in mappings.items():
+        fails.extend(_stamp_failures(
+            f"system_device_map.sites.{site_id}.mappings.{sys_id}", entry,
+        ))
+
+    for sys_id, value in (site.get("not_deployed_at_site") or {}).items():
+        at = f"system_device_map.sites.{site_id}.not_deployed_at_site.{sys_id}"
+        if isinstance(value, str):
+            continue
+        if not isinstance(value, dict):
+            fails.append(f"{at}: must be a reason, or an object with reason, reviewed_by "
+                         f"and reviewed_on")
+            continue
+        fails.extend(_stamp_failures(at, value))
+        reason = value.get("reason")
+        if not isinstance(reason, str) or _BLANK.fullmatch(reason):
+            fails.append(f"{at}: no reason; say what was checked")
+
+    checked = (site.get("unclaimed_devices") or {}).get("checked")
+    if checked is None:
+        return fails
+    where = f"system_device_map.sites.{site_id}.unclaimed_devices.checked"
+    if not isinstance(checked, dict):
+        fails.append(f"{where}: must map device ids to reviews")
+        return fails
+    for device, entry in checked.items():
+        at = f"{where}.{device}"
+        if (not isinstance(entry, dict) or entry.get("reviewed_by") is None
+                or entry.get("reviewed_on") is None):
+            fails.append(f"{at}: must be an object with reviewed_by and reviewed_on")
+        else:
+            fails.extend(_stamp_failures(at, entry))
+        # A check says the device carries no system, so a mapping naming it
+        # contradicts the check. Both are kept and both are named.
+        for sys_id, mapping in mappings.items():
+            devices = mapping.get("devices")
+            if isinstance(devices, list) and device in devices:
+                fails.append(f"{at}: mappings.{sys_id} lists this device; a device checked "
+                             f"as carrying no system takes no mapping")
+        if device_ids is not None and device not in device_ids:
+            fails.append(f"{where}: device '{device}' is not in the {site_id} topology")
     return fails
 
 
@@ -147,6 +241,8 @@ def validate(systems, links, sdmap, networks, crosswalk, glossary, desired=None)
                         f"system_device_map.sites.{site_id}.unclaimed_devices: "
                         f"device '{device}' is not in the {site_id} topology"
                     )
+
+        fails.extend(_review_failures(site_id, site, device_ids))
 
     for link in links or []:
         for end in ("from", "to"):

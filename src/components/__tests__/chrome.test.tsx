@@ -1,10 +1,16 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import App from '../../App'
+import App, { Shell } from '../../App'
+import { useCuration, type Curation } from '../../curation/CurationContext'
+import { SAMPLE_WALK } from '../../curation/__tests__/sampleWalk'
+import { AtlasProvider } from '../../data/ProviderContext'
+import * as png from '../../export/png'
+import { settleCuration } from '../../test/renderWithProvider'
 import { ABOUT } from '../aboutContent'
+import { EditsBanner } from '../EditsBanner'
 
 function at(path: string) {
   const user = userEvent.setup()
@@ -44,6 +50,16 @@ describe('shortcuts dialog', () => {
     expect(within(dialog).getByText(/ignored while you are typing/i)).toBeInTheDocument()
   })
 
+  it('lists a number key for every view', async () => {
+    const { user } = at('/reference')
+    await user.keyboard('?')
+    const dialog = await screen.findByRole('dialog', { name: /keyboard shortcuts/i })
+    const row = within(dialog).getByText('Jump to a view').parentElement as HTMLElement
+    expect(within(row).getAllByText(/^\d$/).map((key) => key.textContent)).toEqual([
+      '1', '2', '3', '4', '5', '6',
+    ])
+  })
+
   it('does not claim the network shortcuts need focus first', async () => {
     // The tool being replaced had to say "click into the network graph first".
     // One document means that caveat is gone, and it must not be reintroduced.
@@ -65,6 +81,7 @@ describe('number keys jump between views', () => {
     ['3', 'Lossiness'],
     ['4', 'Network Topology'],
     ['5', 'Orientation Map'],
+    ['6', 'Site walk'],
   ])('%s selects its tab', async (key, label) => {
     const { user } = at('/analytics')
     await user.keyboard(key)
@@ -93,7 +110,7 @@ describe('about drawer', () => {
 
   it('has content for every view', () => {
     expect(Object.keys(ABOUT).sort()).toEqual([
-      'analytics', 'lossiness', 'map', 'network', 'reference',
+      'analytics', 'lossiness', 'map', 'network', 'reference', 'walk',
     ])
   })
 
@@ -103,6 +120,17 @@ describe('about drawer', () => {
       const prose = [content.lead, ...content.sections.map((s) => s.body)].join(' ')
       expect(prose, `${view} states a bare count`).not.toMatch(/\b\d{2,}\b/)
     }
+  })
+
+  it('says of the Site walk only what holds on the sample and on local data alike', () => {
+    const prose = [ABOUT.walk.lead, ...ABOUT.walk.sections.map((s) => s.body)].join(' ')
+    // The sample exports under the template's name, local data as
+    // system_device_map.json; the banner names whichever it is.
+    expect(prose).not.toMatch(/system_device_map\.json|atlas-sample-system-device-map\.json/)
+    expect(prose).toMatch(/Export the system to device map from the banner/)
+    // A check moves the tab's own device counts, so it changes no coverage figure only.
+    expect(prose).not.toMatch(/changes no figure/)
+    expect(prose).toMatch(/changes no coverage figure/)
   })
 })
 
@@ -126,6 +154,48 @@ describe('export menu', () => {
     at('/reference')
     const png = await screen.findByRole('button', { name: 'PNG' })
     expect(png.closest('[data-export-omit]')).not.toBeNull()
+  })
+})
+
+describe('the E key', () => {
+  it('saves the view as a PNG, not the reviews, while the reviews banner is showing', async () => {
+    // The reviews banner carries an Export button of its own, and it is
+    // chrome too. E must reach the export menu's PNG button whatever else
+    // the page holds and in whatever order, so a second banner is mounted
+    // ahead of the whole shell, where the old selector found it first.
+    const capture = vi.spyOn(png, 'elementToPngBlob').mockResolvedValue(new Blob(['png']))
+    const download = vi.spyOn(png, 'downloadBlob').mockImplementation(() => {})
+    let curation: Curation | null = null
+    function Probe() {
+      curation = useCuration()
+      return null
+    }
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/reference']}>
+        <AtlasProvider>
+          <EditsBanner />
+          <Shell />
+          <Probe />
+        </AtlasProvider>
+      </MemoryRouter>,
+    )
+    await settleCuration((curation as unknown as Curation).base)
+    act(() => (curation as unknown as Curation).apply(SAMPLE_WALK[0]))
+    for (const banner of screen.getAllByRole('status', { name: /reviews/i })) {
+      expect(banner).toHaveTextContent(/1 unsaved review/)
+    }
+
+    try {
+      await user.keyboard('e')
+      await waitFor(() => expect(download).toHaveBeenCalledTimes(1))
+      expect(capture).toHaveBeenCalledTimes(1)
+      expect(download.mock.calls[0][0]).toMatch(/^atlas-reference-\d{4}-\d{2}-\d{2}\.png$/)
+      expect((curation as unknown as Curation).unsaved).toBe(1)
+    } finally {
+      vi.restoreAllMocks()
+      png.setExportEditsNote(null)
+    }
   })
 })
 

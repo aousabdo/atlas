@@ -1,0 +1,84 @@
+{
+  "name": "gate-checked-off-drawing",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": [],
+          "checked": {
+            "yard_ghost": {
+              "reviewed_by": "Site lead",
+              "reviewed_on": "2026-11-13"
+            }
+          }
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": [],
+          "checked": {
+            "annex_ghost": {
+              "reviewed_by": "Site lead",
+              "reviewed_on": "2026-11-13"
+            }
+          }
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [
+      "system_device_map.sites.yard.unclaimed_devices.checked: device 'yard_ghost' is not in the yard topology"
+    ]
+  }
+}

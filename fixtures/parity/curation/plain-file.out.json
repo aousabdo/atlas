@@ -1,0 +1,44 @@
+{
+  "default_site": "yard",
+  "pending_review": {
+    "yard radar": "Which system does yard_radar carry?"
+  },
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "Camera mast by the gate"
+        },
+        "beta": {
+          "confidence": "medium",
+          "devices": [],
+          "note": "Hardware not yet identified"
+        }
+      },
+      "not_deployed_at_site": {
+        "gamma": "Checked with the yard lead: no gamma feed here"
+      },
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "infrastructure": [
+          "yard_gw",
+          "yard_switch"
+        ]
+      }
+    }
+  }
+}

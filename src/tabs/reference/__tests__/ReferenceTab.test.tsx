@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { CHECKLIST_RULE } from '../../../curation/walk'
 import { renderWithProvider } from '../../../test/renderWithProvider'
 import { ReferenceTab } from '../ReferenceTab'
 
@@ -11,6 +12,12 @@ async function systemsTable() {
 }
 
 describe('Reference & Methodology', () => {
+  it('states the order the printed checklist follows', async () => {
+    await renderWithProvider(<ReferenceTab />)
+    await systemsTable()
+    expect(screen.getByText(CHECKLIST_RULE)).toBeInTheDocument()
+  })
+
   it('lists all 48 acronyms', async () => {
     await renderWithProvider(<ReferenceTab />)
     const table = await screen.findByRole('table', { name: /acronyms/i })

@@ -911,6 +911,12 @@ function SiteTopology({
               const listedNotRealized = !claimed && (systemsByDevice.get(dep.deviceId) ?? []).length > 0
               return restsOnSentence(dep, namers, phrase, { claimed, listedNotRealized })
             })()}
+            check={
+              selectedDevice && site?.unclaimed_devices.checked &&
+              Object.hasOwn(site.unclaimed_devices.checked, selectedDevice.id)
+                ? site.unclaimed_devices.checked[selectedDevice.id]
+                : null
+            }
           />
         </div>
       </aside>

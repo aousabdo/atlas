@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { ProvenanceChip } from '../../components/ProvenanceChip'
-import type { Confidence, Device, DeviceEdge, System, Zone } from '../../types/atlas'
+import type { CheckedDevice, Confidence, Device, DeviceEdge, System, Zone } from '../../types/atlas'
 import { linkStyle, nodeStyle } from './NetworkLegend'
 
 export interface DeviceSystem {
@@ -29,6 +29,8 @@ export interface DeviceDetailProps {
   onSelect: (deviceId: string) => void
   /** What rests on this device on the drawing, with its root set, or null. */
   restsOn?: string | null
+  /** A reviewer checked the device and found it carries no system. */
+  check?: CheckedDevice | null
 }
 
 const CONFIDENCE_CLASS: Record<Confidence, string> = {
@@ -57,6 +59,7 @@ export function DeviceDetail({
   connections,
   onSelect,
   restsOn,
+  check,
 }: DeviceDetailProps) {
   return (
     <section
@@ -105,10 +108,17 @@ export function DeviceDetail({
             <ProvenanceChip source="manual" />
           </h3>
           {systems.length === 0 ? (
-            <p className="mt-1 text-sm text-muted">
-              {restsOn ??
-                'No system mapping recorded for this device. Infrastructure is expected to be unclaimed; anything else is a gap.'}
-            </p>
+            <>
+              <p className="mt-1 text-sm text-muted">
+                {restsOn ??
+                  'No system mapping recorded for this device. Infrastructure is expected to be unclaimed; anything else is a gap.'}
+              </p>
+              {check && (
+                <p className="mt-1 text-sm text-muted">
+                  {`Checked by ${check.reviewed_by} on ${check.reviewed_on}: carries no system.`}
+                </p>
+              )}
+            </>
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
               {systems.map((entry) => (

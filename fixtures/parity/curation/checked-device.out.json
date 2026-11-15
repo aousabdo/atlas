@@ -1,0 +1,46 @@
+{
+  "default_site": "yard",
+  "pending_review": {},
+  "sites": {
+    "annex": {
+      "label": "Annex",
+      "mappings": {},
+      "not_deployed_at_site": {},
+      "scope": "The annex building",
+      "unclaimed_devices": {
+        "infrastructure": []
+      }
+    },
+    "yard": {
+      "label": "Yard",
+      "mappings": {
+        "alpha": {
+          "confidence": "high",
+          "devices": [
+            "yard_cam"
+          ],
+          "note": "Camera mast by the gate"
+        }
+      },
+      "not_deployed_at_site": {},
+      "scope": "The equipment yard",
+      "unclaimed_devices": {
+        "checked": {
+          "yard_gw": {
+            "note": "Carrier gateway; carries no matrix system",
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-11-13"
+          },
+          "yard_switch": {
+            "reviewed_by": "Site lead",
+            "reviewed_on": "2026-11-13"
+          }
+        },
+        "infrastructure": [
+          "yard_gw",
+          "yard_switch"
+        ]
+      }
+    }
+  }
+}

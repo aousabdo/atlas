@@ -1,0 +1,105 @@
+{
+  "name": "gate-stamp-text",
+  "systems": [
+    {
+      "id": "alpha",
+      "name": "Alpha",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "beta",
+      "name": "Beta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gamma",
+      "name": "Gamma",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "delta",
+      "name": "Delta",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "epsilon",
+      "name": "Epsilon",
+      "category": "Deployed asset record"
+    },
+    {
+      "id": "gap",
+      "name": "Gap",
+      "category": "Workflow shortfall"
+    }
+  ],
+  "topology_devices": {
+    "yard": [
+      "yard_cam",
+      "yard_radar",
+      "yard_gw",
+      "yard_switch"
+    ],
+    "annex": [
+      "annex_cam",
+      "annex_radar",
+      "annex_sensor",
+      "annex_gw",
+      "annex_switch"
+    ]
+  },
+  "map": {
+    "default_site": "yard",
+    "sites": {
+      "yard": {
+        "label": "Yard",
+        "scope": "The equipment yard",
+        "mappings": {
+          "alpha": {
+            "devices": [
+              "yard_cam"
+            ],
+            "note": "Camera mast by the gate",
+            "confidence": "high",
+            "reviewed_by": 5,
+            "reviewed_on": "2026-11-13"
+          }
+        },
+        "not_deployed_at_site": {
+          "gamma": {
+            "reason": "No gamma here",
+            "reviewed_by": "Site lead",
+            "reviewed_on": 20261113
+          }
+        },
+        "unclaimed_devices": {
+          "infrastructure": [
+            "yard_gw"
+          ],
+          "checked": {
+            "yard_gw": {
+              "reviewed_by": 5,
+              "reviewed_on": "2026-11-13"
+            }
+          }
+        }
+      },
+      "annex": {
+        "label": "Annex",
+        "scope": "The annex building",
+        "mappings": {},
+        "not_deployed_at_site": {},
+        "unclaimed_devices": {
+          "infrastructure": []
+        }
+      }
+    },
+    "pending_review": {}
+  },
+  "expect": {
+    "failures": [
+      "system_device_map.sites.yard.mappings.alpha: reviewed_by and reviewed_on must be text",
+      "system_device_map.sites.yard.not_deployed_at_site.gamma: reviewed_by and reviewed_on must be text",
+      "system_device_map.sites.yard.unclaimed_devices.checked.yard_gw: reviewed_by and reviewed_on must be text"
+    ]
+  }
+}
