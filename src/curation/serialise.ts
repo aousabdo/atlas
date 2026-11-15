@@ -36,9 +36,20 @@ function write(value: unknown, indent: string): string {
 }
 
 /**
- * Keys sorted at every level, two-space indent, and a trailing newline: the
- * bytes Python's json.dumps(value, sort_keys=True, indent=2,
- * ensure_ascii=False) + "\n" writes, non-ASCII text included.
+ * Keys sorted at every level, two-space indent, and a trailing newline. For
+ * every value ATLAS's own fields can hold, these are the bytes Python's
+ * json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+ * writes, non-ASCII text included.
+ *
+ * Not for every value JSON can hold, so an analyst's own keys carried through
+ * an export can differ:
+ * - Keys are ordered by UTF-16 code unit and Python orders them by code point,
+ *   so sibling keys that mix astral characters with ones from U+E000 to U+FFFF
+ *   come out in opposite orders.
+ * - Numbers are printed as JavaScript prints them: 2.0 as 2, 1e-7 as 1e-7
+ *   (Python writes 1e-07), -0.0 as 0, and an integer above 2^53 as the double
+ *   it was rounded to when it was parsed.
+ * - A lone surrogate is written as an escape here, and raw by Python.
  */
 export function canonicalJson(value: unknown): string {
   return `${write(value, '')}\n`
