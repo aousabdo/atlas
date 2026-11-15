@@ -3,6 +3,7 @@ import { basename, join } from 'node:path'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { isCalendarDate } from '../src/curation/dates'
 import { settle } from './atlas'
 import { TABS } from './shots'
 
@@ -114,6 +115,17 @@ test('the Westfield walk survives an export and a reload', async ({ page }, test
   expect(exported.endsWith(MAP_FILE)).toBe(true)
   const map = JSON.parse(readFileSync(exported, 'utf-8'))
   expect(Object.keys(map.sites.westfield.mappings).sort()).toEqual(['beacon', 'scan', 'trackwell'])
+  // The whole record the form wrote, not just that there is one: the device,
+  // the grade, the note and the stamp, dated the day the review was saved.
+  const beacon = map.sites.westfield.mappings.beacon
+  expect(beacon).toEqual({
+    devices: ['wf_gate_sensor'],
+    confidence: 'high',
+    note: WALK[0].note,
+    reviewed_by: 'Site lead',
+    reviewed_on: expect.any(String),
+  })
+  expect(isCalendarDate(beacon.reviewed_on), `reviewed_on ${beacon.reviewed_on}`).toBe(true)
   await expect(banner).toContainText(`3 reviews exported to ${MAP_FILE}`)
 
   // 5. Load the sample templates back, with the exported map in the map slot.
