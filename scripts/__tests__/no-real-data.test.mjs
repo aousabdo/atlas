@@ -592,6 +592,31 @@ test('defect 3: the known visual baselines are accepted', () => {
   assert.equal(code, 0, out)
 })
 
+test('defect 3: the Site walk baselines, its print shot included, are accepted', () => {
+  const repo = makeRepo({
+    ...CLEAN,
+    'e2e/__screenshots__/darwin-arm64/walk-light.png': BINARY,
+    'e2e/__screenshots__/darwin-arm64/walk-dark.png': BINARY,
+    'e2e/__screenshots__/darwin-arm64/walk-print.png': BINARY,
+    'e2e/__screenshots__/linux-x64-noble-pw1.62.1/walk-print.png': BINARY,
+  })
+  const { code, out } = run(repo)
+  assert.equal(code, 0, out)
+})
+
+test('defect 3: a print shot of any other view is still a finding', () => {
+  // The walk is the one view that prints anything of its own, in one theme.
+  const repo = makeRepo({
+    ...CLEAN,
+    'e2e/__screenshots__/darwin-arm64/map-print.png': BINARY,
+    'e2e/__screenshots__/darwin-arm64/walk-print-dark.png': BINARY,
+  })
+  const { code, out } = run(repo)
+  assert.equal(code, 1, out)
+  assert.match(out, /map-print\.png:0: unexpected-binary/)
+  assert.match(out, /walk-print-dark\.png:0: unexpected-binary/)
+})
+
 test('defect 3: a new baseline for a new rendering environment is accepted', () => {
   const repo = makeRepo({
     ...CLEAN,
@@ -620,6 +645,8 @@ test('defect 3: the expected-artifacts list is asserted by value', () => {
   assert.match('e2e/__screenshots__/darwin-arm64/map-light.png', EXPECTED_BINARIES[0])
   assert.doesNotMatch('e2e/__screenshots__/darwin-arm64/map-light.jpg', EXPECTED_BINARIES[0])
   assert.doesNotMatch('src/assets/logo.png', EXPECTED_BINARIES[0])
+  assert.match('e2e/__screenshots__/darwin-arm64/walk-print.png', EXPECTED_BINARIES[0])
+  assert.doesNotMatch('e2e/__screenshots__/darwin-arm64/reference-print.png', EXPECTED_BINARIES[0])
 })
 
 // ---------------------------------------------------------------------------
