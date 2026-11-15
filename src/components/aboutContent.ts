@@ -141,12 +141,12 @@ export const ABOUT: Record<string, AboutContent> = {
       {
         heading: 'A review stays in this tab until exported',
         body:
-          'A review takes effect across the app as soon as it is saved, and nothing is written to the browser. Export system_device_map.json from the banner to keep the reviews; closing the tab discards them. Loading the exported file, or passing it to the ingest, gives the same figures.',
+          'A review takes effect across the app as soon as it is saved, and nothing is written to the browser. Export the system to device map from the banner, which names the file it writes, to keep the reviews; closing the tab discards them. Loading the exported file, or passing it to the ingest, gives the same figures.',
       },
       {
         heading: 'Devices',
         body:
-          'Devices are grouped by zone in the order the printed checklist takes them. A device no mapping names can be recorded as checked and carrying no system. That settles it on the walk and changes no figure: it is still unclaimed hardware.',
+          'Devices are grouped by zone in the order the printed checklist takes them. A device no mapping names can be recorded as checked and carrying no system. That settles it on the walk and changes no coverage figure: it is still unclaimed hardware.',
       },
     ],
   },

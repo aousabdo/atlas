@@ -15,7 +15,7 @@ export interface CheckFormProps {
 
 /**
  * A device checked and found to carry no system. It settles the device on the
- * walk and changes no figure: the device is still unclaimed hardware.
+ * walk and changes no coverage figure: the device is still unclaimed hardware.
  */
 export function CheckForm({ device, today, onSave, onCancel, ...props }: CheckFormProps) {
   const [reviewer, setReviewer] = useState(props.reviewer)

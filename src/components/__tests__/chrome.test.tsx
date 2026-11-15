@@ -121,6 +121,17 @@ describe('about drawer', () => {
       expect(prose, `${view} states a bare count`).not.toMatch(/\b\d{2,}\b/)
     }
   })
+
+  it('says of the Site walk only what holds on the sample and on local data alike', () => {
+    const prose = [ABOUT.walk.lead, ...ABOUT.walk.sections.map((s) => s.body)].join(' ')
+    // The sample exports under the template's name, local data as
+    // system_device_map.json; the banner names whichever it is.
+    expect(prose).not.toMatch(/system_device_map\.json|atlas-sample-system-device-map\.json/)
+    expect(prose).toMatch(/Export the system to device map from the banner/)
+    // A check moves the tab's own device counts, so it changes no coverage figure only.
+    expect(prose).not.toMatch(/changes no figure/)
+    expect(prose).toMatch(/changes no coverage figure/)
+  })
 })
 
 describe('export menu', () => {
