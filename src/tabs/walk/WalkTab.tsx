@@ -5,7 +5,7 @@ import { LoadFailed } from '../../components/LoadFailed'
 import { ShortfallNote } from '../../components/ShortfallNote'
 import { useCuration } from '../../curation/CurationContext'
 import { localDate } from '../../curation/dates'
-import { applyEdit, CurationError, editKey, type Edit, type Review } from '../../curation/edits'
+import { CurationError, editKey, type Edit, type Review } from '../../curation/edits'
 import {
   buildChecklist, systemStanding, walkSummary, type Checklist, type DeviceRow,
 } from '../../curation/walk'
@@ -163,7 +163,8 @@ function SiteWalk(props: {
   const { data, siteId, sites, onSite } = props
   const { edits, apply, revert, reviewer, setReviewer } = useCuration()
   const [open, setOpen] = useState<Open | null>(null)
-  const [failed, setFailed] = useState<{ deviceId: DeviceId; message: string } | null>(null)
+  /** A row action the curation layer refused, on the row it was refused for. */
+  const [failed, setFailed] = useState<{ key: string; message: string } | null>(null)
   const { systems, coverage } = data
   const site = coverage.sites[siteId]
   const topology = data.topologies[siteId]
@@ -194,20 +195,30 @@ function SiteWalk(props: {
 
   const editKeys = new Set(edits.map(editKey))
   const close = () => setOpen(null)
+  const fileChecks = loadedSite?.unclaimed_devices.checked
+  const checkedInFile = (id: DeviceId) => !!fileChecks && Object.hasOwn(fileChecks, id)
 
-  /**
-   * Writes one edit. The coverage is asked first, as the provider will ask it
-   * when it lays the edit over the data, so an edit it refuses is named in
-   * the form that made it and never reaches the other tabs.
-   */
-  const save = (edit: Edit): string | null => {
+  /** Why the curation layer refused, or null once it took the change. */
+  const attempt = (change: () => void): string | null => {
     try {
-      applyEdit(coverage, edit, systems)
-      apply(edit)
+      change()
+      return null
     } catch (error) {
       if (error instanceof CurationError) return error.message
       throw error
     }
+  }
+
+  /** A row's own action: a refusal is said on that row, and a success clears it. */
+  const onRow = (key: string, change: () => void) => {
+    const message = attempt(change)
+    setFailed(message ? { key, message } : null)
+  }
+
+  /** Writes one edit from a form. A refusal is said in the form, which stays open. */
+  const save = (edit: Edit): string | null => {
+    const message = attempt(() => apply(edit))
+    if (message) return message
     const stamp = edit.kind === 'review' ? (edit.review.status === 'clear' ? null : edit.review) : edit.check
     if (stamp) setReviewer(stamp.reviewed_by)
     setOpen(null)
@@ -269,11 +280,20 @@ function SiteWalk(props: {
     onAssign: (deviceId, systemId) => toggle({ kind: 'assign', deviceId, systemId: systemId ?? '' }),
     onCheck: (deviceId) => toggle({ kind: 'check', deviceId }),
     onClearCheck: (deviceId) => {
-      const message = save({ kind: 'check', site: siteId, device: deviceId, check: null })
-      if (message) setFailed({ deviceId, message })
+      const key = checkKey(siteId, deviceId)
+      // A check made here is cleared by dropping its edit; one the file holds
+      // takes an edit that clears it. A cleared-check edit on a device the file
+      // never checked would still stand in the way of an Undo naming it.
+      onRow(key, () =>
+        checkedInFile(deviceId)
+          ? apply({ kind: 'check', site: siteId, device: deviceId, check: null })
+          : revert(key))
     },
-    onUndo: (deviceId) => revert(checkKey(siteId, deviceId)),
-    errorFor: (id) => (failed?.deviceId === id ? failed.message : null),
+    onUndo: (deviceId) => {
+      const key = checkKey(siteId, deviceId)
+      onRow(key, () => revert(key))
+    },
+    errorFor: (id) => (failed?.key === checkKey(siteId, id) ? failed.message : null),
     form: deviceForm,
   }
 
@@ -325,7 +345,11 @@ function SiteWalk(props: {
           isEdited={(id) => editKeys.has(reviewKey(siteId, id))}
           openId={open?.kind === 'system' ? open.systemId : null}
           onReview={(systemId) => toggle({ kind: 'system', systemId })}
-          onUndo={(id) => revert(reviewKey(siteId, id))}
+          onUndo={(id) => {
+            const key = reviewKey(siteId, id)
+            onRow(key, () => revert(key))
+          }}
+          errorFor={(id) => (failed?.key === reviewKey(siteId, id) ? failed.message : null)}
           form={(item) => reviewForm(item)}
         />
         <DeviceList zones={view.zones} actions={actions} />

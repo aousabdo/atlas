@@ -344,6 +344,73 @@ describe('the devices by zone', () => {
   })
 })
 
+describe('a check between two reviews of the system that released it', () => {
+  const EFFECTOR = '2x Directional Effector (Pair)'
+  const REFUSAL =
+    `Undo would leave ${EFFECTOR} checked while a mapping names it; clear its check first.`
+  const MOVED_DEVICES =
+    '71 devices · 19 carry a recorded system · 1 checked, carrying none · 51 with no record'
+
+  async function moveBastion(user: User, grade: string) {
+    const form = await review(user, 'Bastion Effector')
+    // Ticked, and so in an open zone, only while Bastion is still on the effector.
+    const effector = within(form).queryByRole('checkbox', { name: EFFECTOR, checked: true })
+    if (effector) {
+      await user.click(effector)
+      await user.click(within(form).getByRole('button', { name: /Operations Net/ }))
+      await user.click(within(form).getByRole('checkbox', { name: 'Operator Workstation A' }))
+    }
+    await user.click(within(form).getByRole('radio', { name: grade }))
+    if (!(reviewerBox(form) as HTMLInputElement).value) await user.type(reviewerBox(form), 'Site lead')
+    await user.click(save(form))
+    await waitFor(() => expect(within(systemRow('Bastion Effector')).queryByRole('form')).toBeNull())
+  }
+
+  async function walkIt(user: User) {
+    await moveBastion(user, 'High (physically verified)')
+    const effector = deviceRow(EFFECTOR)
+    await user.click(within(effector).getByRole('button', { name: 'Checked, carries no system' }))
+    await user.click(save(within(effector).getByRole('form', { name: `Check ${EFFECTOR}` })))
+    await waitFor(() => expect(summary()).toHaveTextContent('1 checked, carrying none'))
+    await moveBastion(user, 'Medium (strong inference)')
+  }
+
+  it('takes the re-review, keeps the check, and keeps every figure on screen', async () => {
+    const { user } = await renderWalk()
+    await walkIt(user)
+    await waitFor(() =>
+      expect(within(systemRow('Bastion Effector')).getByText(
+        'Found on Operator Workstation A · Medium (strong inference)',
+      )).toBeInTheDocument(),
+    )
+    expect(summary()).toHaveTextContent('10 of 30 realized (10 when loaded)')
+    expect(summary()).toHaveTextContent(MOVED_DEVICES)
+    expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument()
+  })
+
+  it('refuses the Undo on the row, says how to unblock it, and changes nothing', async () => {
+    const { user } = await renderWalk()
+    await walkIt(user)
+    const before = summary().textContent
+    const edits = curation.edits
+
+    await user.click(within(systemRow('Bastion Effector')).getByRole('button', { name: 'Undo' }))
+    expect(within(systemRow('Bastion Effector')).getByRole('alert')).toHaveTextContent(REFUSAL)
+    expect(curation.edits).toBe(edits)
+    expect(summary().textContent).toBe(before)
+    expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument()
+
+    // Doing what it says works: clear the check, and the Undo goes through.
+    await user.click(within(deviceRow(EFFECTOR)).getByRole('button', { name: 'Clear check' }))
+    await waitFor(() => expect(summary()).toHaveTextContent('0 checked, carrying none'))
+    expect(within(systemRow('Bastion Effector')).queryByRole('alert')).not.toBeInTheDocument()
+    await user.click(within(systemRow('Bastion Effector')).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(summary()).toHaveTextContent(NORTHGATE_SYSTEMS))
+    expect(summary()).toHaveTextContent(NORTHGATE_DEVICES)
+    expect(curation.edits).toEqual([])
+  })
+})
+
 describe('the printed checklist', () => {
   it('prints from a button', async () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})

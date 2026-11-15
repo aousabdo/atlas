@@ -227,4 +227,41 @@ describe('editKey and upsertEdit', () => {
     const a2 = clear('alpha')
     expect(upsertEdit(upsertEdit([a, b], a2), found('gamma', ['d4']))).toEqual([b, a2, found('gamma', ['d4'])])
   })
+
+  it('drops the check a found review supersedes, at its own site only', () => {
+    const checkAt = (site: string, device: string, c: CheckedDevice | null = STAMP): Edit =>
+      ({ kind: 'check', site, device, check: c })
+    const before = [checkAt('s', 'd3'), checkAt('t', 'd3'), checkAt('s', 'd4'), checkAt('s', 'd5', null)]
+    const assigned = found('alpha', ['d3', 'd5'])
+    expect(upsertEdit(before, assigned)).toEqual([checkAt('t', 'd3'), checkAt('s', 'd4'), assigned])
+  })
+
+  it('keeps every check when the review names no device', () => {
+    const checked: Edit = { kind: 'check', site: 's', device: 'd3', check: STAMP }
+    const none = review('alpha', { status: 'no-hardware', confidence: 'low', note: '', ...STAMP })
+    expect(upsertEdit([checked], none)).toEqual([checked, none])
+    expect(upsertEdit([checked], clear('alpha'))).toEqual([checked, clear('alpha')])
+  })
+})
+
+describe('applyEdits replays reviews before checks', () => {
+  it('takes a check listed before the review that released its device', () => {
+    const start = matrix({ mappings: { alpha: mapping(['d1']) } })
+    const edits: Edit[] = [
+      { kind: 'check', site: 's', device: 'd1', check: STAMP },
+      found('alpha', ['d2']),
+    ]
+    const next = applyEdits(start, edits, SYSTEMS)
+    expect(next.sites.s.mappings.alpha.devices).toEqual(['d2'])
+    expect(next.sites.s.unclaimed_devices.checked).toEqual({ d1: STAMP })
+  })
+
+  it('still refuses a check on a device a review leaves named', () => {
+    const start = matrix({ mappings: { alpha: mapping(['d1']) } })
+    const edits: Edit[] = [
+      found('alpha', ['d1']),
+      { kind: 'check', site: 's', device: 'd1', check: STAMP },
+    ]
+    expect(() => applyEdits(start, edits, SYSTEMS)).toThrow(CurationError)
+  })
 })

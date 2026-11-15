@@ -1177,11 +1177,22 @@ describe('unsaved reviews are not lost to a data switch', () => {
   it('keeps the loaded data and the reviews when Return to sample data is cancelled', async () => {
     const { user } = renderWithReviews()
     const dialog = await chooseFiles(user)
+    // A map, so the loaded data has a site a review can be made at. The
+    // curation layer refuses a review of a site the data does not have.
+    await user.upload(within(dialog).getByLabelText(/system to device map file/i), deviceMapFile())
     await user.click(within(dialog).getByRole('button', { name: /^load$/i }))
     await within(banner()).findByText('TEST//SYNTHETIC')
 
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    act(() => curation.apply(SAMPLE_WALK[0]))
+    act(() =>
+      curation.apply({
+        kind: 'review', site: 'harbor_point', system: 'fixture_widget_two',
+        review: {
+          status: 'absent', reason: 'Not fielded here',
+          reviewed_by: 'Site lead', reviewed_on: '2026-11-13',
+        },
+      }),
+    )
     await user.click(screen.getByRole('button', { name: /return to sample/i }))
     expect(confirm).toHaveBeenCalledWith('Discard 1 unsaved review?')
     expect(banner()).toHaveTextContent('fixture-matrix.xlsx')

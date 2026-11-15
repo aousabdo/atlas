@@ -11,7 +11,7 @@ import { getExportBand, setExportEditsNote, setExportMarking } from '../../expor
 import { renderWithProvider } from '../../test/renderWithProvider'
 import { CuratedProvider } from '../CuratedProvider'
 import { CurationProvider, useCuration, type Curation } from '../CurationContext'
-import { editKey, type Edit } from '../edits'
+import { CurationError, editKey, type Edit } from '../edits'
 import { SAMPLE_WALK } from './sampleWalk'
 
 const [BEACON, SCAN, TRACKWELL] = SAMPLE_WALK
@@ -331,5 +331,86 @@ describe('switching data', () => {
     expect(getExportBand()).toBe(
       'TEST MARKING · Includes 1 unsaved review, not yet exported to a file',
     )
+  })
+})
+
+describe('validating every edit list', () => {
+  const STAMP = { reviewed_by: 'Site lead', reviewed_on: '2026-11-13' }
+  const EFFECTOR = 'field_house_effector'
+
+  /** Bastion moved off the effector, which releases it. */
+  const bastionOn = (confidence: 'high' | 'medium'): Edit => ({
+    kind: 'review', site: 'northgate', system: 'bastion',
+    review: { status: 'found', devices: ['ops_workstation_a'], confidence, note: 'Moved', ...STAMP },
+  })
+  const CHECK_EFFECTOR: Edit = { kind: 'check', site: 'northgate', device: EFFECTOR, check: STAMP }
+
+  /**
+   * Lets the curation layer finish reading the data it checks edits against.
+   * The provider caches every bundle, so once these resolve the layer's own
+   * reads of them can only be microtasks away, and a timer drains those.
+   */
+  async function settled(provider: AtlasDataProvider) {
+    await act(async () => {
+      const project = await provider.getProject()
+      await Promise.all([
+        provider.getCoverage(), provider.getSystems(),
+        ...project.sites.map((site) => provider.getTopology(site.id)),
+      ])
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  it('takes a re-review after a check its first review made possible', async () => {
+    const { provider } = await renderWithProvider(<Probe />, { curation: true })
+    await settled(provider)
+    act(() => seen.curation.apply(bastionOn('high')))
+    act(() => seen.curation.apply(CHECK_EFFECTOR))
+    act(() => seen.curation.apply(bastionOn('medium')))
+
+    expect(seen.curation.edits).toEqual([CHECK_EFFECTOR, bastionOn('medium')])
+    const northgate = (await seen.provider.getCoverage()).sites.northgate
+    expect(northgate.mappings.bastion).toMatchObject({ devices: ['ops_workstation_a'], confidence: 'medium' })
+    expect(northgate.unclaimed_devices.checked).toEqual({ [EFFECTOR]: STAMP })
+  })
+
+  it('refuses an Undo that would leave a checked device named, and changes nothing', async () => {
+    const { provider } = await renderWithProvider(<Probe />, { curation: true })
+    await settled(provider)
+    act(() => seen.curation.apply(bastionOn('high')))
+    act(() => seen.curation.apply(CHECK_EFFECTOR))
+    act(() => seen.curation.apply(bastionOn('medium')))
+    const before = { edits: seen.curation.edits, unsaved: seen.curation.unsaved, served: seen.provider }
+
+    let refusal: unknown = null
+    act(() => {
+      try {
+        seen.curation.revert(editKey(bastionOn('medium')))
+      } catch (error) {
+        refusal = error
+      }
+    })
+    expect(refusal).toBeInstanceOf(CurationError)
+    expect((refusal as Error).message).toBe(
+      'Undo would leave 2x Directional Effector (Pair) checked while a mapping names it; ' +
+        'clear its check first.',
+    )
+    expect(seen.curation.edits).toBe(before.edits)
+    expect(seen.curation.unsaved).toBe(before.unsaved)
+    expect(seen.provider).toBe(before.served)
+    expect(getExportBand()).toBe('Includes 2 unsaved reviews, not yet exported to a file')
+    await expect(seen.provider.getCoverage()).resolves.toBeTruthy()
+  })
+
+  it('refuses an edit the data cannot take, and changes nothing', async () => {
+    const { provider } = await renderWithProvider(<Probe />, { curation: true })
+    await settled(provider)
+    act(() => seen.curation.apply(BEACON))
+    expect(() => seen.curation.apply(CHECK_EFFECTOR)).toThrow(CurationError)
+    expect(() => seen.curation.apply(CHECK_EFFECTOR)).toThrow(
+      `${EFFECTOR} is named by a mapping, so it cannot be checked as unclaimed`,
+    )
+    expect(seen.curation.edits).toEqual([BEACON])
+    expect(getExportBand()).toBe('Includes 1 unsaved review, not yet exported to a file')
   })
 })

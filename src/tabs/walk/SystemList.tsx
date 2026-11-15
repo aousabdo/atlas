@@ -58,9 +58,10 @@ function SystemRow(props: {
   open: boolean
   onReview: () => void
   onUndo: () => void
+  error: string | null
   form: ReactNode
 }) {
-  const { item, labelOf, edited, open, onReview, onUndo, form } = props
+  const { item, labelOf, edited, open, onReview, onUndo, error, form } = props
   const nameId = useId()
   const stamp = stampOf(item.standing)
   return (
@@ -93,6 +94,11 @@ function SystemRow(props: {
           </button>
         </div>
       </div>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-risk-high-ink">
+          {error}
+        </p>
+      )}
       {open && form}
     </li>
   )
@@ -106,6 +112,8 @@ export function SystemList(props: {
   openId: SystemId | null
   onReview: (id: SystemId) => void
   onUndo: (id: SystemId) => void
+  /** Why a row action was refused, for the row it was refused on. */
+  errorFor: (id: SystemId) => string | null
   form: (item: SystemItem) => ReactNode
 }) {
   const headingId = useId()
@@ -128,6 +136,7 @@ export function SystemList(props: {
               open={open}
               onReview={() => props.onReview(id)}
               onUndo={() => props.onUndo(id)}
+              error={props.errorFor(id)}
               form={open ? props.form(item) : null}
             />
           )
